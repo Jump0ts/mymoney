@@ -41,6 +41,8 @@ jobs:
       - run: npm ci
         working-directory: .
 
+      - run: npx prisma generate
+
       - run: npx prisma migrate deploy
 
       - run: npm run lint
