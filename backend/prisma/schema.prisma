@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum UserRole {
+  OWNER
+  MEMBER
+}
+
+model Family {
+  id           String        @id @default(cuid())
+  name         String
+  createdAt    DateTime      @default(now())
+  users        User[]
+  categories   Category[]
+  transactions Transaction[]
+}
+
+model User {
+  id           String        @id @default(cuid())
+  family       Family        @relation(fields: [familyId], references: [id])
+  familyId     String
+  name         String
+  email        String        @unique
+  passwordHash String
+  role         UserRole      @default(MEMBER)
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+
+  @@index([familyId])
+}
+
+model Category {
+  id           String           @id @default(cuid())
+  family       Family           @relation(fields: [familyId], references: [id])
+  familyId     String
+  name         String
+  icon         String           @default("tag")
+  color        String           @default("#6C5CE7")
+  type         TransactionType
+  createdAt    DateTime         @default(now())
+  transactions Transaction[]
+
+  @@unique([familyId, name, type])
+  @@index([familyId])
+}
+
+model Transaction {
+  id          String           @id @default(cuid())
+  family      Family           @relation(fields: [familyId], references: [id])
+  familyId    String
+  user        User             @relation(fields: [userId], references: [id])
+  userId      String
+  category    Category         @relation(fields: [categoryId], references: [id])
+  categoryId  String
+  type        TransactionType
+  amount      Decimal          @db.Decimal(12, 2)
+  currency    String           @default("EUR")
+  description String?
+  occurredAt  DateTime
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([familyId, occurredAt])
+  @@index([familyId, categoryId])
+  @@index([familyId, type])
+}

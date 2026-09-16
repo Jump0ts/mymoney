@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, pre, "release/**", master]
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mymoney
+          POSTGRES_PASSWORD: mymoney
+          POSTGRES_DB: mymoney_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mymoney"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://mymoney:mymoney@localhost:5432/mymoney_test
+      JWT_SECRET: ci-test-secret-please-change-me
+      NODE_ENV: test
+      CORS_ORIGINS: http://localhost:8081
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - run: npm ci
+        working-directory: .
+
+      - run: npx prisma migrate deploy
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm run build
+
+      - run: npm run test
+
+      - name: Coverage summary
+        if: always()
+        run: cat coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/coverage
+
+  mobile:
+    name: App móvil (Expo)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - run: npm ci
+        working-directory: .
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm run test
+
+      - run: npx expo export --platform web
+
+      - name: Coverage summary
+        if: always()
+        run: cat coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-coverage
+          path: apps/mobile/coverage
