@@ -29,18 +29,17 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack screenOptions={{ headerShown: false }}>
-          {token ? (
+          <Stack.Protected guard={!!token}>
             <Stack.Screen name="(tabs)" />
-          ) : (
-            <>
-              <Stack.Screen name="login" />
-              <Stack.Screen name="register" />
-            </>
-          )}
-          <Stack.Screen
-            name="add-transaction"
-            options={{ presentation: 'modal', headerShown: true, title: 'Nuevo movimiento' }}
-          />
+            <Stack.Screen
+              name="add-transaction"
+              options={{ presentation: 'modal', headerShown: true, title: 'Nuevo movimiento' }}
+            />
+          </Stack.Protected>
+          <Stack.Protected guard={!token}>
+            <Stack.Screen name="login" />
+            <Stack.Screen name="register" />
+          </Stack.Protected>
         </Stack>
       </ThemeProvider>
     </QueryClientProvider>
