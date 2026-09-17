@@ -1,7 +1,7 @@
-import { ActivityIndicator, Pressable, StyleSheet, type PressableProps } from 'react-native';
+import { ActivityIndicator, Pressable, type PressableProps } from 'react-native';
 import { ThemedText } from './themed-text';
-import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { styles } from './Button.styles';
 
 interface ButtonProps extends Omit<PressableProps, 'children'> {
   label: string;
@@ -9,7 +9,7 @@ interface ButtonProps extends Omit<PressableProps, 'children'> {
   loading?: boolean;
 }
 
-export function Button({ label, variant = 'primary', loading, disabled, style, ...props }: ButtonProps) {
+export const Button = ({ label, variant = 'primary', loading, disabled, style, ...props }: ButtonProps) => {
   const theme = useTheme();
 
   const backgroundColor =
@@ -35,14 +35,4 @@ export function Button({ label, variant = 'primary', loading, disabled, style, .
       )}
     </Pressable>
   );
-}
-
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: Radius.medium,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+};

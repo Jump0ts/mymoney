@@ -1,13 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
-import { useAuthStore, type AuthUser } from '@/store/auth';
+import { useAuthStore } from './auth.store';
+import type { AuthUser } from './auth.types';
 
 interface AuthResponse {
   token: string;
   user: AuthUser;
 }
 
-export function useLogin() {
+export const useLogin = () => {
   const setSession = useAuthStore((s) => s.setSession);
 
   return useMutation({
@@ -15,9 +16,9 @@ export function useLogin() {
       apiRequest<AuthResponse>('/api/auth/login', { method: 'POST', body: input, auth: false }),
     onSuccess: (data) => setSession(data.token, data.user),
   });
-}
+};
 
-export function useRegister() {
+export const useRegister = () => {
   const setSession = useAuthStore((s) => s.setSession);
 
   return useMutation({
@@ -29,4 +30,4 @@ export function useRegister() {
       }),
     onSuccess: (data) => setSession(data.token, data.user),
   });
-}
+};

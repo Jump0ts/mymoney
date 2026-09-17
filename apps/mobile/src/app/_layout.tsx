@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { ThemedView } from '@/components/themed-view';
+import { useAuthStore } from '@/features/auth/auth.store';
 import { queryClient } from '@/lib/queryClient';
-import { useAuthStore } from '@/store/auth';
 
-export default function RootLayout() {
+const RootLayout = () => {
   const colorScheme = useColorScheme();
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const token = useAuthStore((s) => s.token);
@@ -44,4 +44,6 @@ export default function RootLayout() {
       </ThemeProvider>
     </QueryClientProvider>
   );
-}
+};
+
+export default RootLayout;

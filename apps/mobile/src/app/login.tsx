@@ -1,26 +1,36 @@
+import { yupResolver } from '@hookform/resolvers/yup';
 import { Link } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { Controller, useForm } from 'react-hook-form';
+import { KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useLogin } from '@/features/auth/useAuthApi';
+import { loginSchema, type LoginFormValues } from '@/features/auth/auth.schema';
 import { ApiError } from '@/lib/api';
-import { useLogin } from '@/hooks/useAuthApi';
+import { styles } from './login.styles';
 
-export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const LoginScreen = () => {
   const login = useLogin();
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: yupResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
+  });
 
   const errorMessage = login.isError
     ? login.error instanceof ApiError
       ? login.error.message
       : 'No se pudo conectar con el servidor'
     : null;
+
+  const onSubmit = (values: LoginFormValues) => login.mutate(values);
 
   return (
     <ThemedView style={styles.container}>
@@ -35,14 +45,44 @@ export default function LoginScreen() {
             Entra con tu cuenta
           </ThemedText>
 
-          <Input
-            placeholder="Email"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
+          <Controller
+            control={control}
+            name="email"
+            render={({ field }) => (
+              <Input
+                placeholder="Email"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
           />
-          <Input placeholder="Contraseña" secureTextEntry value={password} onChangeText={setPassword} />
+          {errors.email && (
+            <ThemedText themeColor="danger" type="small">
+              {errors.email.message}
+            </ThemedText>
+          )}
+
+          <Controller
+            control={control}
+            name="password"
+            render={({ field }) => (
+              <Input
+                placeholder="Contraseña"
+                secureTextEntry
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
+          />
+          {errors.password && (
+            <ThemedText themeColor="danger" type="small">
+              {errors.password.message}
+            </ThemedText>
+          )}
 
           {errorMessage && (
             <ThemedText themeColor="danger" type="small">
@@ -50,11 +90,7 @@ export default function LoginScreen() {
             </ThemedText>
           )}
 
-          <Button
-            label="Entrar"
-            loading={login.isPending}
-            onPress={() => login.mutate({ email, password })}
-          />
+          <Button label="Entrar" loading={login.isPending} onPress={handleSubmit(onSubmit)} />
 
           <Link href="/register" style={styles.link}>
             <ThemedText type="link" themeColor="primary">
@@ -65,13 +101,6 @@ export default function LoginScreen() {
       </SafeAreaView>
     </ThemedView>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.four },
-  form: { width: '100%', maxWidth: MaxContentWidth, gap: Spacing.three },
-  title: { fontSize: 34, lineHeight: 40 },
-  subtitle: { marginBottom: Spacing.two },
-  link: { alignSelf: 'center', marginTop: Spacing.two },
-});
+export default LoginScreen;

@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-export const categoryTypeSchema = z.enum(["INCOME", "EXPENSE"]);
+import { transactionTypeSchema } from "../transactions/transactions.schema.js";
 
 export const createCategorySchema = z.object({
   name: z.string().trim().min(1).max(40),
@@ -9,7 +8,7 @@ export const createCategorySchema = z.object({
     .string()
     .regex(/^#[0-9A-Fa-f]{6}$/, "Color debe ser un hex tipo #RRGGBB")
     .default("#6C5CE7"),
-  type: categoryTypeSchema,
+  type: transactionTypeSchema,
 });
 
 export const updateCategorySchema = createCategorySchema.partial();

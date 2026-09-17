@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { app, registerUser } from "./helpers.js";
 
-async function authedUser() {
+const authedUser = async () => {
   const { res } = await registerUser();
   return { token: res.body.token as string };
-}
+};
 
 describe("GET /api/categories", () => {
   it("lista las categorías por defecto del usuario", async () => {

@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react-native';
 import { CategoryPill } from './CategoryPill';
-import type { Category } from '@/types/api';
+import type { Category } from '@/features/categories/categories.types';
 
 const category: Category = {
   id: '1',

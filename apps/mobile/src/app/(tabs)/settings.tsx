@@ -1,14 +1,14 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { useAuthStore } from '@/store/auth';
+import { useAuthStore } from '@/features/auth/auth.store';
+import { styles } from './settings.styles';
 
-export default function SettingsScreen() {
+const SettingsScreen = () => {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
@@ -33,19 +33,6 @@ export default function SettingsScreen() {
       </SafeAreaView>
     </ThemedView>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1 },
-  content: {
-    flex: 1,
-    padding: Spacing.four,
-    gap: Spacing.four,
-    maxWidth: MaxContentWidth,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  title: { fontSize: 28, lineHeight: 34 },
-  card: { gap: Spacing.two },
-});
+export default SettingsScreen;

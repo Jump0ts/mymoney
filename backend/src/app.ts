@@ -2,9 +2,9 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { env } from "./env.js";
-import { authRouter } from "./routes/auth.routes.js";
-import { categoriesRouter } from "./routes/categories.routes.js";
-import { transactionsRouter } from "./routes/transactions.routes.js";
+import { authRouter } from "./modules/auth/auth.routes.js";
+import { categoriesRouter } from "./modules/categories/categories.routes.js";
+import { transactionsRouter } from "./modules/transactions/transactions.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 export const createApp = () => {

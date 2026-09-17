@@ -1,9 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
-import type { Summary, Transaction, TransactionFilters, TransactionsPage, TransactionType } from '@/types/api';
+import type {
+  Summary,
+  Transaction,
+  TransactionFilters,
+  TransactionsPage,
+  TransactionType,
+} from './transactions.types';
 
-export function useTransactions(filters: TransactionFilters) {
-  return useQuery({
+export const useTransactions = (filters: TransactionFilters) =>
+  useQuery({
     queryKey: ['transactions', filters],
     queryFn: () =>
       apiRequest<TransactionsPage>('/api/transactions', {
@@ -17,14 +23,12 @@ export function useTransactions(filters: TransactionFilters) {
         },
       }),
   });
-}
 
-export function useSummary(range?: { from?: string; to?: string }) {
-  return useQuery({
+export const useSummary = (range?: { from?: string; to?: string }) =>
+  useQuery({
     queryKey: ['summary', range],
     queryFn: () => apiRequest<Summary>('/api/transactions/summary', { query: range }),
   });
-}
 
 export interface TransactionInput {
   categoryId: string;
@@ -34,21 +38,21 @@ export interface TransactionInput {
   occurredAt: string;
 }
 
-function invalidateAll(queryClient: ReturnType<typeof useQueryClient>) {
+const invalidateAll = (queryClient: ReturnType<typeof useQueryClient>) => {
   queryClient.invalidateQueries({ queryKey: ['transactions'] });
   queryClient.invalidateQueries({ queryKey: ['summary'] });
-}
+};
 
-export function useCreateTransaction() {
+export const useCreateTransaction = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: TransactionInput) =>
       apiRequest<{ transaction: Transaction }>('/api/transactions', { method: 'POST', body: input }),
     onSuccess: () => invalidateAll(queryClient),
   });
-}
+};
 
-export function useUpdateTransaction() {
+export const useUpdateTransaction = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...input }: Partial<TransactionInput> & { id: string }) =>
@@ -58,12 +62,12 @@ export function useUpdateTransaction() {
       }),
     onSuccess: () => invalidateAll(queryClient),
   });
-}
+};
 
-export function useDeleteTransaction() {
+export const useDeleteTransaction = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiRequest<void>(`/api/transactions/${id}`, { method: 'DELETE' }),
     onSuccess: () => invalidateAll(queryClient),
   });
-}
+};

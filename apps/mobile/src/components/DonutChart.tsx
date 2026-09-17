@@ -1,7 +1,8 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { ThemedText } from './themed-text';
 import { useTheme } from '@/hooks/use-theme';
+import { styles } from './DonutChart.styles';
 
 export interface DonutSlice {
   label: string;
@@ -17,7 +18,13 @@ interface DonutChartProps {
   centerSubLabel?: string;
 }
 
-export function DonutChart({ data, size = 176, strokeWidth = 24, centerLabel, centerSubLabel }: DonutChartProps) {
+export const DonutChart = ({
+  data,
+  size = 176,
+  strokeWidth = 24,
+  centerLabel,
+  centerSubLabel,
+}: DonutChartProps) => {
   const theme = useTheme();
   const total = data.reduce((sum, slice) => sum + slice.value, 0);
   const radius = (size - strokeWidth) / 2;
@@ -70,15 +77,4 @@ export function DonutChart({ data, size = 176, strokeWidth = 24, centerLabel, ce
       </View>
     </View>
   );
-}
-
-const styles = StyleSheet.create({
-  wrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centerLabel: {
-    position: 'absolute',
-    alignItems: 'center',
-  },
-});
+};

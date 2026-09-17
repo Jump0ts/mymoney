@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { app, registerUser } from "./helpers.js";
 
-async function setup() {
+const setup = async () => {
   const { res } = await registerUser();
   const token = res.body.token as string;
 
@@ -13,7 +13,7 @@ async function setup() {
   const incomeCategory = categoriesRes.body.categories.find((c: { type: string }) => c.type === "INCOME");
 
   return { token, expenseCategory, incomeCategory };
-}
+};
 
 describe("POST /api/transactions", () => {
   it("crea un movimiento de gasto", async () => {

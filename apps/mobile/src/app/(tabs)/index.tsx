@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/Card';
@@ -8,13 +8,13 @@ import { DonutChart } from '@/components/DonutChart';
 import { MonthlyBarChart } from '@/components/MonthlyBarChart';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { useAuthStore } from '@/features/auth/auth.store';
+import { useSummary } from '@/features/transactions/useTransactions';
 import { useTheme } from '@/hooks/use-theme';
-import { useSummary } from '@/hooks/useTransactions';
-import { formatMoney } from '@/lib/format';
-import { useAuthStore } from '@/store/auth';
+import { formatMoney } from '@/utils/format';
+import { styles } from './index.styles';
 
-export default function DashboardScreen() {
+const DashboardScreen = () => {
   const theme = useTheme();
   const user = useAuthStore((s) => s.user);
   const { data: summary, isLoading } = useSummary();
@@ -106,35 +106,6 @@ export default function DashboardScreen() {
       </SafeAreaView>
     </ThemedView>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1 },
-  content: {
-    padding: Spacing.four,
-    gap: Spacing.four,
-    maxWidth: MaxContentWidth,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  balance: { fontSize: 32, lineHeight: 38 },
-  fab: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  totalsRow: { flexDirection: 'row', gap: Spacing.three },
-  totalCard: { flex: 1 },
-  totalAmount: { fontSize: 20, lineHeight: 26, marginTop: Spacing.one },
-  card: { gap: Spacing.three },
-  cardTitle: { marginBottom: Spacing.one },
-  donutRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
-  legend: { flex: 1, gap: Spacing.two },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendLabel: { flex: 1 },
-});
+export default DashboardScreen;

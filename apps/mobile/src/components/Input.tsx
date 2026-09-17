@@ -1,8 +1,8 @@
-import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
-import { Radius, Spacing } from '@/constants/theme';
+import { TextInput, type TextInputProps } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
+import { styles } from './Input.styles';
 
-export function Input({ style, ...props }: TextInputProps) {
+export const Input = ({ style, ...props }: TextInputProps) => {
   const theme = useTheme();
 
   return (
@@ -16,14 +16,4 @@ export function Input({ style, ...props }: TextInputProps) {
       {...props}
     />
   );
-}
-
-const styles = StyleSheet.create({
-  input: {
-    borderRadius: Radius.medium,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    fontSize: 16,
-  },
-});
+};

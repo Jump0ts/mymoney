@@ -1,15 +1,16 @@
 import { Router } from "express";
 import { Prisma } from "@prisma/client";
-import { prisma } from "../prisma.js";
-import { requireAuth } from "../middleware/auth.js";
-import { asyncHandler } from "../utils/asyncHandler.js";
-import { notFound } from "../utils/errors.js";
+import { prisma } from "../../prisma.js";
+import { requireAuth } from "../../middleware/auth.js";
+import { asyncHandler } from "../../utils/asyncHandler.js";
+import { notFound } from "../../utils/errors.js";
 import {
   createTransactionSchema,
   listTransactionsQuerySchema,
   summaryQuerySchema,
   updateTransactionSchema,
-} from "../validators/transaction.js";
+} from "./transactions.schema.js";
+import type { MonthlyBreakdownRow } from "./transactions.types.js";
 
 export const transactionsRouter = Router();
 transactionsRouter.use(requireAuth);
@@ -106,9 +107,7 @@ transactionsRouter.get(
       })
       .sort((a, b) => b.total - a.total);
 
-    const byMonth = await prisma.$queryRaw<
-      Array<{ month: Date; type: "INCOME" | "EXPENSE"; total: Prisma.Decimal }>
-    >(Prisma.sql`
+    const byMonth = await prisma.$queryRaw<MonthlyBreakdownRow[]>(Prisma.sql`
       SELECT date_trunc('month', "occurredAt") AS month, "type", SUM("amount") AS total
       FROM "Transaction"
       WHERE "userId" = ${userId}

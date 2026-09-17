@@ -1,6 +1,8 @@
+import { yupResolver } from '@hookform/resolvers/yup';
 import { Feather } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Controller, useForm } from 'react-hook-form';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -8,13 +10,115 @@ import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CategoryPalette, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { CategoryPalette } from '@/features/categories/categories.constants';
+import { createCategorySchema, type CreateCategoryFormValues } from '@/features/categories/categories.schema';
+import type { Category } from '@/features/categories/categories.types';
+import { useCategories, useCreateCategory, useDeleteCategory } from '@/features/categories/useCategories';
 import { useTheme } from '@/hooks/use-theme';
-import { useCategories, useCreateCategory, useDeleteCategory } from '@/hooks/useCategories';
 import { ApiError } from '@/lib/api';
-import type { Category, TransactionType } from '@/types/api';
+import { styles } from './categories.styles';
 
-export default function CategoriesScreen() {
+interface CategoryGroupProps {
+  title: string;
+  categories: Category[];
+  onDelete: (category: Category) => void;
+}
+
+const CategoryGroup = ({ title, categories, onDelete }: CategoryGroupProps) => {
+  if (categories.length === 0) return null;
+
+  return (
+    <View style={styles.group}>
+      <ThemedText type="smallBold" themeColor="textSecondary" style={styles.groupTitle}>
+        {title.toUpperCase()}
+      </ThemedText>
+      {categories.map((category) => (
+        <Card key={category.id} style={styles.categoryRow}>
+          <View style={[styles.dot, { backgroundColor: category.color }]} />
+          <ThemedText style={styles.categoryName}>{category.name}</ThemedText>
+          <Pressable onPress={() => onDelete(category)} hitSlop={8}>
+            <Feather name="trash-2" size={18} color="#E5484D" />
+          </Pressable>
+        </Card>
+      ))}
+    </View>
+  );
+};
+
+const NewCategoryForm = ({ onDone }: { onDone: () => void }) => {
+  const createCategory = useCreateCategory();
+  const { control, handleSubmit, watch } = useForm<CreateCategoryFormValues>({
+    resolver: yupResolver(createCategorySchema),
+    defaultValues: { name: '', type: 'EXPENSE', color: CategoryPalette[0], icon: 'tag' },
+  });
+  const selectedColor = watch('color');
+  const selectedType = watch('type');
+
+  const onSubmit = (values: CreateCategoryFormValues) => {
+    createCategory.mutate(values, {
+      onSuccess: onDone,
+      onError: (err) =>
+        Alert.alert('No se pudo crear', err instanceof ApiError ? err.message : 'Error inesperado'),
+    });
+  };
+
+  return (
+    <Card style={styles.form}>
+      <Controller
+        control={control}
+        name="name"
+        render={({ field }) => (
+          <Input
+            placeholder="Nombre de la categoría"
+            value={field.value}
+            onChangeText={field.onChange}
+            onBlur={field.onBlur}
+          />
+        )}
+      />
+
+      <Controller
+        control={control}
+        name="type"
+        render={({ field }) => (
+          <View style={styles.segmentRow}>
+            {(['EXPENSE', 'INCOME'] as const).map((option) => (
+              <Pressable
+                key={option}
+                onPress={() => field.onChange(option)}
+                style={[styles.segment, { opacity: selectedType === option ? 1 : 0.5 }]}>
+                <ThemedText type="small">{option === 'EXPENSE' ? 'Gasto' : 'Ingreso'}</ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      />
+
+      <Controller
+        control={control}
+        name="color"
+        render={({ field }) => (
+          <View style={styles.paletteRow}>
+            {CategoryPalette.map((swatch) => (
+              <Pressable
+                key={swatch}
+                onPress={() => field.onChange(swatch)}
+                style={[
+                  styles.swatch,
+                  { backgroundColor: swatch, borderWidth: selectedColor === swatch ? 3 : 0 },
+                ]}
+              />
+            ))}
+          </View>
+        )}
+      />
+
+      <Button label="Crear categoría" loading={createCategory.isPending} onPress={handleSubmit(onSubmit)} />
+    </Card>
+  );
+};
+
+const CategoriesScreen = () => {
   const theme = useTheme();
   const { data: categories } = useCategories();
   const deleteCategory = useDeleteCategory();
@@ -65,112 +169,6 @@ export default function CategoriesScreen() {
       </SafeAreaView>
     </ThemedView>
   );
-}
+};
 
-function CategoryGroup({
-  title,
-  categories,
-  onDelete,
-}: {
-  title: string;
-  categories: Category[];
-  onDelete: (category: Category) => void;
-}) {
-  if (categories.length === 0) return null;
-
-  return (
-    <View style={styles.group}>
-      <ThemedText type="smallBold" themeColor="textSecondary" style={styles.groupTitle}>
-        {title.toUpperCase()}
-      </ThemedText>
-      {categories.map((category) => (
-        <Card key={category.id} style={styles.categoryRow}>
-          <View style={[styles.dot, { backgroundColor: category.color }]} />
-          <ThemedText style={styles.categoryName}>{category.name}</ThemedText>
-          <Pressable onPress={() => onDelete(category)} hitSlop={8}>
-            <Feather name="trash-2" size={18} color="#E5484D" />
-          </Pressable>
-        </Card>
-      ))}
-    </View>
-  );
-}
-
-function NewCategoryForm({ onDone }: { onDone: () => void }) {
-  const [name, setName] = useState('');
-  const [type, setType] = useState<TransactionType>('EXPENSE');
-  const [color, setColor] = useState<string>(CategoryPalette[0]);
-  const createCategory = useCreateCategory();
-
-  const submit = () => {
-    if (!name.trim()) return;
-    createCategory.mutate(
-      { name: name.trim(), type, color, icon: 'tag' },
-      {
-        onSuccess: () => {
-          setName('');
-          onDone();
-        },
-        onError: (err) =>
-          Alert.alert('No se pudo crear', err instanceof ApiError ? err.message : 'Error inesperado'),
-      },
-    );
-  };
-
-  return (
-    <Card style={styles.form}>
-      <Input placeholder="Nombre de la categoría" value={name} onChangeText={setName} />
-
-      <View style={styles.segmentRow}>
-        {(['EXPENSE', 'INCOME'] as const).map((option) => (
-          <Pressable
-            key={option}
-            onPress={() => setType(option)}
-            style={[styles.segment, { opacity: type === option ? 1 : 0.5 }]}>
-            <ThemedText type="small">{option === 'EXPENSE' ? 'Gasto' : 'Ingreso'}</ThemedText>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.paletteRow}>
-        {CategoryPalette.map((swatch) => (
-          <Pressable
-            key={swatch}
-            onPress={() => setColor(swatch)}
-            style={[
-              styles.swatch,
-              { backgroundColor: swatch, borderWidth: color === swatch ? 3 : 0 },
-            ]}
-          />
-        ))}
-      </View>
-
-      <Button label="Crear categoría" loading={createCategory.isPending} onPress={submit} />
-    </Card>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1 },
-  content: {
-    padding: Spacing.four,
-    gap: Spacing.four,
-    maxWidth: MaxContentWidth,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 28, lineHeight: 34 },
-  addButton: { width: 40, height: 40, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center' },
-  group: { gap: Spacing.two },
-  groupTitle: { marginTop: Spacing.two },
-  categoryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  categoryName: { flex: 1 },
-  dot: { width: 12, height: 12, borderRadius: 6 },
-  form: { gap: Spacing.three },
-  segmentRow: { flexDirection: 'row', gap: Spacing.three },
-  segment: { paddingVertical: Spacing.two, paddingHorizontal: Spacing.three },
-  paletteRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  swatch: { width: 28, height: 28, borderRadius: 14, borderColor: '#000' },
-});
+export default CategoriesScreen;

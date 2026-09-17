@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router';
 
 import { useTheme } from '@/hooks/use-theme';
 
-export default function TabsLayout() {
+const TabsLayout = () => {
   const theme = useTheme();
 
   return (
@@ -44,4 +44,6 @@ export default function TabsLayout() {
       />
     </Tabs>
   );
-}
+};
+
+export default TabsLayout;

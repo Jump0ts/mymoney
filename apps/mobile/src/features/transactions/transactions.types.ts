@@ -1,12 +1,6 @@
-export type TransactionType = 'INCOME' | 'EXPENSE';
+import type { Category } from '@/features/categories/categories.types';
 
-export interface Category {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-  type: TransactionType;
-}
+export type TransactionType = 'INCOME' | 'EXPENSE';
 
 export interface Transaction {
   id: string;
@@ -16,7 +10,6 @@ export interface Transaction {
   description: string | null;
   occurredAt: string;
   category: Category;
-  user: { id: string; name: string };
 }
 
 export interface TransactionsPage {

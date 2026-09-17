@@ -1,12 +1,11 @@
 import { Router } from "express";
-import { prisma } from "../prisma.js";
-import { requireAuth } from "../middleware/auth.js";
-import { asyncHandler } from "../utils/asyncHandler.js";
-import { badRequest, unauthorized } from "../utils/errors.js";
-import { hashPassword, verifyPassword } from "../utils/password.js";
-import { signAuthToken } from "../utils/jwt.js";
-import { loginSchema, registerSchema } from "../validators/auth.js";
-import { DEFAULT_CATEGORIES } from "../constants/defaultCategories.js";
+import { prisma } from "../../prisma.js";
+import { requireAuth } from "../../middleware/auth.js";
+import { asyncHandler } from "../../utils/asyncHandler.js";
+import { badRequest, unauthorized } from "../../utils/errors.js";
+import { hashPassword, signAuthToken, verifyPassword } from "./auth.utils.js";
+import { loginSchema, registerSchema } from "./auth.schema.js";
+import { DEFAULT_CATEGORIES } from "../categories/categories.constants.js";
 
 export const authRouter = Router();
 

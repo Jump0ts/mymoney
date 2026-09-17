@@ -1,27 +1,36 @@
+import { yupResolver } from '@hookform/resolvers/yup';
 import { Link } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { Controller, useForm } from 'react-hook-form';
+import { KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useRegister } from '@/features/auth/useAuthApi';
+import { registerSchema, type RegisterFormValues } from '@/features/auth/auth.schema';
 import { ApiError } from '@/lib/api';
-import { useRegister } from '@/hooks/useAuthApi';
+import { styles } from './register.styles';
 
-export default function RegisterScreen() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const RegisterScreen = () => {
   const register = useRegister();
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<RegisterFormValues>({
+    resolver: yupResolver(registerSchema),
+    defaultValues: { name: '', email: '', password: '' },
+  });
 
   const errorMessage = register.isError
     ? register.error instanceof ApiError
       ? register.error.message
       : 'No se pudo conectar con el servidor'
     : null;
+
+  const onSubmit = (values: RegisterFormValues) => register.mutate(values);
 
   return (
     <ThemedView style={styles.container}>
@@ -36,15 +45,57 @@ export default function RegisterScreen() {
             Tus datos son privados: solo tú puedes verlos
           </ThemedText>
 
-          <Input placeholder="Tu nombre" value={name} onChangeText={setName} />
-          <Input
-            placeholder="Email"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
+          <Controller
+            control={control}
+            name="name"
+            render={({ field }) => (
+              <Input placeholder="Tu nombre" value={field.value} onChangeText={field.onChange} onBlur={field.onBlur} />
+            )}
           />
-          <Input placeholder="Contraseña" secureTextEntry value={password} onChangeText={setPassword} />
+          {errors.name && (
+            <ThemedText themeColor="danger" type="small">
+              {errors.name.message}
+            </ThemedText>
+          )}
+
+          <Controller
+            control={control}
+            name="email"
+            render={({ field }) => (
+              <Input
+                placeholder="Email"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
+          />
+          {errors.email && (
+            <ThemedText themeColor="danger" type="small">
+              {errors.email.message}
+            </ThemedText>
+          )}
+
+          <Controller
+            control={control}
+            name="password"
+            render={({ field }) => (
+              <Input
+                placeholder="Contraseña"
+                secureTextEntry
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
+          />
+          {errors.password && (
+            <ThemedText themeColor="danger" type="small">
+              {errors.password.message}
+            </ThemedText>
+          )}
 
           {errorMessage && (
             <ThemedText themeColor="danger" type="small">
@@ -52,11 +103,7 @@ export default function RegisterScreen() {
             </ThemedText>
           )}
 
-          <Button
-            label="Crear cuenta"
-            loading={register.isPending}
-            onPress={() => register.mutate({ name, email, password })}
-          />
+          <Button label="Crear cuenta" loading={register.isPending} onPress={handleSubmit(onSubmit)} />
 
           <Link href="/login" style={styles.link}>
             <ThemedText type="link" themeColor="primary">
@@ -67,13 +114,6 @@ export default function RegisterScreen() {
       </SafeAreaView>
     </ThemedView>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.four },
-  form: { width: '100%', maxWidth: MaxContentWidth, gap: Spacing.three },
-  title: { fontSize: 34, lineHeight: 40 },
-  subtitle: { marginBottom: Spacing.two },
-  link: { alignSelf: 'center', marginTop: Spacing.two },
-});
+export default RegisterScreen;

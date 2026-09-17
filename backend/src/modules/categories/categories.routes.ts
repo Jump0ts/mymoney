@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { prisma } from "../prisma.js";
-import { requireAuth } from "../middleware/auth.js";
-import { asyncHandler } from "../utils/asyncHandler.js";
-import { badRequest, notFound } from "../utils/errors.js";
-import { createCategorySchema, updateCategorySchema } from "../validators/category.js";
+import { prisma } from "../../prisma.js";
+import { requireAuth } from "../../middleware/auth.js";
+import { asyncHandler } from "../../utils/asyncHandler.js";
+import { badRequest, notFound } from "../../utils/errors.js";
+import { createCategorySchema, updateCategorySchema } from "./categories.schema.js";
 
 export const categoriesRouter = Router();
 categoriesRouter.use(requireAuth);

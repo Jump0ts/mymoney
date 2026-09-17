@@ -1,10 +1,10 @@
 import { PrismaClient } from "@prisma/client";
-import { hashPassword } from "../src/utils/password.js";
-import { DEFAULT_CATEGORIES } from "../src/constants/defaultCategories.js";
+import { hashPassword } from "../src/modules/auth/auth.utils.js";
+import { DEFAULT_CATEGORIES } from "../src/modules/categories/categories.constants.js";
 
 const prisma = new PrismaClient();
 
-async function main() {
+const main = async () => {
   const email = "demo@mymoney.local";
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -24,7 +24,7 @@ async function main() {
   });
 
   console.log(`Usuario de ejemplo creado (${user.name}). Login: ${email} / demo12345`);
-}
+};
 
 main()
   .catch((err) => {

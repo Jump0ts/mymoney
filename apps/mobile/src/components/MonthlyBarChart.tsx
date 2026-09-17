@@ -1,16 +1,16 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { ThemedText } from './themed-text';
-import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { formatMonthLabel } from '@/lib/format';
-import type { MonthBreakdown } from '@/types/api';
+import { formatMonthLabel } from '@/utils/format';
+import type { MonthBreakdown } from '@/features/transactions/transactions.types';
+import { styles } from './MonthlyBarChart.styles';
 
 interface MonthlyBarChartProps {
   data: MonthBreakdown[];
   height?: number;
 }
 
-export function MonthlyBarChart({ data, height = 140 }: MonthlyBarChartProps) {
+export const MonthlyBarChart = ({ data, height = 140 }: MonthlyBarChartProps) => {
   const theme = useTheme();
 
   const months = Array.from(new Set(data.map((d) => d.month))).sort();
@@ -55,32 +55,4 @@ export function MonthlyBarChart({ data, height = 140 }: MonthlyBarChartProps) {
       ))}
     </View>
   );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: Spacing.three,
-  },
-  column: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    height: '100%',
-  },
-  bars: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: Spacing.half,
-    flex: 1,
-  },
-  bar: {
-    width: 10,
-    borderRadius: Radius.small,
-    minHeight: 3,
-  },
-  monthLabel: {
-    marginTop: Spacing.one,
-  },
-});
+};

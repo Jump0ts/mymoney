@@ -1,28 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
-import type { Category, TransactionType } from '@/types/api';
+import type { TransactionType } from '@/features/transactions/transactions.types';
+import type { Category } from './categories.types';
 
-export function useCategories() {
-  return useQuery({
+export const useCategories = () =>
+  useQuery({
     queryKey: ['categories'],
     queryFn: () => apiRequest<{ categories: Category[] }>('/api/categories'),
     select: (data) => data.categories,
   });
-}
 
-export function useCreateCategory() {
+export const useCreateCategory = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { name: string; type: TransactionType; color: string; icon: string }) =>
       apiRequest<{ category: Category }>('/api/categories', { method: 'POST', body: input }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
   });
-}
+};
 
-export function useDeleteCategory() {
+export const useDeleteCategory = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiRequest<void>(`/api/categories/${id}`, { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
   });
-}
+};

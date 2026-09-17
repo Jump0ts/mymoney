@@ -1,0 +1,28 @@
+refactor: arquitectura por dominio, arrow functions, RHF+Yup, estilos separados
+
+Reorganizacion completa siguiendo las convenciones definidas por el
+usuario para todo el proyecto (backend + app):
+
+- Backend: modulos por dominio en backend/src/modules/<dominio>/
+  (auth, categories, transactions), cada uno con sus propios
+  *.routes.ts, *.schema.ts (Zod), *.types.ts, *.utils.ts. El tipo
+  compartido TransactionType vive en transactions (su dominio dueno)
+  y categories lo importa desde ahi.
+- App: features por dominio en apps/mobile/src/features/<dominio>/
+  (auth, categories, transactions) con *.types.ts, *.constants.ts,
+  *.schema.ts (Yup) y sus hooks. Utils realmente genericos (formatMoney,
+  formatDate...) en src/utils/, no dentro de ningun dominio.
+- Formularios de la app migrados a React Hook Form + Yup (login,
+  registro, nueva categoria, nuevo movimiento), con mensajes de
+  validacion por campo.
+- Todos los estilos (StyleSheet.create) extraidos a archivos
+  Nombre.styles.ts separados del componente/pantalla.
+- Todas las funciones convertidas a arrow functions (sin regla de
+  ESLint que lo fuerce, a peticion explicita del usuario).
+- CLAUDE.md documenta la convencion de arquitectura para que se
+  aplique igual a cualquier dominio nuevo (ej. presupuestos).
+
+Verificado: typecheck, lint y tests en verde en backend y app;
+probado en el navegador (login/registro con validacion Yup en vivo).
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>

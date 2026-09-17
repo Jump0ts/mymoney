@@ -1,4 +1,4 @@
-import { useAuthStore } from '@/store/auth';
+import { useAuthStore } from '@/features/auth/auth.store';
 import { API_URL } from './env';
 
 export class ApiError extends Error {
@@ -18,7 +18,7 @@ interface RequestOptions {
   auth?: boolean;
 }
 
-function buildUrl(path: string, query?: RequestOptions['query']) {
+const buildUrl = (path: string, query?: RequestOptions['query']) => {
   const url = new URL(path, API_URL);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
@@ -26,9 +26,9 @@ function buildUrl(path: string, query?: RequestOptions['query']) {
     }
   }
   return url.toString();
-}
+};
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+export const apiRequest = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
   const { method = 'GET', body, query, auth = true } = options;
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -56,4 +56,4 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return payload as T;
-}
+};

@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { categoryTypeSchema } from "./category.js";
+
+export const transactionTypeSchema = z.enum(["INCOME", "EXPENSE"]);
 
 export const createTransactionSchema = z.object({
   categoryId: z.string().min(1),
-  type: categoryTypeSchema,
+  type: transactionTypeSchema,
   amount: z.number().positive().max(1_000_000),
   currency: z.string().length(3).default("EUR"),
   description: z.string().trim().max(200).optional(),
@@ -13,7 +14,7 @@ export const createTransactionSchema = z.object({
 export const updateTransactionSchema = createTransactionSchema.partial();
 
 export const listTransactionsQuerySchema = z.object({
-  type: categoryTypeSchema.optional(),
+  type: transactionTypeSchema.optional(),
   categoryId: z.string().optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),

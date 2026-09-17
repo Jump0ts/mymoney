@@ -17,6 +17,18 @@ Infra actual: self-hosted en un servidor doméstico (ver más abajo), pensado pa
 - **Distribución móvil de pruebas**: Expo Go (gratis) para desarrollo iterativo. Android: APK interno vía EAS Build. iOS: de momento sin cuenta de Apple Developer de pago (se evaluará más adelante si hace falta TestFlight/App Store).
 - **NFC / detección automática de pago**: solo Android (Notification Listener Service). En iOS no es posible por restricción de la plataforma (Apple no expone eventos de Apple Pay a apps de terceros) — alternativa: widget/atajo de acceso rápido de un toque.
 
+## Arquitectura de código (obligatoria para todo dato nuevo)
+
+Organización **por dominio/tipo de dato** (gastos, categorías, presupuestos, etc. — cada uno es su propio dominio, completamente separado de los demás):
+
+- **Backend** (`backend/src/modules/<dominio>/`): cada dominio tiene su propia carpeta con `*.routes.ts`, `*.schema.ts` (validación con **Zod**), `*.types.ts` y `*.utils.ts` si hace falta. Ejemplo: `modules/transactions/transactions.schema.ts`.
+- **App** (`apps/mobile/src/features/<dominio>/`): cada dominio tiene su propia carpeta con `*.types.ts`, `*.constants.ts`, `*.schema.ts` (validación con **Yup**), y sus hooks (`useX.ts`). El store de auth vive en `features/auth/auth.store.ts`.
+- **Regla de propiedad compartida**: si un tipo/constante lo necesitan dos dominios (ej. `TransactionType`, que usan tanto `categories` como `transactions`), vive en el dominio "dueño" del concepto (en ese caso, `transactions`) y el resto lo importa desde ahí. Nunca se duplica.
+- **Utils verdaderamente genéricos** (usados por 2+ dominios, ej. `formatMoney`): van en `apps/mobile/src/utils/` (no dentro de ningún dominio). Backend: `backend/src/utils/` (solo lo genérico: `asyncHandler`, `errors`).
+- **Formularios**: React Hook Form + Yup en la app. Cada dominio define su propio schema de Yup en `<dominio>/<dominio>.schema.ts`.
+- **Estilos**: siempre en un archivo `NombreDelArchivo.styles.ts` separado (React Native no tiene CSS real; se usa `StyleSheet.create`), nunca inline al final del componente/pantalla. Excepción razonable: un objeto de estilo dinámico trivial de una sola línea no necesita archivo propio.
+- **Funciones**: arrow functions por defecto en todo el código (`const fn = () => {}`), tanto en componentes como en utils/hooks/rutas. Solo usar `function` si hay una razón técnica concreta para ello. **No hay regla de ESLint que lo fuerce** (decisión explícita del usuario, para no bloquear casos legítimos) — es una convención a seguir manualmente.
+
 ## Alcance de la primera fase ("lo esencial")
 
 Gastos, ingresos, categorías, filtros y gráficos. Fuera de alcance por ahora (se añadirá en fases posteriores): presupuestos por categoría, gastos recurrentes/suscripciones, múltiples cuentas/carteras, detección NFC automática.

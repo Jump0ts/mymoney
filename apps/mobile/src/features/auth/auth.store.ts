@@ -1,14 +1,9 @@
 import { create } from 'zustand';
 import { deleteItem, getItem, setItem } from '@/lib/secureStorage';
+import type { AuthUser } from './auth.types';
 
 const TOKEN_KEY = 'mymoney_token';
 const USER_KEY = 'mymoney_user';
-
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-}
 
 interface AuthState {
   token: string | null;
