@@ -45,8 +45,5 @@ export const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.two },
-  rowInfo: { flex: 1, gap: Spacing.one },
-  rowMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   empty: { textAlign: 'center', marginTop: Spacing.five },
 });

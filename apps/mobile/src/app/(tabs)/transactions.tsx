@@ -4,41 +4,17 @@ import { useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Card } from '@/components/Card';
 import { CategoryPill } from '@/components/CategoryPill';
 import { Input } from '@/components/Input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCategories } from '@/features/categories/useCategories';
 import { TRANSACTION_TYPE_FILTERS } from '@/features/transactions/transactions.constants';
-import type { Transaction, TransactionType } from '@/features/transactions/transactions.types';
+import type { TransactionType } from '@/features/transactions/transactions.types';
+import { TransactionRow } from '@/features/transactions/TransactionRow';
 import { useTransactions } from '@/features/transactions/useTransactions';
 import { useTheme } from '@/hooks/use-theme';
-import { formatDate, formatMoney } from '@/utils/format';
 import { styles } from './transactions.styles';
-
-const TransactionRow = ({ transaction }: { transaction: Transaction }) => {
-  const isExpense = transaction.type === 'EXPENSE';
-  return (
-    <Card style={styles.row}>
-      <View style={styles.rowInfo}>
-        <ThemedText type="default" numberOfLines={1}>
-          {transaction.description || transaction.category.name}
-        </ThemedText>
-        <View style={styles.rowMeta}>
-          <CategoryPill category={transaction.category} />
-          <ThemedText type="small" themeColor="textSecondary">
-            {formatDate(transaction.occurredAt)}
-          </ThemedText>
-        </View>
-      </View>
-      <ThemedText type="smallBold" themeColor={isExpense ? 'expense' : 'income'}>
-        {isExpense ? '-' : '+'}
-        {formatMoney(transaction.amount)}
-      </ThemedText>
-    </Card>
-  );
-};
 
 const TransactionsScreen = () => {
   const theme = useTheme();
