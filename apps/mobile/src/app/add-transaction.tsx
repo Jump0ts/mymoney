@@ -22,6 +22,7 @@ const AddTransactionScreen = () => {
   const theme = useTheme();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [amountText, setAmountText] = useState('');
 
   const { data: categories } = useCategories();
   const createTransaction = useCreateTransaction();
@@ -94,21 +95,18 @@ const AddTransactionScreen = () => {
           )}
         />
 
-        <Controller
-          control={control}
-          name="amount"
-          render={({ field }) => (
-            <Input
-              placeholder="0,00 €"
-              keyboardType="decimal-pad"
-              value={field.value !== undefined ? String(field.value) : ''}
-              onChangeText={(text) => {
-                const normalized = text.replace(',', '.');
-                field.onChange(normalized === '' ? undefined : Number(normalized));
-              }}
-              style={styles.amountInput}
-            />
-          )}
+        <Input
+          placeholder="0,00 €"
+          keyboardType="decimal-pad"
+          value={amountText}
+          onChangeText={(text) => {
+            setAmountText(text);
+            const normalized = text.replace(',', '.');
+            setValue('amount', normalized === '' ? undefined : Number(normalized), {
+              shouldValidate: false,
+            });
+          }}
+          style={styles.amountInput}
         />
         {errors.amount && (
           <ThemedText themeColor="danger" type="small">
