@@ -1,6 +1,6 @@
 # MyMoney
 
-App de finanzas personales y familiares — registro de gastos e ingresos, categorización, filtros y gráficos. iOS, Android y Web desde una única base de código (Expo), con backend self-hosted.
+App de finanzas personales — registro de gastos e ingresos, categorización, filtros y gráficos. Cada cuenta es individual y privada (sin datos compartidos entre usuarios). iOS, Android y Web desde una única base de código (Expo), con backend self-hosted.
 
 Ver [CLAUDE.md](./CLAUDE.md) para el contexto completo del proyecto, stack técnico y flujo de ramas.
 

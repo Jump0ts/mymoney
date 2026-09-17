@@ -12,7 +12,7 @@ categoriesRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     const categories = await prisma.category.findMany({
-      where: { familyId: req.auth!.familyId },
+      where: { userId: req.auth!.userId },
       orderBy: [{ type: "asc" }, { name: "asc" }],
     });
     res.json({ categories });
@@ -26,7 +26,7 @@ categoriesRouter.post(
 
     const duplicate = await prisma.category.findUnique({
       where: {
-        familyId_name_type: { familyId: req.auth!.familyId, name: body.name, type: body.type },
+        userId_name_type: { userId: req.auth!.userId, name: body.name, type: body.type },
       },
     });
     if (duplicate) {
@@ -34,7 +34,7 @@ categoriesRouter.post(
     }
 
     const category = await prisma.category.create({
-      data: { ...body, familyId: req.auth!.familyId },
+      data: { ...body, userId: req.auth!.userId },
     });
     res.status(201).json({ category });
   }),
@@ -46,7 +46,7 @@ categoriesRouter.patch(
     const body = updateCategorySchema.parse(req.body);
 
     const category = await prisma.category.findFirst({
-      where: { id: req.params.id, familyId: req.auth!.familyId },
+      where: { id: req.params.id, userId: req.auth!.userId },
     });
     if (!category) throw notFound("Categoría no encontrada");
 
@@ -59,7 +59,7 @@ categoriesRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const category = await prisma.category.findFirst({
-      where: { id: req.params.id, familyId: req.auth!.familyId },
+      where: { id: req.params.id, userId: req.auth!.userId },
     });
     if (!category) throw notFound("Categoría no encontrada");
 

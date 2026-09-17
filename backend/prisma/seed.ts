@@ -8,23 +8,22 @@ async function main() {
   const email = "demo@mymoney.local";
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    console.log("Ya existe la familia de ejemplo, no se hace nada.");
+    console.log("Ya existe el usuario de ejemplo, no se hace nada.");
     return;
   }
 
   const passwordHash = await hashPassword("demo12345");
 
-  const family = await prisma.family.create({
+  const user = await prisma.user.create({
     data: {
-      name: "Familia Demo",
+      name: "Demo",
+      email,
+      passwordHash,
       categories: { create: DEFAULT_CATEGORIES.map((c) => ({ ...c })) },
-      users: {
-        create: { name: "Demo", email, passwordHash, role: "OWNER" },
-      },
     },
   });
 
-  console.log(`Familia de ejemplo creada (${family.name}). Login: ${email} / demo12345`);
+  console.log(`Usuario de ejemplo creado (${user.name}). Login: ${email} / demo12345`);
 }
 
 main()

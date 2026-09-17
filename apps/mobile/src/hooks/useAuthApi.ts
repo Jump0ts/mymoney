@@ -17,12 +17,12 @@ export function useLogin() {
   });
 }
 
-export function useRegisterFamily() {
+export function useRegister() {
   const setSession = useAuthStore((s) => s.setSession);
 
   return useMutation({
-    mutationFn: (input: { familyName: string; name: string; email: string; password: string }) =>
-      apiRequest<AuthResponse>('/api/auth/register-family', {
+    mutationFn: (input: { name: string; email: string; password: string }) =>
+      apiRequest<AuthResponse>('/api/auth/register', {
         method: 'POST',
         body: input,
         auth: false,

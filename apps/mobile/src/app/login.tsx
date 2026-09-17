@@ -32,7 +32,7 @@ export default function LoginScreen() {
             MyMoney
           </ThemedText>
           <ThemedText type="default" themeColor="textSecondary" style={styles.subtitle}>
-            Entra con tu cuenta familiar
+            Entra con tu cuenta
           </ThemedText>
 
           <Input
@@ -58,7 +58,7 @@ export default function LoginScreen() {
 
           <Link href="/register" style={styles.link}>
             <ThemedText type="link" themeColor="primary">
-              ¿Primera vez? Crea tu familia
+              ¿Primera vez? Crea tu cuenta
             </ThemedText>
           </Link>
         </KeyboardAvoidingView>

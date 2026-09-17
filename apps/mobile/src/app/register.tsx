@@ -9,14 +9,13 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { ApiError } from '@/lib/api';
-import { useRegisterFamily } from '@/hooks/useAuthApi';
+import { useRegister } from '@/hooks/useAuthApi';
 
 export default function RegisterScreen() {
-  const [familyName, setFamilyName] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const register = useRegisterFamily();
+  const register = useRegister();
 
   const errorMessage = register.isError
     ? register.error instanceof ApiError
@@ -31,13 +30,12 @@ export default function RegisterScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.form}>
           <ThemedText type="title" style={styles.title}>
-            Crea tu familia
+            Crea tu cuenta
           </ThemedText>
           <ThemedText type="default" themeColor="textSecondary" style={styles.subtitle}>
-            Serás el propietario y podrás invitar a más miembros después
+            Tus datos son privados: solo tú puedes verlos
           </ThemedText>
 
-          <Input placeholder="Nombre de la familia" value={familyName} onChangeText={setFamilyName} />
           <Input placeholder="Tu nombre" value={name} onChangeText={setName} />
           <Input
             placeholder="Email"
@@ -55,9 +53,9 @@ export default function RegisterScreen() {
           )}
 
           <Button
-            label="Crear familia"
+            label="Crear cuenta"
             loading={register.isPending}
-            onPress={() => register.mutate({ familyName, name, email, password })}
+            onPress={() => register.mutate({ name, email, password })}
           />
 
           <Link href="/login" style={styles.link}>

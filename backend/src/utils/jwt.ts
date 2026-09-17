@@ -3,7 +3,6 @@ import { env } from "../env.js";
 
 export interface AuthTokenPayload {
   userId: string;
-  familyId: string;
 }
 
 export const signAuthToken = (payload: AuthTokenPayload): string =>

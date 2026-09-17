@@ -18,10 +18,10 @@ transactionsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     const query = listTransactionsQuerySchema.parse(req.query);
-    const familyId = req.auth!.familyId;
+    const userId = req.auth!.userId;
 
     const where: Prisma.TransactionWhereInput = {
-      familyId,
+      userId,
       ...(query.type && { type: query.type }),
       ...(query.categoryId && { categoryId: query.categoryId }),
       ...(query.search && {
@@ -38,7 +38,7 @@ transactionsRouter.get(
     const [transactions, total] = await Promise.all([
       prisma.transaction.findMany({
         where,
-        include: { category: true, user: { select: { id: true, name: true } } },
+        include: { category: true },
         orderBy: { occurredAt: "desc" },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
@@ -62,7 +62,7 @@ transactionsRouter.get(
   "/summary",
   asyncHandler(async (req, res) => {
     const query = summaryQuerySchema.parse(req.query);
-    const familyId = req.auth!.familyId;
+    const userId = req.auth!.userId;
 
     const dateFilter: Prisma.TransactionWhereInput["occurredAt"] = {
       ...(query.from && { gte: query.from }),
@@ -72,7 +72,7 @@ transactionsRouter.get(
 
     const totalsByType = await prisma.transaction.groupBy({
       by: ["type"],
-      where: { familyId, ...(hasDateFilter && { occurredAt: dateFilter }) },
+      where: { userId, ...(hasDateFilter && { occurredAt: dateFilter }) },
       _sum: { amount: true },
     });
 
@@ -85,7 +85,7 @@ transactionsRouter.get(
 
     const byCategoryRaw = await prisma.transaction.groupBy({
       by: ["categoryId"],
-      where: { familyId, ...(hasDateFilter && { occurredAt: dateFilter }) },
+      where: { userId, ...(hasDateFilter && { occurredAt: dateFilter }) },
       _sum: { amount: true },
     });
 
@@ -111,7 +111,7 @@ transactionsRouter.get(
     >(Prisma.sql`
       SELECT date_trunc('month', "occurredAt") AS month, "type", SUM("amount") AS total
       FROM "Transaction"
-      WHERE "familyId" = ${familyId}
+      WHERE "userId" = ${userId}
       ${query.from ? Prisma.sql`AND "occurredAt" >= ${query.from}` : Prisma.empty}
       ${query.to ? Prisma.sql`AND "occurredAt" <= ${query.to}` : Prisma.empty}
       GROUP BY month, "type"
@@ -136,15 +136,15 @@ transactionsRouter.post(
   "/",
   asyncHandler(async (req, res) => {
     const body = createTransactionSchema.parse(req.body);
-    const familyId = req.auth!.familyId;
+    const userId = req.auth!.userId;
 
     const category = await prisma.category.findFirst({
-      where: { id: body.categoryId, familyId },
+      where: { id: body.categoryId, userId },
     });
     if (!category) throw notFound("Categoría no encontrada");
 
     const transaction = await prisma.transaction.create({
-      data: { ...body, familyId, userId: req.auth!.userId },
+      data: { ...body, userId },
       include: { category: true },
     });
     res.status(201).json({ transaction });
@@ -155,16 +155,16 @@ transactionsRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
     const body = updateTransactionSchema.parse(req.body);
-    const familyId = req.auth!.familyId;
+    const userId = req.auth!.userId;
 
     const existing = await prisma.transaction.findFirst({
-      where: { id: req.params.id, familyId },
+      where: { id: req.params.id, userId },
     });
     if (!existing) throw notFound("Movimiento no encontrado");
 
     if (body.categoryId) {
       const category = await prisma.category.findFirst({
-        where: { id: body.categoryId, familyId },
+        where: { id: body.categoryId, userId },
       });
       if (!category) throw notFound("Categoría no encontrada");
     }
@@ -182,7 +182,7 @@ transactionsRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const existing = await prisma.transaction.findFirst({
-      where: { id: req.params.id, familyId: req.auth!.familyId },
+      where: { id: req.params.id, userId: req.auth!.userId },
     });
     if (!existing) throw notFound("Movimiento no encontrado");
 

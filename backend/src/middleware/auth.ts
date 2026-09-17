@@ -8,7 +8,6 @@ declare global {
     interface Request {
       auth?: {
         userId: string;
-        familyId: string;
       };
     }
   }
@@ -24,7 +23,7 @@ export const requireAuth = (req: Request, _res: Response, next: NextFunction) =>
 
   try {
     const payload = verifyAuthToken(token);
-    req.auth = { userId: payload.userId, familyId: payload.familyId };
+    req.auth = { userId: payload.userId };
     next();
   } catch {
     throw unauthorized("Token inválido o caducado");

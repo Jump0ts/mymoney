@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
-import { app, registerFamily } from "./helpers.js";
+import { app, registerUser } from "./helpers.js";
 
 async function setup() {
-  const { res } = await registerFamily();
+  const { res } = await registerUser();
   const token = res.body.token as string;
 
   const categoriesRes = await request(app)
@@ -73,6 +73,27 @@ describe("GET /api/transactions", () => {
     expect(res.body.transactions).toHaveLength(1);
     expect(res.body.transactions[0].type).toBe("EXPENSE");
   });
+
+  it("no devuelve movimientos de otro usuario", async () => {
+    const { token, expenseCategory } = await setup();
+    const { token: otherToken, expenseCategory: otherExpenseCategory } = await setup();
+
+    await request(app)
+      .post("/api/transactions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ categoryId: expenseCategory.id, type: "EXPENSE", amount: 30, occurredAt: "2026-01-01" });
+    await request(app)
+      .post("/api/transactions")
+      .set("Authorization", `Bearer ${otherToken}`)
+      .send({ categoryId: otherExpenseCategory.id, type: "EXPENSE", amount: 999, occurredAt: "2026-01-01" });
+
+    const res = await request(app)
+      .get("/api/transactions")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.body.transactions).toHaveLength(1);
+    expect(res.body.transactions[0].amount).toBe("30");
+  });
 });
 
 describe("GET /api/transactions/summary", () => {
@@ -97,5 +118,25 @@ describe("GET /api/transactions/summary", () => {
     expect(res.body.totalExpense).toBe(30);
     expect(res.body.balance).toBe(970);
     expect(res.body.byCategory.length).toBeGreaterThan(0);
+  });
+
+  it("no mezcla totales entre usuarios distintos", async () => {
+    const { token, expenseCategory } = await setup();
+    const { token: otherToken, expenseCategory: otherExpenseCategory } = await setup();
+
+    await request(app)
+      .post("/api/transactions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ categoryId: expenseCategory.id, type: "EXPENSE", amount: 30, occurredAt: "2026-01-01" });
+    await request(app)
+      .post("/api/transactions")
+      .set("Authorization", `Bearer ${otherToken}`)
+      .send({ categoryId: otherExpenseCategory.id, type: "EXPENSE", amount: 999, occurredAt: "2026-01-01" });
+
+    const res = await request(app)
+      .get("/api/transactions/summary")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.body.totalExpense).toBe(30);
   });
 });
