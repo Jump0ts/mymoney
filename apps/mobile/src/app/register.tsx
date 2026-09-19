@@ -11,7 +11,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useRegister } from '@/features/auth/useAuthApi';
 import { registerSchema, type RegisterFormValues } from '@/features/auth/auth.schema';
 import { ApiError } from '@/lib/api';
-import { styles } from './register.styles';
+import { styles } from '@/screens/register.styles';
 
 const RegisterScreen = () => {
   const register = useRegister();

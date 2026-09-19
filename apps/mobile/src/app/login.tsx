@@ -11,7 +11,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useLogin } from '@/features/auth/useAuthApi';
 import { loginSchema, type LoginFormValues } from '@/features/auth/auth.schema';
 import { ApiError } from '@/lib/api';
-import { styles } from './login.styles';
+import { styles } from '@/screens/login.styles';
 
 const LoginScreen = () => {
   const login = useLogin();

@@ -12,7 +12,7 @@ import { useAuthStore } from '@/features/auth/auth.store';
 import { useSummary } from '@/features/transactions/useTransactions';
 import { useTheme } from '@/hooks/use-theme';
 import { formatMoney } from '@/utils/format';
-import { styles } from './index.styles';
+import { styles } from '@/screens/tabs/index.styles';
 
 const DashboardScreen = () => {
   const theme = useTheme();

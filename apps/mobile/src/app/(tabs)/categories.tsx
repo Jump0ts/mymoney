@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -11,7 +11,8 @@ import type { Category } from '@/features/categories/categories.types';
 import { useCategories, useDeleteCategory } from '@/features/categories/useCategories';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
-import { styles } from './categories.styles';
+import { styles } from '@/screens/tabs/categories.styles';
+import { confirmAsync, notify } from '@/utils/alert';
 
 const CategoriesScreen = () => {
   const theme = useTheme();
@@ -22,22 +23,19 @@ const CategoriesScreen = () => {
   const expense = categories?.filter((c) => c.type === 'EXPENSE') ?? [];
   const income = categories?.filter((c) => c.type === 'INCOME') ?? [];
 
-  const handleDelete = (category: Category) => {
-    Alert.alert('Borrar categoría', `¿Seguro que quieres borrar "${category.name}"?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Borrar',
-        style: 'destructive',
-        onPress: () =>
-          deleteCategory.mutate(category.id, {
-            onError: (err) =>
-              Alert.alert(
-                'No se pudo borrar',
-                err instanceof ApiError ? err.message : 'Error inesperado',
-              ),
-          }),
-      },
-    ]);
+  const handleDelete = async (category: Category) => {
+    const confirmed = await confirmAsync({
+      title: 'Borrar categoría',
+      message: `¿Seguro que quieres borrar "${category.name}"?`,
+      confirmLabel: 'Borrar',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    deleteCategory.mutate(category.id, {
+      onError: (err) =>
+        notify('No se pudo borrar', err instanceof ApiError ? err.message : 'Error inesperado'),
+    });
   };
 
   return (

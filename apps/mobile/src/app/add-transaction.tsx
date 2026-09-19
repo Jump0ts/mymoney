@@ -16,7 +16,7 @@ import { useCreateTransaction } from '@/features/transactions/useTransactions';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { formatDate } from '@/utils/format';
-import { styles } from './add-transaction.styles';
+import { styles } from '@/screens/add-transaction.styles';
 
 const AddTransactionScreen = () => {
   const theme = useTheme();
@@ -102,7 +102,9 @@ const AddTransactionScreen = () => {
           onChangeText={(text) => {
             setAmountText(text);
             const normalized = text.replace(',', '.');
-            setValue('amount', normalized === '' ? undefined : Number(normalized), {
+            // El tipo del schema exige un number (required), pero mientras el usuario
+            // escribe el campo puede estar legitimamente vacio a nivel de runtime.
+            setValue('amount', (normalized === '' ? undefined : Number(normalized)) as number, {
               shouldValidate: false,
             });
           }}

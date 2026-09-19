@@ -6,7 +6,7 @@ import { Card } from '@/components/Card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuthStore } from '@/features/auth/auth.store';
-import { styles } from './settings.styles';
+import { styles } from '@/screens/tabs/settings.styles';
 
 const SettingsScreen = () => {
   const user = useAuthStore((s) => s.user);

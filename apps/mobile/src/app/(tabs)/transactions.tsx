@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, Platform, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryPill } from '@/components/CategoryPill';
@@ -14,13 +14,14 @@ import type { TransactionType } from '@/features/transactions/transactions.types
 import { TransactionRow } from '@/features/transactions/TransactionRow';
 import { useTransactions } from '@/features/transactions/useTransactions';
 import { useTheme } from '@/hooks/use-theme';
-import { styles } from './transactions.styles';
+import { styles } from '@/screens/tabs/transactions.styles';
 
 const TransactionsScreen = () => {
   const theme = useTheme();
   const [type, setType] = useState<TransactionType | undefined>(undefined);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [search, setSearch] = useState('');
+  const chipScrollRef = useRef<ScrollView>(null);
 
   const { data: categories } = useCategories();
   const filters = useMemo(
@@ -30,6 +31,22 @@ const TransactionsScreen = () => {
   const { data, isLoading } = useTransactions(filters);
 
   const visibleCategories = categories?.filter((c) => !type || c.type === type) ?? [];
+
+  // En web, el gesto tactil horizontal no existe: traducimos la rueda vertical del raton a scroll horizontal.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node = (chipScrollRef.current as unknown as { getScrollableNode?: () => HTMLElement })?.getScrollableNode?.();
+    if (!node) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaY === 0) return;
+      node.scrollLeft += event.deltaY;
+      event.preventDefault();
+    };
+
+    node.addEventListener('wheel', handleWheel);
+    return () => node.removeEventListener('wheel', handleWheel);
+  }, [visibleCategories.length]);
 
   return (
     <ThemedView style={styles.container}>
@@ -72,7 +89,11 @@ const TransactionsScreen = () => {
           </View>
 
           {visibleCategories.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            <ScrollView
+              ref={chipScrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipRow}>
               {visibleCategories.map((category) => (
                 <Pressable
                   key={category.id}
