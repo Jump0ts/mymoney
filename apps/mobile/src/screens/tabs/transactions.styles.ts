@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 
 export const styles = StyleSheet.create({
@@ -37,7 +37,26 @@ export const styles = StyleSheet.create({
     borderRadius: Radius.medium,
     alignItems: 'center',
   },
+  chipScrollWrap: {
+    position: 'relative',
+    justifyContent: 'center',
+    paddingHorizontal: Platform.select({ web: 32, default: 0 }),
+  },
   chipRow: { gap: Spacing.two, paddingVertical: Spacing.one },
+  chipArrow: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -14,
+    width: 28,
+    height: 28,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  chipArrowLeft: { left: 0 },
+  chipArrowRight: { right: 0 },
   list: {
     padding: Spacing.four,
     gap: Spacing.two,
@@ -46,4 +65,18 @@ export const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   empty: { textAlign: 'center', marginTop: Spacing.five },
+  pagination: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.three,
+    paddingVertical: Spacing.three,
+  },
+  paginationButton: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.medium,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

@@ -10,43 +10,85 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCategories } from '@/features/categories/useCategories';
 import { TRANSACTION_TYPE_FILTERS } from '@/features/transactions/transactions.constants';
-import type { TransactionType } from '@/features/transactions/transactions.types';
+import type { Transaction, TransactionType } from '@/features/transactions/transactions.types';
 import { TransactionRow } from '@/features/transactions/TransactionRow';
-import { useTransactions } from '@/features/transactions/useTransactions';
+import { useDeleteTransaction, useTransactions } from '@/features/transactions/useTransactions';
 import { useTheme } from '@/hooks/use-theme';
+import { ApiError } from '@/lib/api';
 import { styles } from '@/screens/tabs/transactions.styles';
+import { confirmAsync, notify } from '@/utils/alert';
+
+const CHIP_SCROLL_STEP = 160;
 
 const TransactionsScreen = () => {
   const theme = useTheme();
   const [type, setType] = useState<TransactionType | undefined>(undefined);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [canScrollChipsLeft, setCanScrollChipsLeft] = useState(false);
+  const [canScrollChipsRight, setCanScrollChipsRight] = useState(false);
   const chipScrollRef = useRef<ScrollView>(null);
 
   const { data: categories } = useCategories();
+  const deleteTransaction = useDeleteTransaction();
   const filters = useMemo(
-    () => ({ type, categoryId, search: search.trim() || undefined }),
-    [type, categoryId, search],
+    () => ({ type, categoryId, search: search.trim() || undefined, page }),
+    [type, categoryId, search, page],
   );
   const { data, isLoading } = useTransactions(filters);
+  const pagination = data?.pagination;
 
   const visibleCategories = categories?.filter((c) => !type || c.type === type) ?? [];
 
-  // En web, el gesto tactil horizontal no existe: traducimos la rueda vertical del raton a scroll horizontal.
+  useEffect(() => {
+    setPage(1);
+  }, [type, categoryId, search]);
+
+  const getChipScrollNode = () =>
+    (chipScrollRef.current as unknown as { getScrollableNode?: () => HTMLElement })?.getScrollableNode?.();
+
+  // En web no hay gesto tactil: se ofrecen flechas de navegacion en su lugar.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
-    const node = (chipScrollRef.current as unknown as { getScrollableNode?: () => HTMLElement })?.getScrollableNode?.();
+    const node = getChipScrollNode();
     if (!node) return;
 
-    const handleWheel = (event: WheelEvent) => {
-      if (event.deltaY === 0) return;
-      node.scrollLeft += event.deltaY;
-      event.preventDefault();
+    const updateScrollState = () => {
+      setCanScrollChipsLeft(node.scrollLeft > 0);
+      setCanScrollChipsRight(node.scrollLeft + node.clientWidth < node.scrollWidth - 1);
     };
 
-    node.addEventListener('wheel', handleWheel);
-    return () => node.removeEventListener('wheel', handleWheel);
+    updateScrollState();
+    node.addEventListener('scroll', updateScrollState);
+    return () => node.removeEventListener('scroll', updateScrollState);
   }, [visibleCategories.length]);
+
+  const scrollChips = (direction: 'left' | 'right') => {
+    const node = getChipScrollNode();
+    node?.scrollBy({ left: direction === 'left' ? -CHIP_SCROLL_STEP : CHIP_SCROLL_STEP, behavior: 'smooth' });
+  };
+
+  const handleEditTransaction = (transaction: Transaction) => {
+    router.push({
+      pathname: '/edit-transaction/[id]',
+      params: { id: transaction.id, transaction: JSON.stringify(transaction) },
+    });
+  };
+
+  const handleDeleteTransaction = async (transaction: Transaction) => {
+    const confirmed = await confirmAsync({
+      title: 'Borrar movimiento',
+      message: `¿Seguro que quieres borrar "${transaction.description || transaction.category.name}"?`,
+      confirmLabel: 'Borrar',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    deleteTransaction.mutate(transaction.id, {
+      onError: (err) => notify('No se pudo borrar', err instanceof ApiError ? err.message : 'Error inesperado'),
+    });
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -89,20 +131,46 @@ const TransactionsScreen = () => {
           </View>
 
           {visibleCategories.length > 0 && (
-            <ScrollView
-              ref={chipScrollRef}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chipRow}>
-              {visibleCategories.map((category) => (
+            <View style={styles.chipScrollWrap}>
+              {Platform.OS === 'web' && canScrollChipsLeft && (
                 <Pressable
-                  key={category.id}
-                  onPress={() => setCategoryId(categoryId === category.id ? undefined : category.id)}
-                  style={{ opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }}>
-                  <CategoryPill category={category} />
+                  accessibilityRole="button"
+                  onPress={() => scrollChips('left')}
+                  style={[
+                    styles.chipArrow,
+                    styles.chipArrowLeft,
+                    { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+                  ]}>
+                  <Feather name="chevron-left" size={16} color={theme.text} />
                 </Pressable>
-              ))}
-            </ScrollView>
+              )}
+              <ScrollView
+                ref={chipScrollRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipRow}>
+                {visibleCategories.map((category) => (
+                  <Pressable
+                    key={category.id}
+                    onPress={() => setCategoryId(categoryId === category.id ? undefined : category.id)}
+                    style={{ opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }}>
+                    <CategoryPill category={category} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+              {Platform.OS === 'web' && canScrollChipsRight && (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => scrollChips('right')}
+                  style={[
+                    styles.chipArrow,
+                    styles.chipArrowRight,
+                    { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+                  ]}>
+                  <Feather name="chevron-right" size={16} color={theme.text} />
+                </Pressable>
+              )}
+            </View>
           )}
         </View>
 
@@ -117,7 +185,41 @@ const TransactionsScreen = () => {
               </ThemedText>
             ) : null
           }
-          renderItem={({ item }) => <TransactionRow transaction={item} />}
+          renderItem={({ item }) => (
+            <TransactionRow transaction={item} onEdit={handleEditTransaction} onDelete={handleDeleteTransaction} />
+          )}
+          ListFooterComponent={
+            pagination && pagination.totalPages > 1 ? (
+              <View style={styles.pagination}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={pagination.page <= 1}
+                  onPress={() => setPage((p) => Math.max(1, p - 1))}
+                  style={[
+                    styles.paginationButton,
+                    { backgroundColor: theme.backgroundElement, opacity: pagination.page <= 1 ? 0.4 : 1 },
+                  ]}>
+                  <Feather name="chevron-left" size={16} color={theme.text} />
+                </Pressable>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Página {pagination.page} de {pagination.totalPages}
+                </ThemedText>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={pagination.page >= pagination.totalPages}
+                  onPress={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                  style={[
+                    styles.paginationButton,
+                    {
+                      backgroundColor: theme.backgroundElement,
+                      opacity: pagination.page >= pagination.totalPages ? 0.4 : 1,
+                    },
+                  ]}>
+                  <Feather name="chevron-right" size={16} color={theme.text} />
+                </Pressable>
+              </View>
+            ) : null
+          }
         />
       </SafeAreaView>
     </ThemedView>

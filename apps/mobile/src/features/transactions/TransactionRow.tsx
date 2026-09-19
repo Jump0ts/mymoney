@@ -1,12 +1,22 @@
-import { View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { Pressable, View } from 'react-native';
+
 import { Card } from '@/components/Card';
 import { CategoryPill } from '@/components/CategoryPill';
 import { ThemedText } from '@/components/themed-text';
+import { useTheme } from '@/hooks/use-theme';
 import { formatDate, formatMoney } from '@/utils/format';
 import type { Transaction } from './transactions.types';
 import { styles } from './TransactionRow.styles';
 
-export const TransactionRow = ({ transaction }: { transaction: Transaction }) => {
+interface TransactionRowProps {
+  transaction: Transaction;
+  onEdit: (transaction: Transaction) => void;
+  onDelete: (transaction: Transaction) => void;
+}
+
+export const TransactionRow = ({ transaction, onEdit, onDelete }: TransactionRowProps) => {
+  const theme = useTheme();
   const isExpense = transaction.type === 'EXPENSE';
   return (
     <Card style={styles.row}>
@@ -25,6 +35,14 @@ export const TransactionRow = ({ transaction }: { transaction: Transaction }) =>
         {isExpense ? '-' : '+'}
         {formatMoney(transaction.amount)}
       </ThemedText>
+      <View style={styles.actions}>
+        <Pressable accessibilityRole="button" onPress={() => onEdit(transaction)} hitSlop={8}>
+          <Feather name="edit-2" size={16} color={theme.textSecondary} />
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => onDelete(transaction)} hitSlop={8}>
+          <Feather name="trash-2" size={16} color={theme.danger} />
+        </Pressable>
+      </View>
     </Card>
   );
 };
