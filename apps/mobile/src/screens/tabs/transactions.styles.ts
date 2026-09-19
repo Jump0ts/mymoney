@@ -30,6 +30,16 @@ export const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
+  monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
+  dayToggle: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.medium,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayPickerPanel: { gap: Spacing.two, alignItems: 'center' },
   segmentRow: { flexDirection: 'row', gap: Spacing.two },
   segment: {
     flex: 1,

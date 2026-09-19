@@ -1,4 +1,4 @@
-import { compareYearMonth, getCurrentYearMonth, getMonthRange } from './date';
+import { compareYearMonth, formatDateKey, getCurrentYearMonth, getDayRange, getMonthRange } from './date';
 
 describe('getCurrentYearMonth', () => {
   it('devuelve el año y el mes (1-12) actuales', () => {
@@ -41,5 +41,23 @@ describe('getMonthRange', () => {
     const { from, to } = getMonthRange(2026, 12);
     expect(from).toBe('2026-12-01T00:00:00.000Z');
     expect(to).toBe('2026-12-31T23:59:59.999Z');
+  });
+});
+
+describe('formatDateKey', () => {
+  it('formatea una fecha como YYYY-MM-DD usando la hora local', () => {
+    expect(formatDateKey(new Date(2026, 5, 3, 23, 0, 0))).toBe('2026-06-03');
+  });
+
+  it('rellena con ceros el mes y el dia', () => {
+    expect(formatDateKey(new Date(2026, 0, 5, 12, 0, 0))).toBe('2026-01-05');
+  });
+});
+
+describe('getDayRange', () => {
+  it('cubre desde el primer hasta el ultimo instante del dia', () => {
+    const { from, to } = getDayRange('2026-06-15');
+    expect(from).toBe('2026-06-15T00:00:00.000Z');
+    expect(to).toBe('2026-06-15T23:59:59.999Z');
   });
 });

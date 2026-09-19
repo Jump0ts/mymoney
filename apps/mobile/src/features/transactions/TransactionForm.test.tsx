@@ -1,12 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { View as mockDateTimePickerView } from 'react-native';
 import { TransactionForm } from './TransactionForm';
 import type { AddTransactionFormValues } from './transactions.schema';
-
-jest.mock('@react-native-community/datetimepicker', () => ({
-  __esModule: true,
-  default: mockDateTimePickerView,
-}));
 
 const mockCategories = [
   { id: 'cat-exp-1', name: 'Alimentación', icon: 'shopping-cart', color: '#E67E22', type: 'EXPENSE' },
@@ -105,5 +99,44 @@ describe('TransactionForm', () => {
     );
 
     expect(screen.getByText('No se pudo guardar el movimiento')).toBeTruthy();
+  });
+
+  describe('selector de fecha', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('permite elegir una fecha distinta desde el calendario', async () => {
+      jest.useFakeTimers().setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+      const onSubmit = jest.fn();
+      render(
+        <TransactionForm submitLabel="Guardar" isSubmitting={false} submitError={null} onSubmit={onSubmit} />,
+      );
+
+      fireEvent.changeText(screen.getByTestId('transaction-amount-input'), '10');
+      fireEvent.press(screen.getByTestId('category-chip-cat-exp-1'));
+
+      fireEvent.press(screen.getByTestId('transaction-date-toggle'));
+      fireEvent.press(screen.getByTestId('calendar-day-2026-06-03'));
+      fireEvent.press(screen.getByTestId('transaction-submit'));
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+
+      const submitted = onSubmit.mock.calls[0][0] as AddTransactionFormValues;
+      expect(submitted.occurredAt.getFullYear()).toBe(2026);
+      expect(submitted.occurredAt.getMonth()).toBe(5);
+      expect(submitted.occurredAt.getDate()).toBe(3);
+    });
+
+    it('ignora el intento de elegir un dia posterior a hoy', () => {
+      jest.useFakeTimers().setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+      render(<TransactionForm submitLabel="Guardar" isSubmitting={false} submitError={null} onSubmit={noop} />);
+
+      fireEvent.press(screen.getByTestId('transaction-date-toggle'));
+      fireEvent.press(screen.getByTestId('calendar-day-2026-06-20'));
+
+      // Si la fecha se hubiese aceptado, el panel del calendario se habria cerrado.
+      expect(screen.getByTestId('calendar-day-2026-06-20')).toBeTruthy();
+    });
   });
 });

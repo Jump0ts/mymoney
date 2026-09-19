@@ -18,3 +18,13 @@ export const getMonthRange = (year: number, month: number): { from: string; to: 
   const to = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
   return { from: from.toISOString(), to: to.toISOString() };
 };
+
+export const formatDateKey = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+export const getDayRange = (dateKey: string): { from: string; to: string } => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const from = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const to = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+  return { from: from.toISOString(), to: to.toISOString() };
+};
