@@ -77,6 +77,7 @@ export const TransactionForm = ({
                 return (
                   <Pressable
                     key={option}
+                    testID={`transaction-type-${option}`}
                     onPress={() => {
                       field.onChange(option);
                       setValue('categoryId', '');
@@ -96,6 +97,7 @@ export const TransactionForm = ({
         />
 
         <Input
+          testID="transaction-amount-input"
           placeholder="0,00 €"
           keyboardType="decimal-pad"
           value={amountText}
@@ -124,6 +126,7 @@ export const TransactionForm = ({
             {visibleCategories.map((category) => (
               <Pressable
                 key={category.id}
+                testID={`category-chip-${category.id}`}
                 onPress={() => setValue('categoryId', category.id)}
                 style={{ opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }}>
                 <CategoryPill category={category} />
@@ -177,7 +180,12 @@ export const TransactionForm = ({
           </ThemedText>
         )}
 
-        <Button label={submitLabel} loading={isSubmitting} onPress={handleSubmit(onSubmit)} />
+        <Button
+          testID="transaction-submit"
+          label={submitLabel}
+          loading={isSubmitting}
+          onPress={handleSubmit(onSubmit)}
+        />
       </ScrollView>
     </ThemedView>
   );

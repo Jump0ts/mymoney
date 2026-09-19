@@ -36,10 +36,18 @@ export const TransactionRow = ({ transaction, onEdit, onDelete }: TransactionRow
         {formatMoney(transaction.amount)}
       </ThemedText>
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" onPress={() => onEdit(transaction)} hitSlop={8}>
+        <Pressable
+          accessibilityRole="button"
+          testID="transaction-row-edit"
+          onPress={() => onEdit(transaction)}
+          hitSlop={8}>
           <Feather name="edit-2" size={16} color={theme.textSecondary} />
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => onDelete(transaction)} hitSlop={8}>
+        <Pressable
+          accessibilityRole="button"
+          testID="transaction-row-delete"
+          onPress={() => onDelete(transaction)}
+          hitSlop={8}>
           <Feather name="trash-2" size={16} color={theme.danger} />
         </Pressable>
       </View>
