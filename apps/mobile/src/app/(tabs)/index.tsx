@@ -1,23 +1,31 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/Card';
 import { DonutChart } from '@/components/DonutChart';
 import { MonthlyBarChart } from '@/components/MonthlyBarChart';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuthStore } from '@/features/auth/auth.store';
 import { useSummary } from '@/features/transactions/useTransactions';
 import { useTheme } from '@/hooks/use-theme';
+import { getCurrentYearMonth, getMonthRange } from '@/utils/date';
 import { formatMoney } from '@/utils/format';
 import { styles } from '@/screens/tabs/index.styles';
 
 const DashboardScreen = () => {
   const theme = useTheme();
   const user = useAuthStore((s) => s.user);
-  const { data: summary, isLoading } = useSummary();
+  const [selected, setSelected] = useState(getCurrentYearMonth());
+  const selectedMonthKey = `${selected.year}-${String(selected.month).padStart(2, '0')}`;
+
+  const { data: summary, isLoading } = useSummary(getMonthRange(selected.year, selected.month));
+  // Historico completo (sin filtro de mes) solo para el grafico de barras.
+  const { data: history } = useSummary();
 
   const expenseSlices =
     summary?.byCategory
@@ -44,6 +52,12 @@ const DashboardScreen = () => {
               <Feather name="plus" size={24} color={theme.primaryText} />
             </Pressable>
           </View>
+
+          <MonthYearPicker
+            year={selected.year}
+            month={selected.month}
+            onChange={(year, month) => setSelected({ year, month })}
+          />
 
           <View style={styles.totalsRow}>
             <Card style={styles.totalCard}>
@@ -100,7 +114,14 @@ const DashboardScreen = () => {
             <ThemedText type="smallBold" style={styles.cardTitle}>
               Ingresos y gastos por mes
             </ThemedText>
-            <MonthlyBarChart data={summary?.byMonth ?? []} />
+            <MonthlyBarChart
+              data={history?.byMonth ?? []}
+              selectedMonth={selectedMonthKey}
+              onSelectMonth={(monthKey) => {
+                const [year, month] = monthKey.split('-').map(Number);
+                setSelected({ year, month });
+              }}
+            />
           </Card>
         </ScrollView>
       </SafeAreaView>

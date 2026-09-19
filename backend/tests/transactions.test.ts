@@ -94,6 +94,32 @@ describe("GET /api/transactions", () => {
     expect(res.body.transactions).toHaveLength(1);
     expect(res.body.transactions[0].amount).toBe("30");
   });
+
+  it("filtra por rango de fechas (from/to), usado por el selector de mes de la app", async () => {
+    const { token, expenseCategory } = await setup();
+
+    await request(app)
+      .post("/api/transactions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ categoryId: expenseCategory.id, type: "EXPENSE", amount: 10, occurredAt: "2026-05-31T23:00:00.000Z" });
+    await request(app)
+      .post("/api/transactions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ categoryId: expenseCategory.id, type: "EXPENSE", amount: 20, occurredAt: "2026-06-15T12:00:00.000Z" });
+    await request(app)
+      .post("/api/transactions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ categoryId: expenseCategory.id, type: "EXPENSE", amount: 30, occurredAt: "2026-07-01T00:00:00.000Z" });
+
+    const res = await request(app)
+      .get("/api/transactions")
+      .query({ from: "2026-06-01T00:00:00.000Z", to: "2026-06-30T23:59:59.999Z" })
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.transactions).toHaveLength(1);
+    expect(res.body.transactions[0].amount).toBe("20");
+  });
 });
 
 describe("GET /api/transactions (paginación)", () => {
@@ -289,6 +315,33 @@ describe("GET /api/transactions/summary", () => {
     expect(res.body.totalExpense).toBe(30);
     expect(res.body.balance).toBe(970);
     expect(res.body.byCategory.length).toBeGreaterThan(0);
+  });
+
+  it("limita los totales al rango from/to, usado por el selector de mes de la app", async () => {
+    const { token, expenseCategory, incomeCategory } = await setup();
+
+    await request(app)
+      .post("/api/transactions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ categoryId: incomeCategory.id, type: "INCOME", amount: 1000, occurredAt: "2026-05-20" });
+    await request(app)
+      .post("/api/transactions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ categoryId: expenseCategory.id, type: "EXPENSE", amount: 40, occurredAt: "2026-06-10" });
+    await request(app)
+      .post("/api/transactions")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ categoryId: expenseCategory.id, type: "EXPENSE", amount: 999, occurredAt: "2026-07-01" });
+
+    const res = await request(app)
+      .get("/api/transactions/summary")
+      .query({ from: "2026-06-01T00:00:00.000Z", to: "2026-06-30T23:59:59.999Z" })
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalIncome).toBe(0);
+    expect(res.body.totalExpense).toBe(40);
+    expect(res.body.balance).toBe(-40);
   });
 
   it("no mezcla totales entre usuarios distintos", async () => {

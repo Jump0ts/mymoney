@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryPill } from '@/components/CategoryPill';
 import { Input } from '@/components/Input';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCategories } from '@/features/categories/useCategories';
@@ -15,6 +16,7 @@ import { TransactionRow } from '@/features/transactions/TransactionRow';
 import { useDeleteTransaction, useTransactions } from '@/features/transactions/useTransactions';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
+import { getCurrentYearMonth, getMonthRange } from '@/utils/date';
 import { styles } from '@/screens/tabs/transactions.styles';
 import { confirmAsync, notify } from '@/utils/alert';
 
@@ -25,6 +27,7 @@ const TransactionsScreen = () => {
   const [type, setType] = useState<TransactionType | undefined>(undefined);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [search, setSearch] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentYearMonth());
   const [page, setPage] = useState(1);
   const [canScrollChipsLeft, setCanScrollChipsLeft] = useState(false);
   const [canScrollChipsRight, setCanScrollChipsRight] = useState(false);
@@ -33,8 +36,14 @@ const TransactionsScreen = () => {
   const { data: categories } = useCategories();
   const deleteTransaction = useDeleteTransaction();
   const filters = useMemo(
-    () => ({ type, categoryId, search: search.trim() || undefined, page }),
-    [type, categoryId, search, page],
+    () => ({
+      type,
+      categoryId,
+      search: search.trim() || undefined,
+      page,
+      ...getMonthRange(selectedMonth.year, selectedMonth.month),
+    }),
+    [type, categoryId, search, page, selectedMonth],
   );
   const { data, isLoading } = useTransactions(filters);
   const pagination = data?.pagination;
@@ -43,7 +52,7 @@ const TransactionsScreen = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [type, categoryId, search]);
+  }, [type, categoryId, search, selectedMonth]);
 
   const getChipScrollNode = () =>
     (chipScrollRef.current as unknown as { getScrollableNode?: () => HTMLElement })?.getScrollableNode?.();
@@ -106,6 +115,12 @@ const TransactionsScreen = () => {
         </View>
 
         <View style={styles.filters}>
+          <MonthYearPicker
+            year={selectedMonth.year}
+            month={selectedMonth.month}
+            onChange={(year, month) => setSelectedMonth({ year, month })}
+          />
+
           <Input placeholder="Buscar por descripción" value={search} onChangeText={setSearch} />
 
           <View style={styles.segmentRow}>
