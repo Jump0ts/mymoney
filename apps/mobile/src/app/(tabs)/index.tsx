@@ -6,8 +6,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/Card';
 import { DonutChart } from '@/components/DonutChart';
+import { DonutChartLegendSkeleton, DonutChartSkeleton } from '@/components/DonutChartSkeleton';
 import { MonthlyBarChart } from '@/components/MonthlyBarChart';
+import { MonthlyBarChartSkeleton } from '@/components/MonthlyBarChartSkeleton';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { Skeleton } from '@/components/Skeleton';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuthStore } from '@/features/auth/auth.store';
@@ -25,7 +28,7 @@ const DashboardScreen = () => {
 
   const { data: summary, isLoading } = useSummary(getMonthRange(selected.year, selected.month));
   // Historico completo (sin filtro de mes) solo para el grafico de barras.
-  const { data: history } = useSummary();
+  const { data: history, isLoading: isHistoryLoading } = useSummary();
 
   const expenseSlices =
     summary?.byCategory
@@ -41,9 +44,13 @@ const DashboardScreen = () => {
               <ThemedText type="small" themeColor="textSecondary">
                 Hola, {user?.name}
               </ThemedText>
-              <ThemedText type="title" style={styles.balance}>
-                {isLoading ? '···' : formatMoney(summary?.balance ?? 0)}
-              </ThemedText>
+              {isLoading ? (
+                <Skeleton height={38} width={140} />
+              ) : (
+                <ThemedText type="title" style={styles.balance}>
+                  {formatMoney(summary?.balance ?? 0)}
+                </ThemedText>
+              )}
             </View>
             <Pressable
               accessibilityRole="button"
@@ -64,17 +71,25 @@ const DashboardScreen = () => {
               <ThemedText type="small" themeColor="textSecondary">
                 Ingresos
               </ThemedText>
-              <ThemedText type="subtitle" themeColor="income" style={styles.totalAmount}>
-                {formatMoney(summary?.totalIncome ?? 0)}
-              </ThemedText>
+              {isLoading ? (
+                <Skeleton height={26} width={90} style={styles.totalAmountSkeleton} />
+              ) : (
+                <ThemedText type="subtitle" themeColor="income" style={styles.totalAmount}>
+                  {formatMoney(summary?.totalIncome ?? 0)}
+                </ThemedText>
+              )}
             </Card>
             <Card style={styles.totalCard}>
               <ThemedText type="small" themeColor="textSecondary">
                 Gastos
               </ThemedText>
-              <ThemedText type="subtitle" themeColor="expense" style={styles.totalAmount}>
-                {formatMoney(summary?.totalExpense ?? 0)}
-              </ThemedText>
+              {isLoading ? (
+                <Skeleton height={26} width={90} style={styles.totalAmountSkeleton} />
+              ) : (
+                <ThemedText type="subtitle" themeColor="expense" style={styles.totalAmount}>
+                  {formatMoney(summary?.totalExpense ?? 0)}
+                </ThemedText>
+              )}
             </Card>
           </View>
 
@@ -82,7 +97,12 @@ const DashboardScreen = () => {
             <ThemedText type="smallBold" style={styles.cardTitle}>
               Gastos por categoría
             </ThemedText>
-            {expenseSlices.length > 0 ? (
+            {isLoading ? (
+              <View style={styles.donutRow}>
+                <DonutChartSkeleton />
+                <DonutChartLegendSkeleton />
+              </View>
+            ) : expenseSlices.length > 0 ? (
               <View style={styles.donutRow}>
                 <DonutChart
                   data={expenseSlices}
@@ -104,9 +124,11 @@ const DashboardScreen = () => {
                 </View>
               </View>
             ) : (
-              <ThemedText type="small" themeColor="textSecondary">
-                Todavía no hay gastos registrados.
-              </ThemedText>
+              <View style={styles.emptyCategoryState}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Todavía no hay gastos registrados.
+                </ThemedText>
+              </View>
             )}
           </Card>
 
@@ -114,14 +136,18 @@ const DashboardScreen = () => {
             <ThemedText type="smallBold" style={styles.cardTitle}>
               Ingresos y gastos por mes
             </ThemedText>
-            <MonthlyBarChart
-              data={history?.byMonth ?? []}
-              selectedMonth={selectedMonthKey}
-              onSelectMonth={(monthKey) => {
-                const [year, month] = monthKey.split('-').map(Number);
-                setSelected({ year, month });
-              }}
-            />
+            {isHistoryLoading ? (
+              <MonthlyBarChartSkeleton />
+            ) : (
+              <MonthlyBarChart
+                data={history?.byMonth ?? []}
+                selectedMonth={selectedMonthKey}
+                onSelectMonth={(monthKey) => {
+                  const [year, month] = monthKey.split('-').map(Number);
+                  setSelected({ year, month });
+                }}
+              />
+            )}
           </Card>
         </ScrollView>
       </SafeAreaView>

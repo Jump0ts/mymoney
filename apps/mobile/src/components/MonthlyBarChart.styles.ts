@@ -27,4 +27,7 @@ export const styles = StyleSheet.create({
   monthLabel: {
     marginTop: Spacing.one,
   },
+  empty: {
+    justifyContent: 'center',
+  },
 });
