@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Platform, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CalendarGrid } from '@/components/CalendarGrid';
 import { CategoryPill } from '@/components/CategoryPill';
 import { Input } from '@/components/Input';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCategories } from '@/features/categories/useCategories';
@@ -15,6 +17,7 @@ import { TransactionRow } from '@/features/transactions/TransactionRow';
 import { useDeleteTransaction, useTransactions } from '@/features/transactions/useTransactions';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
+import { getCurrentYearMonth, getDayRange, getMonthRange } from '@/utils/date';
 import { styles } from '@/screens/tabs/transactions.styles';
 import { confirmAsync, notify } from '@/utils/alert';
 
@@ -25,6 +28,9 @@ const TransactionsScreen = () => {
   const [type, setType] = useState<TransactionType | undefined>(undefined);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [search, setSearch] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentYearMonth());
+  const [selectedDay, setSelectedDay] = useState<string | undefined>(undefined);
+  const [showDayPicker, setShowDayPicker] = useState(false);
   const [page, setPage] = useState(1);
   const [canScrollChipsLeft, setCanScrollChipsLeft] = useState(false);
   const [canScrollChipsRight, setCanScrollChipsRight] = useState(false);
@@ -33,17 +39,28 @@ const TransactionsScreen = () => {
   const { data: categories } = useCategories();
   const deleteTransaction = useDeleteTransaction();
   const filters = useMemo(
-    () => ({ type, categoryId, search: search.trim() || undefined, page }),
-    [type, categoryId, search, page],
+    () => ({
+      type,
+      categoryId,
+      search: search.trim() || undefined,
+      page,
+      ...(selectedDay ? getDayRange(selectedDay) : getMonthRange(selectedMonth.year, selectedMonth.month)),
+    }),
+    [type, categoryId, search, page, selectedMonth, selectedDay],
   );
   const { data, isLoading } = useTransactions(filters);
   const pagination = data?.pagination;
 
   const visibleCategories = categories?.filter((c) => !type || c.type === type) ?? [];
 
+  // Un dia solo tiene sentido dentro del mes que hay seleccionado.
+  useEffect(() => {
+    setSelectedDay(undefined);
+  }, [selectedMonth]);
+
   useEffect(() => {
     setPage(1);
-  }, [type, categoryId, search]);
+  }, [type, categoryId, search, selectedMonth, selectedDay]);
 
   const getChipScrollNode = () =>
     (chipScrollRef.current as unknown as { getScrollableNode?: () => HTMLElement })?.getScrollableNode?.();
@@ -106,6 +123,46 @@ const TransactionsScreen = () => {
         </View>
 
         <View style={styles.filters}>
+          <View style={styles.monthRow}>
+            <MonthYearPicker
+              year={selectedMonth.year}
+              month={selectedMonth.month}
+              onChange={(year, month) => setSelectedMonth({ year, month })}
+            />
+            <Pressable
+              accessibilityRole="button"
+              testID="day-picker-toggle"
+              onPress={() => setShowDayPicker((v) => !v)}
+              style={[
+                styles.dayToggle,
+                {
+                  backgroundColor: selectedDay ? theme.primary : theme.backgroundElement,
+                  borderColor: theme.border,
+                },
+              ]}>
+              <Feather name="calendar" size={16} color={selectedDay ? theme.primaryText : theme.text} />
+            </Pressable>
+          </View>
+
+          {showDayPicker && (
+            <View style={styles.dayPickerPanel}>
+              <CalendarGrid
+                year={selectedMonth.year}
+                month={selectedMonth.month}
+                selectedDate={selectedDay}
+                maxDate={new Date()}
+                onSelectDate={(dateKey) => setSelectedDay(dateKey === selectedDay ? undefined : dateKey)}
+              />
+              {selectedDay && (
+                <Pressable accessibilityRole="button" onPress={() => setSelectedDay(undefined)}>
+                  <ThemedText type="small" themeColor="primary">
+                    Ver todo el mes
+                  </ThemedText>
+                </Pressable>
+              )}
+            </View>
+          )}
+
           <Input placeholder="Buscar por descripción" value={search} onChangeText={setSearch} />
 
           <View style={styles.segmentRow}>

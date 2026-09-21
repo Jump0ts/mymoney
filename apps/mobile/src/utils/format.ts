@@ -24,3 +24,10 @@ export const formatMonthLabel = (monthKey: string): string => {
   const label = monthFormatter.format(new Date(year, month - 1, 1));
   return label.charAt(0).toUpperCase() + label.slice(1);
 };
+
+const monthYearFormatter = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' });
+
+export const formatMonthYearLabel = (year: number, month: number): string => {
+  const label = monthYearFormatter.format(new Date(year, month - 1, 1));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};

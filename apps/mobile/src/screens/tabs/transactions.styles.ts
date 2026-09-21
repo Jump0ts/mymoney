@@ -30,6 +30,25 @@ export const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
+  // En web, el boton de calendario no puede formar parte del grupo centrado junto al
+  // selector de mes: al centrar [selector + boton] como un unico bloque, el mes deja de
+  // coincidir con el centro real de la pantalla (se desplaza medio ancho de boton hacia
+  // la izquierda), algo que se nota mucho en una ventana ancha de escritorio. En web el
+  // selector de mes se centra solo, y el boton flota aparte en el borde derecho.
+  monthRow: Platform.select({
+    web: { width: '100%', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+    default: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
+  }),
+  dayToggle: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.medium,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({ web: { position: 'absolute', right: 0 } }),
+  },
+  dayPickerPanel: { gap: Spacing.two, alignItems: 'center' },
   segmentRow: { flexDirection: 'row', gap: Spacing.two },
   segment: {
     flex: 1,

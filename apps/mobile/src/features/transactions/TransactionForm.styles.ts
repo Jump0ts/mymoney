@@ -15,4 +15,5 @@ export const styles = StyleSheet.create({
   amountInput: { fontSize: 28, textAlign: 'center' },
   field: { gap: Spacing.two },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  datePickerPanel: { gap: Spacing.two, paddingTop: Spacing.two },
 });
