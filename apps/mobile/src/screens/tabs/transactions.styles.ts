@@ -49,13 +49,6 @@ export const styles = StyleSheet.create({
     ...Platform.select({ web: { position: 'absolute', right: 0 } }),
   },
   dayPickerPanel: { gap: Spacing.two, alignItems: 'center' },
-  segmentRow: { flexDirection: 'row', gap: Spacing.two },
-  segment: {
-    flex: 1,
-    paddingVertical: Spacing.two,
-    borderRadius: Radius.medium,
-    alignItems: 'center',
-  },
   chipScrollWrap: {
     position: 'relative',
     justifyContent: 'center',
@@ -76,6 +69,7 @@ export const styles = StyleSheet.create({
   },
   chipArrowLeft: { left: 0 },
   chipArrowRight: { right: 0 },
+  listFlex: { flex: 1 },
   list: {
     padding: Spacing.four,
     gap: Spacing.two,

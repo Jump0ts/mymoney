@@ -1,6 +1,9 @@
 import { Feather } from '@expo/vector-icons';
-import { Pressable, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { View } from 'react-native';
+import Animated, { FadeInLeft, FadeInRight, FadeOutLeft, FadeOutRight } from 'react-native-reanimated';
 
+import { AnimatedPressable } from './AnimatedPressable';
 import { ThemedText } from './themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { compareYearMonth, getCurrentYearMonth, type YearMonth } from '@/utils/date';
@@ -13,8 +16,20 @@ interface MonthYearPickerProps {
   onChange: (year: number, month: number) => void;
 }
 
+const LABEL_DURATION = 200;
+
 export const MonthYearPicker = ({ year, month, onChange }: MonthYearPickerProps) => {
   const theme = useTheme();
+
+  // El mes puede cambiar por las flechas o pulsando una barra del grafico (Resumen),
+  // asi que la direccion se deduce comparando con el ultimo valor visto, no con un
+  // simple flag de "se pulso prev/next".
+  const previous = useRef<YearMonth>({ year, month });
+  const direction = compareYearMonth({ year, month }, previous.current) < 0 ? 'backward' : 'forward';
+
+  useEffect(() => {
+    previous.current = { year, month };
+  }, [year, month]);
 
   const goTo = (deltaMonths: number) => {
     const totalMonths = year * 12 + (month - 1) + deltaMonths;
@@ -26,29 +41,36 @@ export const MonthYearPicker = ({ year, month, onChange }: MonthYearPickerProps)
 
   return (
     <View style={styles.container}>
-      <Pressable
+      <AnimatedPressable
         accessibilityRole="button"
         testID="month-picker-prev"
         onPress={() => goTo(-1)}
-        hitSlop={8}
         style={[styles.arrow, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
         <Feather name="chevron-left" size={18} color={theme.text} />
-      </Pressable>
-      <ThemedText type="smallBold" style={styles.label}>
-        {formatMonthYearLabel(year, month)}
-      </ThemedText>
-      <Pressable
+      </AnimatedPressable>
+      <View style={styles.labelWrap}>
+        <Animated.View
+          key={`${year}-${month}`}
+          testID="month-year-label"
+          entering={(direction === 'forward' ? FadeInRight : FadeInLeft).duration(LABEL_DURATION)}
+          exiting={(direction === 'forward' ? FadeOutLeft : FadeOutRight).duration(LABEL_DURATION)}
+          style={styles.labelAnimated}>
+          <ThemedText type="smallBold" style={styles.label}>
+            {formatMonthYearLabel(year, month)}
+          </ThemedText>
+        </Animated.View>
+      </View>
+      <AnimatedPressable
         accessibilityRole="button"
         testID="month-picker-next"
         disabled={disableNext}
         onPress={() => goTo(1)}
-        hitSlop={8}
         style={[
           styles.arrow,
           { backgroundColor: theme.backgroundElement, borderColor: theme.border, opacity: disableNext ? 0.4 : 1 },
         ]}>
         <Feather name="chevron-right" size={18} color={theme.text} />
-      </Pressable>
+      </AnimatedPressable>
     </View>
   );
 };

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { FadeInLeft, FadeInRight } from 'react-native-reanimated';
 import { MonthYearPicker } from './MonthYearPicker';
 import { getCurrentYearMonth } from '@/utils/date';
 
@@ -46,5 +47,23 @@ describe('MonthYearPicker', () => {
     fireEvent.press(screen.getByTestId('month-picker-next'));
 
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('anima el label desde la derecha al avanzar de mes', () => {
+    const { rerender } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+
+    rerender(<MonthYearPicker year={2026} month={7} onChange={jest.fn()} />);
+
+    const label = screen.getByTestId('month-year-label');
+    expect(label.props.entering.constructor).toBe(FadeInRight.duration(200).constructor);
+  });
+
+  it('anima el label desde la izquierda al retroceder de mes', () => {
+    const { rerender } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+
+    rerender(<MonthYearPicker year={2026} month={5} onChange={jest.fn()} />);
+
+    const label = screen.getByTestId('month-year-label');
+    expect(label.props.entering.constructor).toBe(FadeInLeft.duration(200).constructor);
   });
 });

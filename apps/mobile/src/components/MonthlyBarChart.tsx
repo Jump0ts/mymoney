@@ -1,4 +1,5 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { AnimatedPressable } from './AnimatedPressable';
 import { ThemedText } from './themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { formatMonthLabel } from '@/utils/format';
@@ -74,14 +75,14 @@ export const MonthlyBarChart = ({ data, height = 140, selectedMonth, onSelectMon
         }
 
         return (
-          <Pressable
+          <AnimatedPressable
             key={row.month}
             testID={`month-bar-${row.month}`}
             accessibilityRole="button"
             onPress={() => onSelectMonth(row.month)}
             style={styles.column}>
             {content}
-          </Pressable>
+          </AnimatedPressable>
         );
       })}
     </View>

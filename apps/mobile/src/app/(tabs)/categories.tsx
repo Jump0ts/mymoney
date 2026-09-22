@@ -1,8 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
+import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CategoryGroup } from '@/features/categories/CategoryGroup';
@@ -14,6 +16,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { styles } from '@/screens/tabs/categories.styles';
 import { confirmAsync, notify } from '@/utils/alert';
+
+const CONTENT_FADE_IN = FadeIn.duration(200);
 
 const CategoriesScreen = () => {
   const theme = useTheme();
@@ -47,12 +51,12 @@ const CategoriesScreen = () => {
             <ThemedText type="title" style={styles.title}>
               Categorías
             </ThemedText>
-            <Pressable
+            <AnimatedPressable
               accessibilityRole="button"
               onPress={() => setIsCreating((v) => !v)}
               style={[styles.addButton, { backgroundColor: theme.primary }]}>
               <Feather name={isCreating ? 'x' : 'plus'} size={20} color={theme.primaryText} />
-            </Pressable>
+            </AnimatedPressable>
           </View>
 
           {isCreating && <NewCategoryForm onDone={() => setIsCreating(false)} />}
@@ -63,10 +67,10 @@ const CategoriesScreen = () => {
               <CategoryGroupSkeleton />
             </>
           ) : (
-            <>
+            <Animated.View entering={CONTENT_FADE_IN}>
               <CategoryGroup title="Gastos" categories={expense} onDelete={handleDelete} />
               <CategoryGroup title="Ingresos" categories={income} onDelete={handleDelete} />
-            </>
+            </Animated.View>
           )}
         </ScrollView>
       </SafeAreaView>

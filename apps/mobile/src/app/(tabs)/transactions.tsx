@@ -1,13 +1,16 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
+import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { CalendarGrid } from '@/components/CalendarGrid';
 import { CategoryPill } from '@/components/CategoryPill';
 import { Input } from '@/components/Input';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { SegmentedControl } from '@/components/SegmentedControl';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCategories } from '@/features/categories/useCategories';
@@ -24,6 +27,11 @@ import { confirmAsync, notify } from '@/utils/alert';
 
 const CHIP_SCROLL_STEP = 160;
 const SKELETON_ROWS = 5;
+const DELETE_FADE_MS = 180;
+const CONTENT_FADE_IN = FadeIn.duration(200);
+// Cierra el hueco que deja una fila borrada deslizando las demas, sin
+// animar el montaje/desmontaje de cada fila (ver TransactionRow.tsx).
+const ROW_REFLOW = LinearTransition.duration(200);
 
 const TransactionsScreen = () => {
   const theme = useTheme();
@@ -36,6 +44,7 @@ const TransactionsScreen = () => {
   const [page, setPage] = useState(1);
   const [canScrollChipsLeft, setCanScrollChipsLeft] = useState(false);
   const [canScrollChipsRight, setCanScrollChipsRight] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const chipScrollRef = useRef<ScrollView>(null);
 
   const { data: categories } = useCategories();
@@ -104,9 +113,19 @@ const TransactionsScreen = () => {
     });
     if (!confirmed) return;
 
-    deleteTransaction.mutate(transaction.id, {
-      onError: (err) => notify('No se pudo borrar', err instanceof ApiError ? err.message : 'Error inesperado'),
-    });
+    // Se desvanece primero y se borra de verdad despues: si se quitara del
+    // array al instante, un FlatList virtualizado podria confundir ese
+    // desmontaje con el reciclado normal de filas al hacer scroll.
+    setDeletingId(transaction.id);
+    setTimeout(() => {
+      deleteTransaction.mutate(transaction.id, {
+        onError: (err) => {
+          setDeletingId(null);
+          notify('No se pudo borrar', err instanceof ApiError ? err.message : 'Error inesperado');
+        },
+        onSuccess: () => setDeletingId(null),
+      });
+    }, DELETE_FADE_MS);
   };
 
   return (
@@ -116,12 +135,12 @@ const TransactionsScreen = () => {
           <ThemedText type="title" style={styles.title}>
             Movimientos
           </ThemedText>
-          <Pressable
+          <AnimatedPressable
             accessibilityRole="button"
             onPress={() => router.push('/add-transaction')}
             style={[styles.addButton, { backgroundColor: theme.primary }]}>
             <Feather name="plus" size={20} color={theme.primaryText} />
-          </Pressable>
+          </AnimatedPressable>
         </View>
 
         <View style={styles.filters}>
@@ -131,7 +150,7 @@ const TransactionsScreen = () => {
               month={selectedMonth.month}
               onChange={(year, month) => setSelectedMonth({ year, month })}
             />
-            <Pressable
+            <AnimatedPressable
               accessibilityRole="button"
               testID="day-picker-toggle"
               onPress={() => setShowDayPicker((v) => !v)}
@@ -143,7 +162,7 @@ const TransactionsScreen = () => {
                 },
               ]}>
               <Feather name="calendar" size={16} color={selectedDay ? theme.primaryText : theme.text} />
-            </Pressable>
+            </AnimatedPressable>
           </View>
 
           {showDayPicker && (
@@ -156,43 +175,30 @@ const TransactionsScreen = () => {
                 onSelectDate={(dateKey) => setSelectedDay(dateKey === selectedDay ? undefined : dateKey)}
               />
               {selectedDay && (
-                <Pressable accessibilityRole="button" onPress={() => setSelectedDay(undefined)}>
+                <AnimatedPressable accessibilityRole="button" onPress={() => setSelectedDay(undefined)}>
                   <ThemedText type="small" themeColor="primary">
                     Ver todo el mes
                   </ThemedText>
-                </Pressable>
+                </AnimatedPressable>
               )}
             </View>
           )}
 
           <Input placeholder="Buscar por descripción" value={search} onChangeText={setSearch} />
 
-          <View style={styles.segmentRow}>
-            {TRANSACTION_TYPE_FILTERS.map((option) => {
-              const active = type === option.value;
-              return (
-                <Pressable
-                  key={option.label}
-                  onPress={() => {
-                    setType(option.value);
-                    setCategoryId(undefined);
-                  }}
-                  style={[
-                    styles.segment,
-                    { backgroundColor: active ? theme.primary : theme.backgroundElement },
-                  ]}>
-                  <ThemedText type="small" style={{ color: active ? theme.primaryText : theme.text }}>
-                    {option.label}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
-          </View>
+          <SegmentedControl
+            options={TRANSACTION_TYPE_FILTERS}
+            value={type}
+            onChange={(next) => {
+              setType(next);
+              setCategoryId(undefined);
+            }}
+          />
 
           {visibleCategories.length > 0 && (
             <View style={styles.chipScrollWrap}>
               {Platform.OS === 'web' && canScrollChipsLeft && (
-                <Pressable
+                <AnimatedPressable
                   accessibilityRole="button"
                   onPress={() => scrollChips('left')}
                   style={[
@@ -201,7 +207,7 @@ const TransactionsScreen = () => {
                     { backgroundColor: theme.backgroundElement, borderColor: theme.border },
                   ]}>
                   <Feather name="chevron-left" size={16} color={theme.text} />
-                </Pressable>
+                </AnimatedPressable>
               )}
               <ScrollView
                 ref={chipScrollRef}
@@ -209,16 +215,16 @@ const TransactionsScreen = () => {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.chipRow}>
                 {visibleCategories.map((category) => (
-                  <Pressable
+                  <AnimatedPressable
                     key={category.id}
                     onPress={() => setCategoryId(categoryId === category.id ? undefined : category.id)}
                     style={{ opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }}>
                     <CategoryPill category={category} />
-                  </Pressable>
+                  </AnimatedPressable>
                 ))}
               </ScrollView>
               {Platform.OS === 'web' && canScrollChipsRight && (
-                <Pressable
+                <AnimatedPressable
                   accessibilityRole="button"
                   onPress={() => scrollChips('right')}
                   style={[
@@ -227,7 +233,7 @@ const TransactionsScreen = () => {
                     { backgroundColor: theme.backgroundElement, borderColor: theme.border },
                   ]}>
                   <Feather name="chevron-right" size={16} color={theme.text} />
-                </Pressable>
+                </AnimatedPressable>
               )}
             </View>
           )}
@@ -240,51 +246,59 @@ const TransactionsScreen = () => {
             ))}
           </View>
         ) : (
-          <FlatList
-            data={data?.transactions ?? []}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.list}
-            ListEmptyComponent={
-              <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-                No hay movimientos que coincidan con el filtro.
-              </ThemedText>
-            }
-            renderItem={({ item }) => (
-              <TransactionRow transaction={item} onEdit={handleEditTransaction} onDelete={handleDeleteTransaction} />
-            )}
-            ListFooterComponent={
-              pagination && pagination.totalPages > 1 ? (
-                <View style={styles.pagination}>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={pagination.page <= 1}
-                    onPress={() => setPage((p) => Math.max(1, p - 1))}
-                    style={[
-                      styles.paginationButton,
-                      { backgroundColor: theme.backgroundElement, opacity: pagination.page <= 1 ? 0.4 : 1 },
-                    ]}>
-                    <Feather name="chevron-left" size={16} color={theme.text} />
-                  </Pressable>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Página {pagination.page} de {pagination.totalPages}
-                  </ThemedText>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={pagination.page >= pagination.totalPages}
-                    onPress={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-                    style={[
-                      styles.paginationButton,
-                      {
-                        backgroundColor: theme.backgroundElement,
-                        opacity: pagination.page >= pagination.totalPages ? 0.4 : 1,
-                      },
-                    ]}>
-                    <Feather name="chevron-right" size={16} color={theme.text} />
-                  </Pressable>
-                </View>
-              ) : null
-            }
-          />
+          <Animated.View entering={CONTENT_FADE_IN} style={styles.listFlex}>
+            <Animated.FlatList
+              data={data?.transactions ?? []}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.list}
+              itemLayoutAnimation={ROW_REFLOW}
+              ListEmptyComponent={
+                <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
+                  No hay movimientos que coincidan con el filtro.
+                </ThemedText>
+              }
+              renderItem={({ item }: { item: Transaction }) => (
+                <TransactionRow
+                  transaction={item}
+                  onEdit={handleEditTransaction}
+                  onDelete={handleDeleteTransaction}
+                  isDeleting={item.id === deletingId}
+                />
+              )}
+              ListFooterComponent={
+                pagination && pagination.totalPages > 1 ? (
+                  <View style={styles.pagination}>
+                    <AnimatedPressable
+                      accessibilityRole="button"
+                      disabled={pagination.page <= 1}
+                      onPress={() => setPage((p) => Math.max(1, p - 1))}
+                      style={[
+                        styles.paginationButton,
+                        { backgroundColor: theme.backgroundElement, opacity: pagination.page <= 1 ? 0.4 : 1 },
+                      ]}>
+                      <Feather name="chevron-left" size={16} color={theme.text} />
+                    </AnimatedPressable>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Página {pagination.page} de {pagination.totalPages}
+                    </ThemedText>
+                    <AnimatedPressable
+                      accessibilityRole="button"
+                      disabled={pagination.page >= pagination.totalPages}
+                      onPress={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                      style={[
+                        styles.paginationButton,
+                        {
+                          backgroundColor: theme.backgroundElement,
+                          opacity: pagination.page >= pagination.totalPages ? 0.4 : 1,
+                        },
+                      ]}>
+                      <Feather name="chevron-right" size={16} color={theme.text} />
+                    </AnimatedPressable>
+                  </View>
+                ) : null
+              }
+            />
+          </Animated.View>
         )}
       </SafeAreaView>
     </ThemedView>

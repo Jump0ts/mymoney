@@ -1,8 +1,9 @@
 import { yupResolver } from '@hookform/resolvers/yup';
 import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
+import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
 import { CalendarGrid } from '@/components/CalendarGrid';
 import { CategoryPill } from '@/components/CategoryPill';
@@ -81,7 +82,7 @@ export const TransactionForm = ({
               {(['EXPENSE', 'INCOME'] as const).map((option) => {
                 const active = field.value === option;
                 return (
-                  <Pressable
+                  <AnimatedPressable
                     key={option}
                     testID={`transaction-type-${option}`}
                     onPress={() => {
@@ -95,7 +96,7 @@ export const TransactionForm = ({
                     <ThemedText style={{ color: active ? theme.primaryText : theme.text }}>
                       {option === 'EXPENSE' ? 'Gasto' : 'Ingreso'}
                     </ThemedText>
-                  </Pressable>
+                  </AnimatedPressable>
                 );
               })}
             </View>
@@ -130,13 +131,13 @@ export const TransactionForm = ({
           </ThemedText>
           <View style={styles.chipWrap}>
             {visibleCategories.map((category) => (
-              <Pressable
+              <AnimatedPressable
                 key={category.id}
                 testID={`category-chip-${category.id}`}
                 onPress={() => setValue('categoryId', category.id)}
                 style={{ opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }}>
                 <CategoryPill category={category} />
-              </Pressable>
+              </AnimatedPressable>
             ))}
           </View>
           {errors.categoryId && (
@@ -150,14 +151,14 @@ export const TransactionForm = ({
           <ThemedText type="small" themeColor="textSecondary">
             Fecha
           </ThemedText>
-          <Pressable
+          <AnimatedPressable
             testID="transaction-date-toggle"
             onPress={() => {
               setViewedMonth({ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 });
               setShowDatePicker((v) => !v);
             }}>
             <Input editable={false} value={formatDate(occurredAt.toISOString())} pointerEvents="none" />
-          </Pressable>
+          </AnimatedPressable>
           {showDatePicker && (
             <View style={styles.datePickerPanel}>
               <MonthYearPicker
