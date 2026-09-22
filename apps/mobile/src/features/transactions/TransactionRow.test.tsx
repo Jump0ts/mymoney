@@ -53,4 +53,22 @@ describe('TransactionRow', () => {
 
     expect(onDelete).toHaveBeenCalledWith(expenseTransaction);
   });
+
+  it('se desvanece cuando isDeleting es true', () => {
+    render(
+      <TransactionRow transaction={expenseTransaction} onEdit={jest.fn()} onDelete={jest.fn()} isDeleting />,
+    );
+
+    const wrapper = screen.getByTestId('transaction-row-fade');
+    const flatStyle = Object.assign({}, ...[wrapper.props.style].flat().filter(Boolean));
+    expect(flatStyle.opacity).toBe(0);
+  });
+
+  it('no se desvanece por defecto', () => {
+    render(<TransactionRow transaction={expenseTransaction} onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+    const wrapper = screen.getByTestId('transaction-row-fade');
+    const flatStyle = Object.assign({}, ...[wrapper.props.style].flat().filter(Boolean));
+    expect(flatStyle.opacity).toBe(1);
+  });
 });

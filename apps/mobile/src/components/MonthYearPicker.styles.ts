@@ -11,5 +11,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: { minWidth: 170, textAlign: 'center' },
+  labelWrap: { minWidth: 170, height: 20 },
+  labelAnimated: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  label: { textAlign: 'center' },
 });

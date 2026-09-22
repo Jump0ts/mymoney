@@ -1,15 +1,16 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Platform, ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { CalendarGrid } from '@/components/CalendarGrid';
 import { CategoryPill } from '@/components/CategoryPill';
 import { Input } from '@/components/Input';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { SegmentedControl } from '@/components/SegmentedControl';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCategories } from '@/features/categories/useCategories';
@@ -26,7 +27,11 @@ import { confirmAsync, notify } from '@/utils/alert';
 
 const CHIP_SCROLL_STEP = 160;
 const SKELETON_ROWS = 5;
+const DELETE_FADE_MS = 180;
 const CONTENT_FADE_IN = FadeIn.duration(200);
+// Cierra el hueco que deja una fila borrada deslizando las demas, sin
+// animar el montaje/desmontaje de cada fila (ver TransactionRow.tsx).
+const ROW_REFLOW = LinearTransition.duration(200);
 
 const TransactionsScreen = () => {
   const theme = useTheme();
@@ -39,6 +44,7 @@ const TransactionsScreen = () => {
   const [page, setPage] = useState(1);
   const [canScrollChipsLeft, setCanScrollChipsLeft] = useState(false);
   const [canScrollChipsRight, setCanScrollChipsRight] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const chipScrollRef = useRef<ScrollView>(null);
 
   const { data: categories } = useCategories();
@@ -107,9 +113,19 @@ const TransactionsScreen = () => {
     });
     if (!confirmed) return;
 
-    deleteTransaction.mutate(transaction.id, {
-      onError: (err) => notify('No se pudo borrar', err instanceof ApiError ? err.message : 'Error inesperado'),
-    });
+    // Se desvanece primero y se borra de verdad despues: si se quitara del
+    // array al instante, un FlatList virtualizado podria confundir ese
+    // desmontaje con el reciclado normal de filas al hacer scroll.
+    setDeletingId(transaction.id);
+    setTimeout(() => {
+      deleteTransaction.mutate(transaction.id, {
+        onError: (err) => {
+          setDeletingId(null);
+          notify('No se pudo borrar', err instanceof ApiError ? err.message : 'Error inesperado');
+        },
+        onSuccess: () => setDeletingId(null),
+      });
+    }, DELETE_FADE_MS);
   };
 
   return (
@@ -170,27 +186,14 @@ const TransactionsScreen = () => {
 
           <Input placeholder="Buscar por descripción" value={search} onChangeText={setSearch} />
 
-          <View style={styles.segmentRow}>
-            {TRANSACTION_TYPE_FILTERS.map((option) => {
-              const active = type === option.value;
-              return (
-                <AnimatedPressable
-                  key={option.label}
-                  onPress={() => {
-                    setType(option.value);
-                    setCategoryId(undefined);
-                  }}
-                  style={[
-                    styles.segment,
-                    { backgroundColor: active ? theme.primary : theme.backgroundElement },
-                  ]}>
-                  <ThemedText type="small" style={{ color: active ? theme.primaryText : theme.text }}>
-                    {option.label}
-                  </ThemedText>
-                </AnimatedPressable>
-              );
-            })}
-          </View>
+          <SegmentedControl
+            options={TRANSACTION_TYPE_FILTERS}
+            value={type}
+            onChange={(next) => {
+              setType(next);
+              setCategoryId(undefined);
+            }}
+          />
 
           {visibleCategories.length > 0 && (
             <View style={styles.chipScrollWrap}>
@@ -244,20 +247,22 @@ const TransactionsScreen = () => {
           </View>
         ) : (
           <Animated.View entering={CONTENT_FADE_IN} style={styles.listFlex}>
-            <FlatList
+            <Animated.FlatList
               data={data?.transactions ?? []}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.list}
+              itemLayoutAnimation={ROW_REFLOW}
               ListEmptyComponent={
                 <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
                   No hay movimientos que coincidan con el filtro.
                 </ThemedText>
               }
-              renderItem={({ item }) => (
+              renderItem={({ item }: { item: Transaction }) => (
                 <TransactionRow
                   transaction={item}
                   onEdit={handleEditTransaction}
                   onDelete={handleDeleteTransaction}
+                  isDeleting={item.id === deletingId}
                 />
               )}
               ListFooterComponent={
