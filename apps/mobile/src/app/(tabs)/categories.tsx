@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CategoryGroup } from '@/features/categories/CategoryGroup';
+import { CategoryGroupSkeleton } from '@/features/categories/CategoryGroupSkeleton';
 import { NewCategoryForm } from '@/features/categories/NewCategoryForm';
 import type { Category } from '@/features/categories/categories.types';
 import { useCategories, useDeleteCategory } from '@/features/categories/useCategories';
@@ -16,7 +17,7 @@ import { confirmAsync, notify } from '@/utils/alert';
 
 const CategoriesScreen = () => {
   const theme = useTheme();
-  const { data: categories } = useCategories();
+  const { data: categories, isLoading } = useCategories();
   const deleteCategory = useDeleteCategory();
   const [isCreating, setIsCreating] = useState(false);
 
@@ -56,8 +57,17 @@ const CategoriesScreen = () => {
 
           {isCreating && <NewCategoryForm onDone={() => setIsCreating(false)} />}
 
-          <CategoryGroup title="Gastos" categories={expense} onDelete={handleDelete} />
-          <CategoryGroup title="Ingresos" categories={income} onDelete={handleDelete} />
+          {isLoading ? (
+            <>
+              <CategoryGroupSkeleton />
+              <CategoryGroupSkeleton />
+            </>
+          ) : (
+            <>
+              <CategoryGroup title="Gastos" categories={expense} onDelete={handleDelete} />
+              <CategoryGroup title="Ingresos" categories={income} onDelete={handleDelete} />
+            </>
+          )}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>

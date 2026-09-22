@@ -23,6 +23,7 @@ export const styles = StyleSheet.create({
   totalsRow: { flexDirection: 'row', gap: Spacing.three },
   totalCard: { flex: 1 },
   totalAmount: { fontSize: 20, lineHeight: 26, marginTop: Spacing.one },
+  totalAmountSkeleton: { marginTop: Spacing.one },
   card: { gap: Spacing.three },
   cardTitle: { marginBottom: Spacing.one },
   donutRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
@@ -30,4 +31,5 @@ export const styles = StyleSheet.create({
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendLabel: { flex: 1 },
+  emptyCategoryState: { minHeight: 176, justifyContent: 'center' },
 });
