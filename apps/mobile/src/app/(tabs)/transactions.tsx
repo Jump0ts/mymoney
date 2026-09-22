@@ -14,6 +14,7 @@ import { useCategories } from '@/features/categories/useCategories';
 import { TRANSACTION_TYPE_FILTERS } from '@/features/transactions/transactions.constants';
 import type { Transaction, TransactionType } from '@/features/transactions/transactions.types';
 import { TransactionRow } from '@/features/transactions/TransactionRow';
+import { TransactionRowSkeleton } from '@/features/transactions/TransactionRowSkeleton';
 import { useDeleteTransaction, useTransactions } from '@/features/transactions/useTransactions';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
@@ -22,6 +23,7 @@ import { styles } from '@/screens/tabs/transactions.styles';
 import { confirmAsync, notify } from '@/utils/alert';
 
 const CHIP_SCROLL_STEP = 160;
+const SKELETON_ROWS = 5;
 
 const TransactionsScreen = () => {
   const theme = useTheme();
@@ -231,53 +233,59 @@ const TransactionsScreen = () => {
           )}
         </View>
 
-        <FlatList
-          data={data?.transactions ?? []}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            !isLoading ? (
+        {isLoading ? (
+          <View style={styles.list}>
+            {Array.from({ length: SKELETON_ROWS }, (_, i) => (
+              <TransactionRowSkeleton key={i} />
+            ))}
+          </View>
+        ) : (
+          <FlatList
+            data={data?.transactions ?? []}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={
               <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
                 No hay movimientos que coincidan con el filtro.
               </ThemedText>
-            ) : null
-          }
-          renderItem={({ item }) => (
-            <TransactionRow transaction={item} onEdit={handleEditTransaction} onDelete={handleDeleteTransaction} />
-          )}
-          ListFooterComponent={
-            pagination && pagination.totalPages > 1 ? (
-              <View style={styles.pagination}>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={pagination.page <= 1}
-                  onPress={() => setPage((p) => Math.max(1, p - 1))}
-                  style={[
-                    styles.paginationButton,
-                    { backgroundColor: theme.backgroundElement, opacity: pagination.page <= 1 ? 0.4 : 1 },
-                  ]}>
-                  <Feather name="chevron-left" size={16} color={theme.text} />
-                </Pressable>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Página {pagination.page} de {pagination.totalPages}
-                </ThemedText>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={pagination.page >= pagination.totalPages}
-                  onPress={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-                  style={[
-                    styles.paginationButton,
-                    {
-                      backgroundColor: theme.backgroundElement,
-                      opacity: pagination.page >= pagination.totalPages ? 0.4 : 1,
-                    },
-                  ]}>
-                  <Feather name="chevron-right" size={16} color={theme.text} />
-                </Pressable>
-              </View>
-            ) : null
-          }
-        />
+            }
+            renderItem={({ item }) => (
+              <TransactionRow transaction={item} onEdit={handleEditTransaction} onDelete={handleDeleteTransaction} />
+            )}
+            ListFooterComponent={
+              pagination && pagination.totalPages > 1 ? (
+                <View style={styles.pagination}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={pagination.page <= 1}
+                    onPress={() => setPage((p) => Math.max(1, p - 1))}
+                    style={[
+                      styles.paginationButton,
+                      { backgroundColor: theme.backgroundElement, opacity: pagination.page <= 1 ? 0.4 : 1 },
+                    ]}>
+                    <Feather name="chevron-left" size={16} color={theme.text} />
+                  </Pressable>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Página {pagination.page} de {pagination.totalPages}
+                  </ThemedText>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={pagination.page >= pagination.totalPages}
+                    onPress={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                    style={[
+                      styles.paginationButton,
+                      {
+                        backgroundColor: theme.backgroundElement,
+                        opacity: pagination.page >= pagination.totalPages ? 0.4 : 1,
+                      },
+                    ]}>
+                    <Feather name="chevron-right" size={16} color={theme.text} />
+                  </Pressable>
+                </View>
+              ) : null
+            }
+          />
+        )}
       </SafeAreaView>
     </ThemedView>
   );

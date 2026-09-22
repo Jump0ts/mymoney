@@ -26,9 +26,11 @@ export const MonthlyBarChart = ({ data, height = 140, selectedMonth, onSelectMon
 
   if (rows.length === 0) {
     return (
-      <ThemedText type="small" themeColor="textSecondary">
-        Sin movimientos en este periodo.
-      </ThemedText>
+      <View style={[styles.empty, { height }]}>
+        <ThemedText type="small" themeColor="textSecondary">
+          Sin movimientos en este periodo.
+        </ThemedText>
+      </View>
     );
   }
 
