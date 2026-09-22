@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
+import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Card } from '@/components/Card';
 import { CategoryPill } from '@/components/CategoryPill';
 import { ThemedText } from '@/components/themed-text';
@@ -36,20 +37,18 @@ export const TransactionRow = ({ transaction, onEdit, onDelete }: TransactionRow
         {formatMoney(transaction.amount)}
       </ThemedText>
       <View style={styles.actions}>
-        <Pressable
+        <AnimatedPressable
           accessibilityRole="button"
           testID="transaction-row-edit"
-          onPress={() => onEdit(transaction)}
-          hitSlop={8}>
+          onPress={() => onEdit(transaction)}>
           <Feather name="edit-2" size={16} color={theme.textSecondary} />
-        </Pressable>
-        <Pressable
+        </AnimatedPressable>
+        <AnimatedPressable
           accessibilityRole="button"
           testID="transaction-row-delete"
-          onPress={() => onDelete(transaction)}
-          hitSlop={8}>
+          onPress={() => onDelete(transaction)}>
           <Feather name="trash-2" size={16} color={theme.danger} />
-        </Pressable>
+        </AnimatedPressable>
       </View>
     </Card>
   );

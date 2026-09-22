@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
+import { AnimatedPressable } from './AnimatedPressable';
 import { ThemedText } from './themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { compareYearMonth, getCurrentYearMonth, type YearMonth } from '@/utils/date';
@@ -26,29 +27,27 @@ export const MonthYearPicker = ({ year, month, onChange }: MonthYearPickerProps)
 
   return (
     <View style={styles.container}>
-      <Pressable
+      <AnimatedPressable
         accessibilityRole="button"
         testID="month-picker-prev"
         onPress={() => goTo(-1)}
-        hitSlop={8}
         style={[styles.arrow, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
         <Feather name="chevron-left" size={18} color={theme.text} />
-      </Pressable>
+      </AnimatedPressable>
       <ThemedText type="smallBold" style={styles.label}>
         {formatMonthYearLabel(year, month)}
       </ThemedText>
-      <Pressable
+      <AnimatedPressable
         accessibilityRole="button"
         testID="month-picker-next"
         disabled={disableNext}
         onPress={() => goTo(1)}
-        hitSlop={8}
         style={[
           styles.arrow,
           { backgroundColor: theme.backgroundElement, borderColor: theme.border, opacity: disableNext ? 0.4 : 1 },
         ]}>
         <Feather name="chevron-right" size={18} color={theme.text} />
-      </Pressable>
+      </AnimatedPressable>
     </View>
   );
 };

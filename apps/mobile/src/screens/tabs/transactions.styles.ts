@@ -76,6 +76,7 @@ export const styles = StyleSheet.create({
   },
   chipArrowLeft: { left: 0 },
   chipArrowRight: { right: 0 },
+  listFlex: { flex: 1 },
   list: {
     padding: Spacing.four,
     gap: Spacing.two,

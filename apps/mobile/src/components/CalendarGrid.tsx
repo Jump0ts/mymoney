@@ -1,4 +1,5 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { AnimatedPressable } from './AnimatedPressable';
 import { ThemedText } from './themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { formatDateKey } from '@/utils/date';
@@ -44,7 +45,7 @@ export const CalendarGrid = ({ year, month, selectedDate, onSelectDate, maxDate 
           const isDisabled = Boolean(maxDate) && date > (maxDate as Date);
 
           return (
-            <Pressable
+            <AnimatedPressable
               key={dateKey}
               testID={`calendar-day-${dateKey}`}
               accessibilityRole="button"
@@ -54,7 +55,7 @@ export const CalendarGrid = ({ year, month, selectedDate, onSelectDate, maxDate 
               <ThemedText type="small" themeColor={isSelected ? 'primaryText' : 'text'}>
                 {day}
               </ThemedText>
-            </Pressable>
+            </AnimatedPressable>
           );
         })}
       </View>

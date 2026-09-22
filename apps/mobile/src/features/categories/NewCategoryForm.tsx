@@ -1,7 +1,8 @@
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
+import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
@@ -51,12 +52,12 @@ export const NewCategoryForm = ({ onDone }: { onDone: () => void }) => {
         render={({ field }) => (
           <View style={styles.segmentRow}>
             {(['EXPENSE', 'INCOME'] as const).map((option) => (
-              <Pressable
+              <AnimatedPressable
                 key={option}
                 onPress={() => field.onChange(option)}
                 style={[styles.segment, { opacity: selectedType === option ? 1 : 0.5 }]}>
                 <ThemedText type="small">{option === 'EXPENSE' ? 'Gasto' : 'Ingreso'}</ThemedText>
-              </Pressable>
+              </AnimatedPressable>
             ))}
           </View>
         )}
@@ -68,7 +69,7 @@ export const NewCategoryForm = ({ onDone }: { onDone: () => void }) => {
         render={({ field }) => (
           <View style={styles.paletteRow}>
             {CategoryPalette.map((swatch) => (
-              <Pressable
+              <AnimatedPressable
                 key={swatch}
                 onPress={() => field.onChange(swatch)}
                 style={[

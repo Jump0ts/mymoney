@@ -1,9 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
+import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Card } from '@/components/Card';
 import { DonutChart } from '@/components/DonutChart';
 import { DonutChartLegendSkeleton, DonutChartSkeleton } from '@/components/DonutChartSkeleton';
@@ -19,6 +21,10 @@ import { useTheme } from '@/hooks/use-theme';
 import { getCurrentYearMonth, getMonthRange } from '@/utils/date';
 import { formatMoney } from '@/utils/format';
 import { styles } from '@/screens/tabs/index.styles';
+
+// Constructor de la animacion fuera del componente: reutilizarlo evita
+// reconstruirlo en cada render (ver skill animate-expo, "List entrances").
+const CONTENT_FADE_IN = FadeIn.duration(200);
 
 const DashboardScreen = () => {
   const theme = useTheme();
@@ -47,17 +53,19 @@ const DashboardScreen = () => {
               {isLoading ? (
                 <Skeleton height={38} width={140} />
               ) : (
-                <ThemedText type="title" style={styles.balance}>
-                  {formatMoney(summary?.balance ?? 0)}
-                </ThemedText>
+                <Animated.View entering={CONTENT_FADE_IN}>
+                  <ThemedText type="title" style={styles.balance}>
+                    {formatMoney(summary?.balance ?? 0)}
+                  </ThemedText>
+                </Animated.View>
               )}
             </View>
-            <Pressable
+            <AnimatedPressable
               accessibilityRole="button"
               onPress={() => router.push('/add-transaction')}
               style={[styles.fab, { backgroundColor: theme.primary }]}>
               <Feather name="plus" size={24} color={theme.primaryText} />
-            </Pressable>
+            </AnimatedPressable>
           </View>
 
           <MonthYearPicker
@@ -74,9 +82,11 @@ const DashboardScreen = () => {
               {isLoading ? (
                 <Skeleton height={26} width={90} style={styles.totalAmountSkeleton} />
               ) : (
-                <ThemedText type="subtitle" themeColor="income" style={styles.totalAmount}>
-                  {formatMoney(summary?.totalIncome ?? 0)}
-                </ThemedText>
+                <Animated.View entering={CONTENT_FADE_IN}>
+                  <ThemedText type="subtitle" themeColor="income" style={styles.totalAmount}>
+                    {formatMoney(summary?.totalIncome ?? 0)}
+                  </ThemedText>
+                </Animated.View>
               )}
             </Card>
             <Card style={styles.totalCard}>
@@ -86,9 +96,11 @@ const DashboardScreen = () => {
               {isLoading ? (
                 <Skeleton height={26} width={90} style={styles.totalAmountSkeleton} />
               ) : (
-                <ThemedText type="subtitle" themeColor="expense" style={styles.totalAmount}>
-                  {formatMoney(summary?.totalExpense ?? 0)}
-                </ThemedText>
+                <Animated.View entering={CONTENT_FADE_IN}>
+                  <ThemedText type="subtitle" themeColor="expense" style={styles.totalAmount}>
+                    {formatMoney(summary?.totalExpense ?? 0)}
+                  </ThemedText>
+                </Animated.View>
               )}
             </Card>
           </View>
@@ -103,7 +115,7 @@ const DashboardScreen = () => {
                 <DonutChartLegendSkeleton />
               </View>
             ) : expenseSlices.length > 0 ? (
-              <View style={styles.donutRow}>
+              <Animated.View entering={CONTENT_FADE_IN} style={styles.donutRow}>
                 <DonutChart
                   data={expenseSlices}
                   centerLabel={formatMoney(summary?.totalExpense ?? 0)}
@@ -122,13 +134,13 @@ const DashboardScreen = () => {
                     </View>
                   ))}
                 </View>
-              </View>
+              </Animated.View>
             ) : (
-              <View style={styles.emptyCategoryState}>
+              <Animated.View entering={CONTENT_FADE_IN} style={styles.emptyCategoryState}>
                 <ThemedText type="small" themeColor="textSecondary">
                   Todavía no hay gastos registrados.
                 </ThemedText>
-              </View>
+              </Animated.View>
             )}
           </Card>
 
@@ -139,14 +151,16 @@ const DashboardScreen = () => {
             {isHistoryLoading ? (
               <MonthlyBarChartSkeleton />
             ) : (
-              <MonthlyBarChart
-                data={history?.byMonth ?? []}
-                selectedMonth={selectedMonthKey}
-                onSelectMonth={(monthKey) => {
-                  const [year, month] = monthKey.split('-').map(Number);
-                  setSelected({ year, month });
-                }}
-              />
+              <Animated.View entering={CONTENT_FADE_IN}>
+                <MonthlyBarChart
+                  data={history?.byMonth ?? []}
+                  selectedMonth={selectedMonthKey}
+                  onSelectMonth={(monthKey) => {
+                    const [year, month] = monthKey.split('-').map(Number);
+                    setSelected({ year, month });
+                  }}
+                />
+              </Animated.View>
             )}
           </Card>
         </ScrollView>
