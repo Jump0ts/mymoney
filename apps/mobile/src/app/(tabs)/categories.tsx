@@ -53,6 +53,7 @@ const CategoriesScreen = () => {
             </ThemedText>
             <AnimatedPressable
               accessibilityRole="button"
+              accessibilityLabel={isCreating ? 'Cerrar formulario' : 'Añadir categoría'}
               onPress={() => setIsCreating((v) => !v)}
               style={[styles.addButton, { backgroundColor: theme.primary }]}>
               <Feather name={isCreating ? 'x' : 'plus'} size={20} color={theme.primaryText} />

@@ -13,5 +13,5 @@ export const styles = StyleSheet.create({
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 28, lineHeight: 34 },
-  addButton: { width: 40, height: 40, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center' },
+  addButton: { width: 44, height: 44, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center' },
 });

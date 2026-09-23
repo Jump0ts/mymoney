@@ -1,9 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, LinearTransition, useReducedMotion } from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { CalendarGrid } from '@/components/CalendarGrid';
@@ -46,6 +46,7 @@ const TransactionsScreen = () => {
   const [canScrollChipsRight, setCanScrollChipsRight] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const chipScrollRef = useRef<ScrollView>(null);
+  const reduceMotion = useReducedMotion();
 
   const { data: categories } = useCategories();
   const deleteTransaction = useDeleteTransaction();
@@ -97,36 +98,56 @@ const TransactionsScreen = () => {
     node?.scrollBy({ left: direction === 'left' ? -CHIP_SCROLL_STEP : CHIP_SCROLL_STEP, behavior: 'smooth' });
   };
 
-  const handleEditTransaction = (transaction: Transaction) => {
+  const handleEditTransaction = useCallback((transaction: Transaction) => {
     router.push({
       pathname: '/edit-transaction/[id]',
       params: { id: transaction.id, transaction: JSON.stringify(transaction) },
     });
-  };
+  }, []);
 
-  const handleDeleteTransaction = async (transaction: Transaction) => {
-    const confirmed = await confirmAsync({
-      title: 'Borrar movimiento',
-      message: `¿Seguro que quieres borrar "${transaction.description || transaction.category.name}"?`,
-      confirmLabel: 'Borrar',
-      destructive: true,
-    });
-    if (!confirmed) return;
-
-    // Se desvanece primero y se borra de verdad despues: si se quitara del
-    // array al instante, un FlatList virtualizado podria confundir ese
-    // desmontaje con el reciclado normal de filas al hacer scroll.
-    setDeletingId(transaction.id);
-    setTimeout(() => {
-      deleteTransaction.mutate(transaction.id, {
-        onError: (err) => {
-          setDeletingId(null);
-          notify('No se pudo borrar', err instanceof ApiError ? err.message : 'Error inesperado');
-        },
-        onSuccess: () => setDeletingId(null),
+  const handleDeleteTransaction = useCallback(
+    async (transaction: Transaction) => {
+      const confirmed = await confirmAsync({
+        title: 'Borrar movimiento',
+        message: `¿Seguro que quieres borrar "${transaction.description || transaction.category.name}"?`,
+        confirmLabel: 'Borrar',
+        destructive: true,
       });
-    }, DELETE_FADE_MS);
-  };
+      if (!confirmed) return;
+
+      // Se desvanece primero y se borra de verdad despues: si se quitara del
+      // array al instante, un FlatList virtualizado podria confundir ese
+      // desmontaje con el reciclado normal de filas al hacer scroll. Con
+      // Reducir movimiento activado el fundido es instantaneo, asi que no
+      // tiene sentido seguir retrasando el borrado real.
+      setDeletingId(transaction.id);
+      setTimeout(
+        () => {
+          deleteTransaction.mutate(transaction.id, {
+            onError: (err) => {
+              setDeletingId(null);
+              notify('No se pudo borrar', err instanceof ApiError ? err.message : 'Error inesperado');
+            },
+            onSuccess: () => setDeletingId(null),
+          });
+        },
+        reduceMotion ? 0 : DELETE_FADE_MS,
+      );
+    },
+    [deleteTransaction, reduceMotion],
+  );
+
+  const renderTransactionRow = useCallback(
+    ({ item }: { item: Transaction }) => (
+      <TransactionRow
+        transaction={item}
+        onEdit={handleEditTransaction}
+        onDelete={handleDeleteTransaction}
+        isDeleting={item.id === deletingId}
+      />
+    ),
+    [deletingId, handleDeleteTransaction, handleEditTransaction],
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -137,6 +158,7 @@ const TransactionsScreen = () => {
           </ThemedText>
           <AnimatedPressable
             accessibilityRole="button"
+            accessibilityLabel="Añadir movimiento"
             onPress={() => router.push('/add-transaction')}
             style={[styles.addButton, { backgroundColor: theme.primary }]}>
             <Feather name="plus" size={20} color={theme.primaryText} />
@@ -152,6 +174,8 @@ const TransactionsScreen = () => {
             />
             <AnimatedPressable
               accessibilityRole="button"
+              accessibilityLabel="Filtrar por día"
+              accessibilityState={{ selected: Boolean(selectedDay) }}
               testID="day-picker-toggle"
               onPress={() => setShowDayPicker((v) => !v)}
               style={[
@@ -175,7 +199,10 @@ const TransactionsScreen = () => {
                 onSelectDate={(dateKey) => setSelectedDay(dateKey === selectedDay ? undefined : dateKey)}
               />
               {selectedDay && (
-                <AnimatedPressable accessibilityRole="button" onPress={() => setSelectedDay(undefined)}>
+                <AnimatedPressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver todo el mes"
+                  onPress={() => setSelectedDay(undefined)}>
                   <ThemedText type="small" themeColor="primary">
                     Ver todo el mes
                   </ThemedText>
@@ -200,6 +227,7 @@ const TransactionsScreen = () => {
               {Platform.OS === 'web' && canScrollChipsLeft && (
                 <AnimatedPressable
                   accessibilityRole="button"
+                  accessibilityLabel="Desplazar categorías a la izquierda"
                   onPress={() => scrollChips('left')}
                   style={[
                     styles.chipArrow,
@@ -217,6 +245,9 @@ const TransactionsScreen = () => {
                 {visibleCategories.map((category) => (
                   <AnimatedPressable
                     key={category.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Filtrar por ${category.name}`}
+                    accessibilityState={{ selected: categoryId === category.id }}
                     onPress={() => setCategoryId(categoryId === category.id ? undefined : category.id)}
                     style={{ opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }}>
                     <CategoryPill category={category} />
@@ -226,6 +257,7 @@ const TransactionsScreen = () => {
               {Platform.OS === 'web' && canScrollChipsRight && (
                 <AnimatedPressable
                   accessibilityRole="button"
+                  accessibilityLabel="Desplazar categorías a la derecha"
                   onPress={() => scrollChips('right')}
                   style={[
                     styles.chipArrow,
@@ -257,19 +289,14 @@ const TransactionsScreen = () => {
                   No hay movimientos que coincidan con el filtro.
                 </ThemedText>
               }
-              renderItem={({ item }: { item: Transaction }) => (
-                <TransactionRow
-                  transaction={item}
-                  onEdit={handleEditTransaction}
-                  onDelete={handleDeleteTransaction}
-                  isDeleting={item.id === deletingId}
-                />
-              )}
+              renderItem={renderTransactionRow}
               ListFooterComponent={
                 pagination && pagination.totalPages > 1 ? (
                   <View style={styles.pagination}>
                     <AnimatedPressable
                       accessibilityRole="button"
+                      accessibilityLabel="Página anterior"
+                      accessibilityState={{ disabled: pagination.page <= 1 }}
                       disabled={pagination.page <= 1}
                       onPress={() => setPage((p) => Math.max(1, p - 1))}
                       style={[
@@ -283,6 +310,8 @@ const TransactionsScreen = () => {
                     </ThemedText>
                     <AnimatedPressable
                       accessibilityRole="button"
+                      accessibilityLabel="Página siguiente"
+                      accessibilityState={{ disabled: pagination.page >= pagination.totalPages }}
                       disabled={pagination.page >= pagination.totalPages}
                       onPress={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
                       style={[

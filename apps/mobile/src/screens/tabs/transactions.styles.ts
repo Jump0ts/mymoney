@@ -16,8 +16,8 @@ export const styles = StyleSheet.create({
   },
   title: { fontSize: 28, lineHeight: 34 },
   addButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -40,8 +40,8 @@ export const styles = StyleSheet.create({
     default: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
   }),
   dayToggle: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     borderRadius: Radius.medium,
     borderWidth: 1,
     alignItems: 'center',
@@ -86,8 +86,8 @@ export const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
   },
   paginationButton: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     borderRadius: Radius.medium,
     alignItems: 'center',
     justifyContent: 'center',

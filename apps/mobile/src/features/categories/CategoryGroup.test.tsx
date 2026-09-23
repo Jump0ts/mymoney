@@ -30,4 +30,10 @@ describe('CategoryGroup', () => {
 
     expect(onDelete).toHaveBeenCalledWith(categories[1]);
   });
+
+  it('tiene accessibilityLabel con el nombre de la categoria en el boton de borrar', () => {
+    render(<CategoryGroup title="Gastos" categories={categories} onDelete={jest.fn()} />);
+
+    expect(screen.getByLabelText('Borrar Transporte')).toBeTruthy();
+  });
 });

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 
 // Animamos el propio Pressable (no un View interno envolviendolo) para que
 // estilos relativos al contenedor (flex: 1, anchos en %, como los usan los
@@ -27,6 +27,10 @@ export const AnimatedPressable = ({
   ...props
 }: AnimatedPressableProps) => {
   const [pressed, setPressed] = useState(false);
+  // La transicion CSS de Reanimated no respeta Reducir movimiento por si sola
+  // (a diferencia de withTiming/entering/exiting, que si lo hacen por defecto);
+  // aqui se desactiva a mano poniendo la duracion a 0.
+  const reduceMotion = useReducedMotion();
 
   return (
     <AnimatedPressableHost
@@ -42,7 +46,7 @@ export const AnimatedPressable = ({
         setPressed(false);
         onPressOut?.(event);
       }}
-      style={[style, transitionStyle, pressed && !disabled && pressedStyle]}
+      style={[style, transitionStyle, reduceMotion && noTransitionDuration, pressed && !disabled && pressedStyle]}
     />
   );
 };
@@ -53,6 +57,8 @@ const transitionStyle = {
   transitionDuration: 120,
   transitionTimingFunction: 'cubic-bezier(0.23, 1, 0.32, 1)' as const,
 };
+
+const noTransitionDuration = { transitionDuration: 0 };
 
 const pressedStyle = {
   transform: [{ scale: 0.97 }],
