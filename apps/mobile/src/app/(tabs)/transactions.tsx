@@ -19,6 +19,7 @@ import type { Transaction, TransactionType } from '@/features/transactions/trans
 import { TransactionRow } from '@/features/transactions/TransactionRow';
 import { TransactionRowSkeleton } from '@/features/transactions/TransactionRowSkeleton';
 import { useDeleteTransaction, useTransactions } from '@/features/transactions/useTransactions';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { getCurrentYearMonth, getDayRange, getMonthRange } from '@/utils/date';
@@ -38,6 +39,7 @@ const TransactionsScreen = () => {
   const [type, setType] = useState<TransactionType | undefined>(undefined);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentYearMonth());
   const [selectedDay, setSelectedDay] = useState<string | undefined>(undefined);
   const [showDayPicker, setShowDayPicker] = useState(false);
@@ -54,11 +56,11 @@ const TransactionsScreen = () => {
     () => ({
       type,
       categoryId,
-      search: search.trim() || undefined,
+      search: debouncedSearch.trim() || undefined,
       page,
       ...(selectedDay ? getDayRange(selectedDay) : getMonthRange(selectedMonth.year, selectedMonth.month)),
     }),
-    [type, categoryId, search, page, selectedMonth, selectedDay],
+    [type, categoryId, debouncedSearch, page, selectedMonth, selectedDay],
   );
   const { data, isLoading } = useTransactions(filters);
   const pagination = data?.pagination;
@@ -72,7 +74,7 @@ const TransactionsScreen = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [type, categoryId, search, selectedMonth, selectedDay]);
+  }, [type, categoryId, debouncedSearch, selectedMonth, selectedDay]);
 
   const getChipScrollNode = () =>
     (chipScrollRef.current as unknown as { getScrollableNode?: () => HTMLElement })?.getScrollableNode?.();
@@ -249,7 +251,10 @@ const TransactionsScreen = () => {
                     accessibilityLabel={`Filtrar por ${category.name}`}
                     accessibilityState={{ selected: categoryId === category.id }}
                     onPress={() => setCategoryId(categoryId === category.id ? undefined : category.id)}
-                    style={{ opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }}>
+                    style={[
+                      styles.chipTouchArea,
+                      { opacity: !categoryId || categoryId === category.id ? 1 : 0.4 },
+                    ]}>
                     <CategoryPill category={category} />
                   </AnimatedPressable>
                 ))}

@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import { memo } from 'react';
 import { View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 
@@ -20,7 +21,7 @@ interface CategoryGroupProps {
 const ROW_EXIT = FadeOut.duration(200);
 const ROW_REFLOW = LinearTransition.duration(200);
 
-export const CategoryGroup = ({ title, categories, onDelete }: CategoryGroupProps) => {
+export const CategoryGroup = memo(({ title, categories, onDelete }: CategoryGroupProps) => {
   const theme = useTheme();
   if (categories.length === 0) return null;
 
@@ -47,4 +48,5 @@ export const CategoryGroup = ({ title, categories, onDelete }: CategoryGroupProp
       ))}
     </View>
   );
-};
+});
+CategoryGroup.displayName = 'CategoryGroup';

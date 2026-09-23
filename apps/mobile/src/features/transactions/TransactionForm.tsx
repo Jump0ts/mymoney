@@ -142,7 +142,7 @@ export const TransactionForm = ({
                 accessibilityState={{ selected: categoryId === category.id }}
                 testID={`category-chip-${category.id}`}
                 onPress={() => setValue('categoryId', category.id)}
-                style={{ opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }}>
+                style={[styles.chipTouchArea, { opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }]}>
                 <CategoryPill category={category} />
               </AnimatedPressable>
             ))}

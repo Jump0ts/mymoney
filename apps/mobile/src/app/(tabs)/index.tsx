@@ -134,6 +134,11 @@ const DashboardScreen = () => {
                       </ThemedText>
                     </View>
                   ))}
+                  {expenseSlices.length > 6 && (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      +{expenseSlices.length - 6} más
+                    </ThemedText>
+                  )}
                 </View>
               </Animated.View>
             ) : (

@@ -20,6 +20,8 @@ export const Button = ({ label, variant = 'primary', loading, disabled, ...props
   return (
     <AnimatedPressable
       accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       disabled={disabled || loading}
       style={[styles.base, { backgroundColor, opacity: disabled || loading ? 0.7 : 1 }]}
       {...props}>

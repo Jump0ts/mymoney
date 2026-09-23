@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -25,23 +25,26 @@ const CategoriesScreen = () => {
   const deleteCategory = useDeleteCategory();
   const [isCreating, setIsCreating] = useState(false);
 
-  const expense = categories?.filter((c) => c.type === 'EXPENSE') ?? [];
-  const income = categories?.filter((c) => c.type === 'INCOME') ?? [];
+  const expense = useMemo(() => categories?.filter((c) => c.type === 'EXPENSE') ?? [], [categories]);
+  const income = useMemo(() => categories?.filter((c) => c.type === 'INCOME') ?? [], [categories]);
 
-  const handleDelete = async (category: Category) => {
-    const confirmed = await confirmAsync({
-      title: 'Borrar categoría',
-      message: `¿Seguro que quieres borrar "${category.name}"?`,
-      confirmLabel: 'Borrar',
-      destructive: true,
-    });
-    if (!confirmed) return;
+  const handleDelete = useCallback(
+    async (category: Category) => {
+      const confirmed = await confirmAsync({
+        title: 'Borrar categoría',
+        message: `¿Seguro que quieres borrar "${category.name}"?`,
+        confirmLabel: 'Borrar',
+        destructive: true,
+      });
+      if (!confirmed) return;
 
-    deleteCategory.mutate(category.id, {
-      onError: (err) =>
-        notify('No se pudo borrar', err instanceof ApiError ? err.message : 'Error inesperado'),
-    });
-  };
+      deleteCategory.mutate(category.id, {
+        onError: (err) =>
+          notify('No se pudo borrar', err instanceof ApiError ? err.message : 'Error inesperado'),
+      });
+    },
+    [deleteCategory],
+  );
 
   return (
     <ThemedView style={styles.container}>

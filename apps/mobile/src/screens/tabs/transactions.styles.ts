@@ -55,6 +55,9 @@ export const styles = StyleSheet.create({
     paddingHorizontal: Platform.select({ web: 32, default: 0 }),
   },
   chipRow: { gap: Spacing.two, paddingVertical: Spacing.one },
+  // La CategoryPill visible es pequena; esto solo agranda la zona pulsable
+  // alrededor a 44px de alto sin cambiar el tamano visual del chip.
+  chipTouchArea: { minHeight: 44, justifyContent: 'center' },
   chipArrow: {
     position: 'absolute',
     top: '50%',
