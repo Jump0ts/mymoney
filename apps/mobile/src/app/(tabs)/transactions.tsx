@@ -101,10 +101,10 @@ const TransactionsScreen = () => {
   };
 
   const handleEditTransaction = useCallback((transaction: Transaction) => {
-    router.push({
-      pathname: '/edit-transaction/[id]',
-      params: { id: transaction.id, transaction: JSON.stringify(transaction) },
-    });
+    // Solo el id va en la URL. En web, Expo Router serializa los params en la
+    // query string; meter el movimiento entero (importe, descripcion...) ahi
+    // lo dejaria en el historial del navegador y en logs de acceso.
+    router.push({ pathname: '/edit-transaction/[id]', params: { id: transaction.id } });
   }, []);
 
   const handleDeleteTransaction = useCallback(

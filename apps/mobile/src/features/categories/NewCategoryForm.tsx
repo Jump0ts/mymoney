@@ -82,13 +82,10 @@ export const NewCategoryForm = ({ onDone }: { onDone: () => void }) => {
                 onPress={() => field.onChange(swatch)}
                 style={[
                   styles.swatch,
-                  {
-                    backgroundColor: swatch,
-                    borderWidth: selectedColor === swatch ? 3 : 0,
-                    borderColor: theme.text,
-                  },
-                ]}
-              />
+                  { borderWidth: selectedColor === swatch ? 3 : 0, borderColor: theme.text },
+                ]}>
+                <View style={[styles.swatchDot, { backgroundColor: swatch }]} />
+              </AnimatedPressable>
             ))}
           </View>
         )}
