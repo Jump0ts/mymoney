@@ -35,3 +35,7 @@ Instala `ddclient` apuntando al proveedor DNS de Cloudflare, actualizando el reg
 ## 6. Router
 
 Abre el puerto 443 (y 80 temporalmente para la validación de Certbot) hacia la IP local de este servidor.
+
+## 7. Backups
+
+Copias diarias de la base de datos con copia en otro equipo y restauración probada: ver [BACKUP.md](./BACKUP.md).
