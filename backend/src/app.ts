@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { env } from "./env.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import { budgetsRouter } from "./modules/budgets/budgets.routes.js";
 import { categoriesRouter } from "./modules/categories/categories.routes.js";
 import { transactionsRouter } from "./modules/transactions/transactions.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -23,6 +24,7 @@ export const createApp = () => {
   });
 
   app.use("/api/auth", authRouter);
+  app.use("/api/budgets", budgetsRouter);
   app.use("/api/categories", categoriesRouter);
   app.use("/api/transactions", transactionsRouter);
 
