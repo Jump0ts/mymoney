@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { Dimensions } from 'react-native';
 import { FadeInLeft, FadeInRight } from 'react-native-reanimated';
 import { MonthYearPicker } from './MonthYearPicker';
 import { getCurrentYearMonth } from '@/utils/date';
@@ -47,6 +48,27 @@ describe('MonthYearPicker', () => {
     fireEvent.press(screen.getByTestId('month-picker-next'));
 
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('adapta la altura de la etiqueta al tamano de letra del sistema, con tope', () => {
+    const original = Dimensions.get('window');
+    const heightAt = (fontScale: number) => {
+      Dimensions.set({ window: { ...original, fontScale } });
+      const { unmount } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+      const wrap = screen.getByTestId('month-year-label-wrap');
+      const height = Object.assign({}, ...[wrap.props.style].flat().filter(Boolean)).height;
+      unmount();
+      return height;
+    };
+
+    try {
+      expect(heightAt(1)).toBe(20);
+      expect(heightAt(1.15)).toBe(23);
+      // Por encima del tope (1.3) la etiqueta deja de crecer.
+      expect(heightAt(2)).toBe(26);
+    } finally {
+      Dimensions.set({ window: original });
+    }
   });
 
   it('tiene accessibilityLabel en las flechas para lectores de pantalla', () => {

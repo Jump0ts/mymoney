@@ -7,5 +7,6 @@ export const styles = StyleSheet.create({
   form: { width: '100%', maxWidth: MaxContentWidth, gap: Spacing.three },
   title: { fontSize: 34, lineHeight: 40 },
   subtitle: { marginBottom: Spacing.two },
-  link: { alignSelf: 'center', marginTop: Spacing.two },
+  // paddingVertical sube la zona pulsable del enlace (30px de linea) a >=44px.
+  link: { alignSelf: 'center', marginTop: Spacing.two, paddingVertical: Spacing.two },
 });

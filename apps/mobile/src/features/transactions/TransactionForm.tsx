@@ -7,6 +7,7 @@ import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
 import { CalendarGrid } from '@/components/CalendarGrid';
 import { CategoryPill } from '@/components/CategoryPill';
+import { FieldError } from '@/components/FieldError';
 import { Input } from '@/components/Input';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { ThemedText } from '@/components/themed-text';
@@ -123,11 +124,7 @@ export const TransactionForm = ({
           }}
           style={styles.amountInput}
         />
-        {errors.amount && (
-          <ThemedText themeColor="danger" type="small">
-            {errors.amount.message}
-          </ThemedText>
-        )}
+        <FieldError message={errors.amount?.message} />
 
         <View style={styles.field}>
           <ThemedText type="small" themeColor="textSecondary">
@@ -147,11 +144,7 @@ export const TransactionForm = ({
               </AnimatedPressable>
             ))}
           </View>
-          {errors.categoryId && (
-            <ThemedText themeColor="danger" type="small">
-              {errors.categoryId.message}
-            </ThemedText>
-          )}
+          <FieldError message={errors.categoryId?.message} />
         </View>
 
         <View style={styles.field}>
@@ -210,11 +203,7 @@ export const TransactionForm = ({
           )}
         />
 
-        {submitError && (
-          <ThemedText themeColor="danger" type="small">
-            {submitError}
-          </ThemedText>
-        )}
+        <FieldError message={submitError} />
 
         <Button
           testID="transaction-submit"

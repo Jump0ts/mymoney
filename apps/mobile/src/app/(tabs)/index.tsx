@@ -107,7 +107,7 @@ const DashboardScreen = () => {
           </View>
 
           <Card style={styles.card}>
-            <ThemedText type="smallBold" style={styles.cardTitle}>
+            <ThemedText type="smallBold" accessibilityRole="header" style={styles.cardTitle}>
               Gastos por categoría
             </ThemedText>
             {isLoading ? (
@@ -151,7 +151,7 @@ const DashboardScreen = () => {
           </Card>
 
           <Card style={styles.card}>
-            <ThemedText type="smallBold" style={styles.cardTitle}>
+            <ThemedText type="smallBold" accessibilityRole="header" style={styles.cardTitle}>
               Ingresos y gastos por mes
             </ThemedText>
             {isHistoryLoading ? (

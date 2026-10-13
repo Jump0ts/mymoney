@@ -51,7 +51,7 @@ const CategoriesScreen = () => {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.headerRow}>
-            <ThemedText type="title" style={styles.title}>
+            <ThemedText type="title" accessibilityRole="header" style={styles.title}>
               Categorías
             </ThemedText>
             <AnimatedPressable
