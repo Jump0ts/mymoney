@@ -46,6 +46,22 @@ export const getLimitStatus = (entry: BudgetEntry): BudgetLimitStatus => {
   };
 };
 
+// Lee un importe escrito a mano: "1700,5", "1700.5", "1.500" (miles) o "1.500,75".
+// Devuelve null si no es un numero valido o es negativo.
+export const parseAmountInput = (text: string): number | null => {
+  const trimmed = text.trim();
+  if (trimmed === '') return null;
+
+  let normalized = trimmed;
+  if (trimmed.includes(',')) {
+    normalized = trimmed.replace(/\./g, '').replace(',', '.');
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(trimmed)) {
+    normalized = trimmed.replace(/\./g, '');
+  }
+
+  return /^\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : null;
+};
+
 // Para la actualizacion optimista del check de pagado.
 export const setEntryPaid = (month: BudgetMonthResponse, entryId: string, paid: boolean): BudgetMonthResponse => ({
   ...month,

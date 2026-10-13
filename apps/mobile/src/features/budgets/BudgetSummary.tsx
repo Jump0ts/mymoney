@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { formatMoney } from '@/utils/format';
 import type { BudgetMonthTotals } from './budgets.types';
+import { parseAmountInput } from './budgets.utils';
 import { BudgetAmountCell } from './BudgetAmountCell';
 import { styles } from './BudgetSummary.styles';
 
@@ -31,8 +32,8 @@ export const BudgetSummary = ({ totals, onSaveIncome }: BudgetSummaryProps) => {
   };
 
   const save = async () => {
-    const value = Number(text.replace(',', '.'));
-    if (text.trim() === '' || !Number.isFinite(value) || value < 0) {
+    const value = parseAmountInput(text);
+    if (value === null) {
       setError('Escribe un importe válido (0 o más)');
       return;
     }
@@ -67,6 +68,17 @@ export const BudgetSummary = ({ totals, onSaveIncome }: BudgetSummaryProps) => {
             <ThemedText type="smallBold" themeColor="primaryText">
               Guardar
             </ThemedText>
+          </AnimatedPressable>
+          <AnimatedPressable
+            testID="budget-income-cancel"
+            accessibilityRole="button"
+            accessibilityLabel="Cancelar edición del sueldo"
+            onPress={() => {
+              setError(null);
+              setEditing(false);
+            }}
+            style={styles.cancelButton}>
+            <Feather name="x" size={20} color={theme.textSecondary} />
           </AnimatedPressable>
         </View>
       ) : (

@@ -20,18 +20,19 @@ export const BudgetEntryRow = memo(({ entry, onTogglePaid }: BudgetEntryRowProps
 
   if (entry.kind === 'CATEGORY_LIMIT') {
     const status = getLimitStatus(entry);
+    const statusText = status.isOver
+      ? `Te pasas ${formatMoney(Math.abs(status.remaining))}`
+      : `Quedan ${formatMoney(status.remaining)}`;
     return (
       <View
         testID={`budget-entry-${entry.id}`}
         accessible
         accessibilityRole="progressbar"
-        accessibilityLabel={`${entry.name}: gastado ${formatMoney(status.spent)} de ${formatMoney(status.limit)}`}
+        accessibilityLabel={`${entry.name}: gastado ${formatMoney(status.spent)} de ${formatMoney(status.limit)}. ${statusText}`}
         accessibilityValue={{ min: 0, max: status.limit, now: Math.min(status.spent, status.limit) }}
         style={styles.limitRow}>
         <View style={styles.limitHeader}>
-          <ThemedText numberOfLines={1} style={styles.name}>
-            {entry.name}
-          </ThemedText>
+          <ThemedText style={styles.name}>{entry.name}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
             {formatMoney(status.spent)} de {formatMoney(status.limit)}
           </ThemedText>
@@ -45,9 +46,7 @@ export const BudgetEntryRow = memo(({ entry, onTogglePaid }: BudgetEntryRowProps
           />
         </View>
         <ThemedText type="small" themeColor={status.isOver ? 'expense' : 'textSecondary'}>
-          {status.isOver
-            ? `Te pasas ${formatMoney(Math.abs(status.remaining))}`
-            : `Quedan ${formatMoney(status.remaining)}`}
+          {statusText}
         </ThemedText>
       </View>
     );
@@ -67,7 +66,7 @@ export const BudgetEntryRow = memo(({ entry, onTogglePaid }: BudgetEntryRowProps
         size={20}
         color={entry.paid ? theme.primary : theme.textSecondary}
       />
-      <ThemedText numberOfLines={1} themeColor={entry.paid ? 'textSecondary' : 'text'} style={styles.name}>
+      <ThemedText themeColor={entry.paid ? 'textSecondary' : 'text'} style={styles.name}>
         {entry.name}
       </ThemedText>
       <ThemedText type="smallBold" themeColor={isRefund ? 'income' : entry.paid ? 'textSecondary' : 'text'}>

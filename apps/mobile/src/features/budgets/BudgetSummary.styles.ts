@@ -15,6 +15,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   divider: { height: 1 },
-  totalsRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  rowLabel: { flex: 1 },
+  totalsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: Spacing.three },
+  rowLabel: { flexGrow: 1, minWidth: 96 },
+  cancelButton: { minHeight: 44, paddingHorizontal: Spacing.two, alignItems: 'center', justifyContent: 'center' },
 });

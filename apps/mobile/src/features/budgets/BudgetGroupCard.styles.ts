@@ -6,13 +6,16 @@ export const styles = StyleSheet.create({
   card: { padding: 0, overflow: 'hidden' },
   header: { paddingHorizontal: Spacing.four, paddingVertical: Spacing.three },
   body: { paddingHorizontal: Spacing.four, paddingVertical: Spacing.two, gap: Spacing.one },
+  // flexWrap: con texto muy grande las dos cifras pasan a la linea de abajo en vez de
+  // aplastar la etiqueta o salirse de la tarjeta.
   footer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: Spacing.three,
     paddingHorizontal: Spacing.four,
     paddingBottom: Spacing.three,
     paddingTop: Spacing.one,
   },
-  footerLabel: { flex: 1 },
+  footerLabel: { flexGrow: 1, minWidth: 64 },
 });

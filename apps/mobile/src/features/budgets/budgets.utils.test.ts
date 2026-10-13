@@ -1,5 +1,12 @@
 import type { BudgetEntry, BudgetGroup, BudgetMonthResponse } from './budgets.types';
-import { getEntryActual, getGroupTotals, getLimitStatus, getMonthTotals, setEntryPaid } from './budgets.utils';
+import {
+  getEntryActual,
+  getGroupTotals,
+  getLimitStatus,
+  getMonthTotals,
+  parseAmountInput,
+  setEntryPaid,
+} from './budgets.utils';
 
 const fixed = (id: string, amount: string, paid: boolean): BudgetEntry => ({
   id,
@@ -122,6 +129,32 @@ describe('getLimitStatus', () => {
 
   it('gastar exactamente el limite no cuenta como pasarse', () => {
     expect(getLimitStatus(limit('a', '100.00', 100)).isOver).toBe(false);
+  });
+});
+
+describe('parseAmountInput', () => {
+  it.each([
+    ['1700', 1700],
+    ['1700,5', 1700.5],
+    ['1700.5', 1700.5],
+    ['12.34', 12.34],
+    ['0', 0],
+    ['  42,10  ', 42.1],
+  ])('lee "%s" como %s', (text, expected) => {
+    expect(parseAmountInput(text)).toBe(expected);
+  });
+
+  it.each([
+    ['1.500', 1500],
+    ['12.345', 12345],
+    ['1.500,75', 1500.75],
+    ['1.234.567', 1234567],
+  ])('trata el punto como separador de miles en "%s" -> %s', (text, expected) => {
+    expect(parseAmountInput(text)).toBe(expected);
+  });
+
+  it.each([[''], ['   '], ['abc'], ['-5'], ['1,5,5'], ['1.5.5'], ['12 €']])('rechaza "%s"', (text) => {
+    expect(parseAmountInput(text)).toBeNull();
   });
 });
 

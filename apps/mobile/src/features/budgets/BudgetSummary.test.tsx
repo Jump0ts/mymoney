@@ -37,6 +37,34 @@ describe('BudgetSummary', () => {
     await waitFor(() => expect(screen.queryByTestId('budget-income-input')).toBeNull());
   });
 
+  it('lee 1.500 como mil quinientos y no como 1,5', async () => {
+    const onSaveIncome = jest.fn().mockResolvedValue(undefined);
+    render(<BudgetSummary totals={totals} onSaveIncome={onSaveIncome} />);
+
+    startEditing();
+    fireEvent.changeText(screen.getByTestId('budget-income-input'), '1.500');
+    fireEvent.press(screen.getByTestId('budget-income-save'));
+
+    await waitFor(() => expect(onSaveIncome).toHaveBeenCalledWith(1500));
+  });
+
+  it('permite cancelar la edicion sin guardar y sin dejar el error anterior', async () => {
+    const onSaveIncome = jest.fn();
+    render(<BudgetSummary totals={totals} onSaveIncome={onSaveIncome} />);
+
+    startEditing();
+    fireEvent.changeText(screen.getByTestId('budget-income-input'), 'abc');
+    fireEvent.press(screen.getByTestId('budget-income-save'));
+    await screen.findByText('Escribe un importe válido (0 o más)');
+
+    fireEvent.press(screen.getByTestId('budget-income-cancel'));
+
+    expect(screen.queryByTestId('budget-income-input')).toBeNull();
+    expect(screen.queryByText('Escribe un importe válido (0 o más)')).toBeNull();
+    expect(onSaveIncome).not.toHaveBeenCalled();
+    expect(screen.getByTestId('budget-income-edit')).toBeTruthy();
+  });
+
   it('rechaza un importe vacio, no numerico o negativo sin llamar a guardar', async () => {
     const onSaveIncome = jest.fn();
     render(<BudgetSummary totals={totals} onSaveIncome={onSaveIncome} />);

@@ -15,25 +15,31 @@ import type { BudgetEntry } from '@/features/budgets/budgets.types';
 import { getMonthTotals } from '@/features/budgets/budgets.utils';
 import { useBudgetMonth, useToggleEntryPaid, useUpdateMonthIncome } from '@/features/budgets/useBudgets';
 import { styles } from '@/screens/tabs/budgets.styles';
+import { notify } from '@/utils/alert';
 import { getCurrentYearMonth } from '@/utils/date';
 
 const CONTENT_FADE_IN = FadeIn.duration(200);
 
 const BudgetsScreen = () => {
   const [selected, setSelected] = useState(getCurrentYearMonth());
-  const { data, isLoading, isError, refetch } = useBudgetMonth(selected);
+  const { data, isLoading, refetch } = useBudgetMonth(selected);
   const { mutate: togglePaid } = useToggleEntryPaid(selected);
   const { mutateAsync: saveIncome } = useUpdateMonthIncome(selected);
 
   const handleTogglePaid = useCallback(
-    (entry: BudgetEntry) => togglePaid({ id: entry.id, paid: !entry.paid }),
+    (entry: BudgetEntry) =>
+      togglePaid(
+        { id: entry.id, paid: !entry.paid },
+        { onError: () => notify('No se pudo actualizar', `No se pudo cambiar "${entry.name}". Inténtalo de nuevo.`) },
+      ),
     [togglePaid],
   );
 
   const renderContent = () => {
     if (isLoading) return <BudgetSkeleton />;
 
-    if (isError || !data) {
+    // Con datos en caché no se tapa el presupuesto por un fallo de refresco en segundo plano.
+    if (!data) {
       return (
         <Card style={styles.message}>
           <ThemedText accessibilityRole="alert">No se pudo cargar el presupuesto.</ThemedText>
@@ -60,7 +66,11 @@ const BudgetsScreen = () => {
 
     return (
       <Animated.View entering={CONTENT_FADE_IN} style={styles.list}>
-        <BudgetSummary totals={getMonthTotals(data.groups, Number(data.month.income))} onSaveIncome={saveIncome} />
+        <BudgetSummary
+          key={`${selected.year}-${selected.month}`}
+          totals={getMonthTotals(data.groups, Number(data.month.income))}
+          onSaveIncome={saveIncome}
+        />
         {data.groups.map((group) => (
           <BudgetGroupCard key={group.id} group={group} onTogglePaid={handleTogglePaid} />
         ))}
@@ -71,7 +81,7 @@ const BudgetsScreen = () => {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <ThemedText type="title" accessibilityRole="header" style={styles.title}>
             Presupuesto
           </ThemedText>

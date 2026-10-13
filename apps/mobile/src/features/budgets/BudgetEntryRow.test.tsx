@@ -79,6 +79,14 @@ describe('BudgetEntryRow (limite por categoria)', () => {
     expect(bar.props.accessibilityValue).toEqual({ min: 0, max: 180, now: 45 });
   });
 
+  it('anuncia tambien lo que queda o lo que te pasas, no solo el gasto', () => {
+    const { rerender } = render(<BudgetEntryRow entry={limit(45)} onTogglePaid={jest.fn()} />);
+    expect(screen.getByTestId('budget-entry-e2').props.accessibilityLabel).toMatch(/Quedan.*135,00/);
+
+    rerender(<BudgetEntryRow entry={limit(200)} onTogglePaid={jest.fn()} />);
+    expect(screen.getByTestId('budget-entry-e2').props.accessibilityLabel).toMatch(/Te pasas.*20,00/);
+  });
+
   it('no es pulsable: lo pagado lo decide el gasto real, no un check', () => {
     const onTogglePaid = jest.fn();
     render(<BudgetEntryRow entry={limit(45)} onTogglePaid={onTogglePaid} />);
