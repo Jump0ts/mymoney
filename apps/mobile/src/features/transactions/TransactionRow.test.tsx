@@ -64,6 +64,13 @@ describe('TransactionRow', () => {
     expect(flatStyle.opacity).toBe(0);
   });
 
+  it('tiene accessibilityLabel descriptivo en editar y borrar', () => {
+    render(<TransactionRow transaction={expenseTransaction} onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+    expect(screen.getByLabelText('Editar Supermercado')).toBeTruthy();
+    expect(screen.getByLabelText('Borrar Supermercado')).toBeTruthy();
+  });
+
   it('no se desvanece por defecto', () => {
     render(<TransactionRow transaction={expenseTransaction} onEdit={jest.fn()} onDelete={jest.fn()} />);
 

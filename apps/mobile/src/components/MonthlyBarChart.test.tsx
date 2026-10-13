@@ -36,4 +36,15 @@ describe('MonthlyBarChart', () => {
 
     expect(onSelectMonth).toHaveBeenCalledWith('2026-06');
   });
+
+  it('etiqueta cada columna con el mes y marca cual esta seleccionada', () => {
+    render(<MonthlyBarChart data={data} selectedMonth="2026-07" onSelectMonth={jest.fn()} />);
+
+    const selected = screen.getByTestId('month-bar-2026-07');
+    expect(selected.props.accessibilityLabel).toBe('Julio de 2026');
+    expect(selected.props.accessibilityState).toMatchObject({ selected: true });
+
+    const other = screen.getByTestId('month-bar-2026-06');
+    expect(other.props.accessibilityState).toMatchObject({ selected: false });
+  });
 });

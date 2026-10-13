@@ -49,6 +49,8 @@ export const CalendarGrid = ({ year, month, selectedDate, onSelectDate, maxDate 
               key={dateKey}
               testID={`calendar-day-${dateKey}`}
               accessibilityRole="button"
+              accessibilityLabel={date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+              accessibilityState={{ selected: isSelected, disabled: isDisabled }}
               disabled={isDisabled}
               onPress={() => onSelectDate(dateKey)}
               style={[styles.cell, styles.dayCell, isSelected && { backgroundColor: theme.primary }, isDisabled && styles.disabledCell]}>

@@ -1,18 +1,35 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { TransactionForm } from '@/features/transactions/TransactionForm';
 import type { AddTransactionFormValues } from '@/features/transactions/transactions.schema';
-import type { Transaction } from '@/features/transactions/transactions.types';
-import { useUpdateTransaction } from '@/features/transactions/useTransactions';
+import { useCachedTransaction, useUpdateTransaction } from '@/features/transactions/useTransactions';
 import { ApiError } from '@/lib/api';
+import { notify } from '@/utils/alert';
 
+// Solo el id llega por la URL (ver transactions.tsx); el movimiento en si se
+// busca en la cache de React Query que dejo la lista de Movimientos, sin
+// necesidad de un endpoint de detalle ni de volver a meterlo en la URL.
 const EditTransactionScreen = () => {
-  const { id, transaction: transactionParam } = useLocalSearchParams<{ id: string; transaction: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const updateTransaction = useUpdateTransaction();
+  const transaction = useCachedTransaction(id);
 
-  const transaction: Transaction | null = transactionParam ? JSON.parse(transactionParam) : null;
+  useEffect(() => {
+    if (!id || !transaction) {
+      notify('No se pudo abrir el movimiento', 'Vuelve a intentarlo desde la lista de Movimientos.');
+      // Si se entra por enlace directo (sin pantalla anterior en la pila),
+      // router.back() falla con "GO_BACK was not handled" y deja la pantalla
+      // en blanco; en ese caso se manda a la lista en vez de intentar volver.
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/transactions');
+      }
+    }
+  }, [id, transaction]);
+
   if (!id || !transaction) return null;
 
   const defaultValues: AddTransactionFormValues = {

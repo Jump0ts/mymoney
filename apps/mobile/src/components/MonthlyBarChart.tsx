@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { AnimatedPressable } from './AnimatedPressable';
 import { ThemedText } from './themed-text';
 import { useTheme } from '@/hooks/use-theme';
-import { formatMonthLabel } from '@/utils/format';
+import { formatMonthLabel, formatMonthYearLabel } from '@/utils/format';
 import type { MonthBreakdown } from '@/features/transactions/transactions.types';
 import { styles } from './MonthlyBarChart.styles';
 
@@ -74,11 +74,14 @@ export const MonthlyBarChart = ({ data, height = 140, selectedMonth, onSelectMon
           );
         }
 
+        const [year, monthNumber] = row.month.split('-').map(Number);
         return (
           <AnimatedPressable
             key={row.month}
             testID={`month-bar-${row.month}`}
             accessibilityRole="button"
+            accessibilityLabel={formatMonthYearLabel(year, monthNumber)}
+            accessibilityState={{ selected: row.month === selectedMonth }}
             onPress={() => onSelectMonth(row.month)}
             style={styles.column}>
             {content}

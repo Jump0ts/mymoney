@@ -43,6 +43,7 @@ export const MonthYearPicker = ({ year, month, onChange }: MonthYearPickerProps)
     <View style={styles.container}>
       <AnimatedPressable
         accessibilityRole="button"
+        accessibilityLabel="Mes anterior"
         testID="month-picker-prev"
         onPress={() => goTo(-1)}
         style={[styles.arrow, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
@@ -62,6 +63,8 @@ export const MonthYearPicker = ({ year, month, onChange }: MonthYearPickerProps)
       </View>
       <AnimatedPressable
         accessibilityRole="button"
+        accessibilityLabel="Mes siguiente"
+        accessibilityState={{ disabled: disableNext }}
         testID="month-picker-next"
         disabled={disableNext}
         onPress={() => goTo(1)}

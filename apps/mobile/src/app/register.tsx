@@ -49,7 +49,14 @@ const RegisterScreen = () => {
             control={control}
             name="name"
             render={({ field }) => (
-              <Input placeholder="Tu nombre" value={field.value} onChangeText={field.onChange} onBlur={field.onBlur} />
+              <Input
+                placeholder="Tu nombre"
+                textContentType="name"
+                autoComplete="name"
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+              />
             )}
           />
           {errors.name && (
@@ -66,6 +73,8 @@ const RegisterScreen = () => {
                 placeholder="Email"
                 autoCapitalize="none"
                 keyboardType="email-address"
+                textContentType="username"
+                autoComplete="email"
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}
@@ -85,6 +94,8 @@ const RegisterScreen = () => {
               <Input
                 placeholder="Contraseña"
                 secureTextEntry
+                textContentType="newPassword"
+                autoComplete="password-new"
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}

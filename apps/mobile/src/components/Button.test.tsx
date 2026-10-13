@@ -19,6 +19,13 @@ describe('Button', () => {
     expect(screen.queryByText('Guardar')).toBeNull();
   });
 
+  it('mantiene el nombre accesible aunque este cargando (sin texto visible)', () => {
+    render(<Button label="Guardar" loading onPress={jest.fn()} />);
+
+    const button = screen.getByLabelText('Guardar');
+    expect(button.props.accessibilityState).toMatchObject({ busy: true, disabled: true });
+  });
+
   it('no llama a onPress si esta deshabilitado', () => {
     const onPress = jest.fn();
     render(<Button label="Guardar" disabled onPress={onPress} />);

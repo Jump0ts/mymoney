@@ -49,6 +49,13 @@ describe('MonthYearPicker', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('tiene accessibilityLabel en las flechas para lectores de pantalla', () => {
+    render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+
+    expect(screen.getByLabelText('Mes anterior')).toBeTruthy();
+    expect(screen.getByLabelText('Mes siguiente')).toBeTruthy();
+  });
+
   it('anima el label desde la derecha al avanzar de mes', () => {
     const { rerender } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
 

@@ -30,6 +30,21 @@ describe('TransactionForm', () => {
     expect(screen.queryByText('Alimentación')).toBeNull();
   });
 
+  it('expone el tipo y la fecha con semantica accesible', () => {
+    render(<TransactionForm submitLabel="Guardar" isSubmitting={false} submitError={null} onSubmit={noop} />);
+
+    const gasto = screen.getByTestId('transaction-type-EXPENSE');
+    expect(gasto.props.accessibilityRole).toBe('radio');
+    expect(gasto.props.accessibilityState).toMatchObject({ selected: true });
+    expect(screen.getByTestId('transaction-type-INCOME').props.accessibilityState).toMatchObject({
+      selected: false,
+    });
+
+    const dateToggle = screen.getByTestId('transaction-date-toggle');
+    expect(dateToggle.props.accessibilityRole).toBe('button');
+    expect(dateToggle.props.accessibilityLabel).toMatch(/^Fecha: /);
+  });
+
   it('muestra errores de validacion si se envia sin importe ni categoria', async () => {
     render(
       <TransactionForm submitLabel="Guardar" isSubmitting={false} submitError={null} onSubmit={noop} />,

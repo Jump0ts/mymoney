@@ -62,6 +62,7 @@ const DashboardScreen = () => {
             </View>
             <AnimatedPressable
               accessibilityRole="button"
+              accessibilityLabel="Añadir movimiento"
               onPress={() => router.push('/add-transaction')}
               style={[styles.fab, { backgroundColor: theme.primary }]}>
               <Feather name="plus" size={24} color={theme.primaryText} />
@@ -133,6 +134,11 @@ const DashboardScreen = () => {
                       </ThemedText>
                     </View>
                   ))}
+                  {expenseSlices.length > 6 && (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      +{expenseSlices.length - 6} más
+                    </ThemedText>
+                  )}
                 </View>
               </Animated.View>
             ) : (

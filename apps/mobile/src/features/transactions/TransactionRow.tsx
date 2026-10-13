@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
+import { memo } from 'react';
 import { View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Card } from '@/components/Card';
@@ -28,17 +29,22 @@ const fadeStyle = {
   transitionProperty: 'opacity' as const,
   transitionDuration: 200,
 };
+const noTransitionDuration = { transitionDuration: 0 };
 const fadedOutStyle = { opacity: 0 };
 
-export const TransactionRow = ({ transaction, onEdit, onDelete, isDeleting }: TransactionRowProps) => {
+export const TransactionRow = memo(({ transaction, onEdit, onDelete, isDeleting }: TransactionRowProps) => {
   const theme = useTheme();
   const isExpense = transaction.type === 'EXPENSE';
+  const reduceMotion = useReducedMotion();
+  const label = transaction.description || transaction.category.name;
   return (
-    <Animated.View testID="transaction-row-fade" style={[fadeStyle, isDeleting && fadedOutStyle]}>
+    <Animated.View
+      testID="transaction-row-fade"
+      style={[fadeStyle, reduceMotion && noTransitionDuration, isDeleting && fadedOutStyle]}>
       <Card style={styles.row}>
         <View style={styles.rowInfo}>
           <ThemedText type="default" numberOfLines={1}>
-            {transaction.description || transaction.category.name}
+            {label}
           </ThemedText>
           <View style={styles.rowMeta}>
             <CategoryPill category={transaction.category} />
@@ -54,13 +60,17 @@ export const TransactionRow = ({ transaction, onEdit, onDelete, isDeleting }: Tr
         <View style={styles.actions}>
           <AnimatedPressable
             accessibilityRole="button"
+            accessibilityLabel={`Editar ${label}`}
             testID="transaction-row-edit"
+            style={styles.actionButton}
             onPress={() => onEdit(transaction)}>
             <Feather name="edit-2" size={16} color={theme.textSecondary} />
           </AnimatedPressable>
           <AnimatedPressable
             accessibilityRole="button"
+            accessibilityLabel={`Borrar ${label}`}
             testID="transaction-row-delete"
+            style={styles.actionButton}
             onPress={() => onDelete(transaction)}>
             <Feather name="trash-2" size={16} color={theme.danger} />
           </AnimatedPressable>
@@ -68,4 +78,5 @@ export const TransactionRow = ({ transaction, onEdit, onDelete, isDeleting }: Tr
       </Card>
     </Animated.View>
   );
-};
+});
+TransactionRow.displayName = 'TransactionRow';

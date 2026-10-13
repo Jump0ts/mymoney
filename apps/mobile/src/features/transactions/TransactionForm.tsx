@@ -1,7 +1,7 @@
 import { yupResolver } from '@hookform/resolvers/yup';
 import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
@@ -73,17 +73,21 @@ export const TransactionForm = ({
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Controller
           control={control}
           name="type"
           render={({ field }) => (
-            <View style={styles.segmentRow}>
+            <View accessibilityRole="radiogroup" style={styles.segmentRow}>
               {(['EXPENSE', 'INCOME'] as const).map((option) => {
                 const active = field.value === option;
                 return (
                   <AnimatedPressable
                     key={option}
+                    accessibilityRole="radio"
+                    accessibilityLabel={option === 'EXPENSE' ? 'Gasto' : 'Ingreso'}
+                    accessibilityState={{ selected: active }}
                     testID={`transaction-type-${option}`}
                     onPress={() => {
                       field.onChange(option);
@@ -129,13 +133,16 @@ export const TransactionForm = ({
           <ThemedText type="small" themeColor="textSecondary">
             Categoría
           </ThemedText>
-          <View style={styles.chipWrap}>
+          <View accessibilityRole="radiogroup" style={styles.chipWrap}>
             {visibleCategories.map((category) => (
               <AnimatedPressable
                 key={category.id}
+                accessibilityRole="radio"
+                accessibilityLabel={category.name}
+                accessibilityState={{ selected: categoryId === category.id }}
                 testID={`category-chip-${category.id}`}
                 onPress={() => setValue('categoryId', category.id)}
-                style={{ opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }}>
+                style={[styles.chipTouchArea, { opacity: !categoryId || categoryId === category.id ? 1 : 0.4 }]}>
                 <CategoryPill category={category} />
               </AnimatedPressable>
             ))}
@@ -152,12 +159,21 @@ export const TransactionForm = ({
             Fecha
           </ThemedText>
           <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel={`Fecha: ${formatDate(occurredAt.toISOString())}`}
+            accessibilityState={{ expanded: showDatePicker }}
             testID="transaction-date-toggle"
             onPress={() => {
               setViewedMonth({ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 });
               setShowDatePicker((v) => !v);
             }}>
-            <Input editable={false} value={formatDate(occurredAt.toISOString())} pointerEvents="none" />
+            <Input
+              editable={false}
+              value={formatDate(occurredAt.toISOString())}
+              pointerEvents="none"
+              importantForAccessibility="no"
+              accessibilityElementsHidden
+            />
           </AnimatedPressable>
           {showDatePicker && (
             <View style={styles.datePickerPanel}>
@@ -206,7 +222,8 @@ export const TransactionForm = ({
           loading={isSubmitting}
           onPress={handleSubmit(onSubmit)}
         />
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ThemedView>
   );
 };

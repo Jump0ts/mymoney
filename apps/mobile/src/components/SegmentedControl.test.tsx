@@ -25,6 +25,17 @@ describe('SegmentedControl', () => {
     expect(onChange).toHaveBeenCalledWith('B');
   });
 
+  it('expone el rol y el estado seleccionado a lectores de pantalla', () => {
+    render(<SegmentedControl options={options} value="A" onChange={jest.fn()} />);
+
+    const active = screen.getByLabelText('A');
+    expect(active.props.accessibilityRole).toBe('radio');
+    expect(active.props.accessibilityState).toMatchObject({ selected: true });
+
+    const inactive = screen.getByLabelText('B');
+    expect(inactive.props.accessibilityState).toMatchObject({ selected: false });
+  });
+
   it('no revienta al medir el layout de cada segmento y reposicionar la pastilla', () => {
     render(<SegmentedControl options={options} value="A" onChange={jest.fn()} />);
 

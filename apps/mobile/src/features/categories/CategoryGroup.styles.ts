@@ -7,4 +7,5 @@ export const styles = StyleSheet.create({
   categoryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   categoryName: { flex: 1 },
   dot: { width: 12, height: 12, borderRadius: 6 },
+  deleteButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });

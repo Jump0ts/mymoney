@@ -57,13 +57,16 @@ export const SegmentedControl = <T extends string | undefined>({
   }));
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundElement }]}>
+    <View accessibilityRole="radiogroup" style={[styles.container, { backgroundColor: theme.backgroundElement }]}>
       <Animated.View style={[styles.pill, { backgroundColor: theme.primary }, pillStyle]} />
       {options.map((option, index) => {
         const active = option.value === value;
         return (
           <AnimatedPressable
             key={option.label}
+            accessibilityRole="radio"
+            accessibilityLabel={option.label}
+            accessibilityState={{ selected: active }}
             onLayout={(event: LayoutChangeEvent) => {
               const { x: layoutX, width: layoutWidth } = event.nativeEvent.layout;
               setLayouts((prev) => ({ ...prev, [index]: { x: layoutX, width: layoutWidth } }));

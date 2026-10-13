@@ -53,6 +53,8 @@ const LoginScreen = () => {
                 placeholder="Email"
                 autoCapitalize="none"
                 keyboardType="email-address"
+                textContentType="username"
+                autoComplete="email"
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}
@@ -72,6 +74,8 @@ const LoginScreen = () => {
               <Input
                 placeholder="Contraseña"
                 secureTextEntry
+                textContentType="password"
+                autoComplete="password"
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}
