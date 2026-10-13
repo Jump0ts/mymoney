@@ -2,11 +2,13 @@
 
 App de finanzas personales: registro de gastos e ingresos, categorización, filtros y gráficos.
 
-**Modelo de datos: cuentas 100% individuales y privadas.** No existe ningún concepto de "familia" ni de grupo que comparta datos — cada usuario ve únicamente sus propias categorías y movimientos, sin excepción. Esto es intencional y central al diseño: el objetivo a largo plazo es poder **comercializar la app** (SaaS), por lo que el aislamiento estricto de datos por usuario es un requisito de producto, no solo técnico.
+**Alcance del proyecto: herramienta personal del autor.** MyMoney **no** se va a comercializar (decisión del 2026-10-13): no hay plan de SaaS, precios ni captación de usuarios, y no se deben proponer funcionalidades pensadas para monetizar o escalar a terceros. Si algún día hace falta algo compartido o multiusuario (p. ej. la contabilidad y revisión de pagos del grupo scout del autor), será un **proyecto aparte** con su propio modelo de datos, no una extensión de este.
 
-Fase actual: uso privado del propio autor + un grupo cerrado de amigos/familiares que actúan como **beta testers**, cada uno con su cuenta individual e independiente (no comparten nada entre sí). Sirven para validar que todo funciona bien y para recoger ideas de nuevas funcionalidades — no para compartir gastos entre ellos.
+**Modelo de datos: cuentas individuales y privadas.** No existe ningún concepto de "familia" ni de grupo que comparta datos — cada usuario ve únicamente sus propias categorías y movimientos, sin excepción. Se mantiene por diseño y por privacidad: simplifica el modelo y evita exponer datos financieros ajenos.
 
-Infra actual: self-hosted en un servidor doméstico (ver más abajo), pensado para poder migrar a un hosting de verdad si el proyecto avanza hacia producto comercial.
+Fase actual: uso personal del autor. Puede haber cuentas de prueba de amigos/familiares de la fase anterior (cada una individual e independiente), pero ya no es un objetivo del proyecto.
+
+Infra actual: self-hosted en un servidor doméstico local (ver más abajo). Si no da la fiabilidad que se necesita, se migrará a un hosting externo (el autor menciona uno como el de su proyecto `travel_agency`) para asegurar que funcione de forma constante; la decisión depende de cómo se comporte el servidor local.
 
 ## Stack
 
@@ -27,7 +29,7 @@ Organización **por dominio/tipo de dato** (gastos, categorías, presupuestos, e
 - **Utils verdaderamente genéricos** (usados por 2+ dominios, ej. `formatMoney`): van en `apps/mobile/src/utils/` (no dentro de ningún dominio). Backend: `backend/src/utils/` (solo lo genérico: `asyncHandler`, `errors`).
 - **Formularios**: React Hook Form + Yup en la app. Cada dominio define su propio schema de Yup en `<dominio>/<dominio>.schema.ts`.
 - **Estilos**: siempre en un archivo `NombreDelArchivo.styles.ts` separado (React Native no tiene CSS real; se usa `StyleSheet.create`), nunca inline al final del componente/pantalla. Excepción razonable: un objeto de estilo dinámico trivial de una sola línea no necesita archivo propio.
-  - **⚠️ Excepción obligatoria dentro de `apps/mobile/src/app/`**: Expo Router registra como ruta/pestaña CUALQUIER archivo dentro de una carpeta enrutada (`app/`, `app/(tabs)/`, etc.), incluso sin `export default` y **aunque esté en una subcarpeta con prefijo `_`** (comprobado en este proyecto: ni "sin default export" ni `_carpeta/` evitan que aparezca como pestaña navegable — probablemente específico de cómo `Tabs` de expo-router escanea su directorio). La única forma fiable es sacar el fichero **completamente fuera de `app/`**: los estilos de pantallas viven en `apps/mobile/src/screens/` (`screens/login.styles.ts`, `screens/tabs/index.styles.ts`, etc.), importados desde la ruta vía alias `@/screens/...`.
+  - **⚠️ Excepción obligatoria dentro de `apps/mobile/src/app/`**: Expo Router registra como ruta/pestaña CUALQUIER archivo dentro de una carpeta enrutada (`app/`, `app/(tabs)/`, etc.), incluso sin `export default` y **aunque esté en una subcarpeta con prefijo `_`** (comprobado en este proyecto: ni "sin default export" ni `_carpeta/` evitan que aparezca como pestaña navegable — probablemente específico de cómo `Tabs` de expo-router escanea su directorio). La única forma fiable es sacar el fichero **completamente fuera de `app/`**: los estilos de pantallas viven en `apps/mobile/src/screens/` (`screens/login.styles.ts`, `screens/tabs/index.styles.ts`, etc.), importados desde la ruta vía alias `@/screens/...`. **Lo mismo vale para los tests**: un `*.test.tsx` dentro de `app/` rompe el bundle real de la app (`jest is not defined`), así que ahí no se colocan tests; la lógica que haya que probar se extrae a `features/`, `hooks/` o `components/`.
 - **Funciones**: arrow functions por defecto en todo el código (`const fn = () => {}`), tanto en componentes como en utils/hooks/rutas. Solo usar `function` si hay una razón técnica concreta para ello. **No hay regla de ESLint que lo fuerce** (decisión explícita del usuario, para no bloquear casos legítimos) — es una convención a seguir manualmente.
 
 ## Alcance de la primera fase ("lo esencial")
