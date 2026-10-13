@@ -13,10 +13,30 @@ import { styles } from './BudgetEntryRow.styles';
 interface BudgetEntryRowProps {
   entry: BudgetEntry;
   onTogglePaid: (entry: BudgetEntry) => void;
+  // En modo edicion la fila deja de ser un check y abre el formulario de la linea.
+  editMode?: boolean;
+  onEdit?: (entry: BudgetEntry) => void;
 }
 
-export const BudgetEntryRow = memo(({ entry, onTogglePaid }: BudgetEntryRowProps) => {
+export const BudgetEntryRow = memo(({ entry, onTogglePaid, editMode = false, onEdit }: BudgetEntryRowProps) => {
   const theme = useTheme();
+
+  if (editMode) {
+    return (
+      <AnimatedPressable
+        testID={`budget-entry-${entry.id}`}
+        accessibilityRole="button"
+        accessibilityLabel={`Editar ${entry.name}`}
+        onPress={() => onEdit?.(entry)}
+        style={styles.row}>
+        <Feather name="edit-2" size={18} color={theme.textSecondary} />
+        <ThemedText style={styles.name}>{entry.name}</ThemedText>
+        <ThemedText type="smallBold">
+          {entry.kind === 'CATEGORY_LIMIT' ? `Límite ${formatMoney(entry.amount)}` : formatMoney(entry.amount)}
+        </ThemedText>
+      </AnimatedPressable>
+    );
+  }
 
   if (entry.kind === 'CATEGORY_LIMIT') {
     const status = getLimitStatus(entry);

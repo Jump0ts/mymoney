@@ -56,6 +56,32 @@ describe('BudgetEntryRow (linea fija)', () => {
   });
 });
 
+describe('BudgetEntryRow (modo edicion)', () => {
+  it('es un boton de editar y no un checkbox', () => {
+    const onEdit = jest.fn();
+    const onTogglePaid = jest.fn();
+    const entry = fixed();
+    render(<BudgetEntryRow entry={entry} onTogglePaid={onTogglePaid} editMode onEdit={onEdit} />);
+
+    const row = screen.getByTestId('budget-entry-e1');
+    expect(row.props.accessibilityRole).toBe('button');
+    expect(row.props.accessibilityLabel).toBe('Editar Netflix');
+
+    fireEvent.press(row);
+    expect(onEdit).toHaveBeenCalledWith(entry);
+    expect(onTogglePaid).not.toHaveBeenCalled();
+  });
+
+  it('una linea con limite tambien se puede editar y se identifica como limite', () => {
+    const onEdit = jest.fn();
+    render(<BudgetEntryRow entry={limit(45)} onTogglePaid={jest.fn()} editMode onEdit={onEdit} />);
+
+    expect(screen.getByText(/Límite.*180,00/)).toBeTruthy();
+    fireEvent.press(screen.getByTestId('budget-entry-e2'));
+    expect(onEdit).toHaveBeenCalled();
+  });
+});
+
 describe('BudgetEntryRow (limite por categoria)', () => {
   it('muestra lo gastado, el limite y lo que queda', () => {
     render(<BudgetEntryRow entry={limit(45)} onTogglePaid={jest.fn()} />);

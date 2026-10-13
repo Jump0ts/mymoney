@@ -3,17 +3,21 @@ import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
+import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BudgetGroupCard } from '@/features/budgets/BudgetGroupCard';
+import { BudgetNewGroup } from '@/features/budgets/BudgetNewGroup';
 import { BudgetSkeleton } from '@/features/budgets/BudgetSkeleton';
 import { BudgetSummary } from '@/features/budgets/BudgetSummary';
 import type { BudgetEntry } from '@/features/budgets/budgets.types';
 import { getMonthTotals } from '@/features/budgets/budgets.utils';
 import { useBudgetMonth, useToggleEntryPaid, useUpdateMonthIncome } from '@/features/budgets/useBudgets';
+import { useCategories } from '@/features/categories/useCategories';
+import { useTheme } from '@/hooks/use-theme';
 import { styles } from '@/screens/tabs/budgets.styles';
 import { notify } from '@/utils/alert';
 import { getCurrentYearMonth } from '@/utils/date';
@@ -21,7 +25,10 @@ import { getCurrentYearMonth } from '@/utils/date';
 const CONTENT_FADE_IN = FadeIn.duration(200);
 
 const BudgetsScreen = () => {
+  const theme = useTheme();
   const [selected, setSelected] = useState(getCurrentYearMonth());
+  const [editMode, setEditMode] = useState(false);
+  const { data: categories = [] } = useCategories();
   const { data, isLoading, refetch } = useBudgetMonth(selected);
   const { mutate: togglePaid } = useToggleEntryPaid(selected);
   const { mutateAsync: saveIncome } = useUpdateMonthIncome(selected);
@@ -58,9 +65,14 @@ const BudgetsScreen = () => {
 
     if (data.groups.length === 0) {
       return (
-        <Card>
-          <ThemedText themeColor="textSecondary">Todavía no hay grupos en tu presupuesto.</ThemedText>
-        </Card>
+        <View style={styles.list}>
+          <Card>
+            <ThemedText themeColor="textSecondary">
+              Todavía no hay grupos en tu presupuesto. Crea uno (Hogar, Alquiler, Deseos...) y añade sus líneas.
+            </ThemedText>
+          </Card>
+          <BudgetNewGroup />
+        </View>
       );
     }
 
@@ -72,8 +84,16 @@ const BudgetsScreen = () => {
           onSaveIncome={saveIncome}
         />
         {data.groups.map((group) => (
-          <BudgetGroupCard key={group.id} group={group} onTogglePaid={handleTogglePaid} />
+          <BudgetGroupCard
+            key={group.id}
+            group={group}
+            onTogglePaid={handleTogglePaid}
+            editMode={editMode}
+            categories={categories}
+            target={selected}
+          />
         ))}
+        {editMode && <BudgetNewGroup />}
       </Animated.View>
     );
   };
@@ -81,10 +101,29 @@ const BudgetsScreen = () => {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <ThemedText type="title" accessibilityRole="header" style={styles.title}>
-            Presupuesto
-          </ThemedText>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets>
+          <View style={styles.headerRow}>
+            <ThemedText type="title" accessibilityRole="header" style={styles.title}>
+              Presupuesto
+            </ThemedText>
+            <AnimatedPressable
+              testID="budget-edit-toggle"
+              accessibilityRole="button"
+              accessibilityLabel={editMode ? 'Terminar de editar el presupuesto' : 'Editar el presupuesto'}
+              accessibilityState={{ selected: editMode }}
+              onPress={() => setEditMode((value) => !value)}
+              style={[
+                styles.editButton,
+                { backgroundColor: editMode ? theme.primary : theme.backgroundElement },
+              ]}>
+              <ThemedText type="smallBold" themeColor={editMode ? 'primaryText' : 'text'}>
+                {editMode ? 'Listo' : 'Editar'}
+              </ThemedText>
+            </AnimatedPressable>
+          </View>
           <MonthYearPicker
             year={selected.year}
             month={selected.month}

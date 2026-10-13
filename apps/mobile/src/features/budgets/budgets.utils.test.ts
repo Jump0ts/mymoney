@@ -1,11 +1,14 @@
 import type { BudgetEntry, BudgetGroup, BudgetMonthResponse } from './budgets.types';
 import {
+  formatAmountForInput,
   getEntryActual,
   getGroupTotals,
   getLimitStatus,
+  getLineType,
   getMonthTotals,
   parseAmountInput,
   setEntryPaid,
+  toLinePayload,
 } from './budgets.utils';
 
 const fixed = (id: string, amount: string, paid: boolean): BudgetEntry => ({
@@ -155,6 +158,51 @@ describe('parseAmountInput', () => {
 
   it.each([[''], ['   '], ['abc'], ['-5'], ['1,5,5'], ['1.5.5'], ['12 €']])('rechaza "%s"', (text) => {
     expect(parseAmountInput(text)).toBeNull();
+  });
+});
+
+describe('getLineType', () => {
+  it('distingue fija, reembolso y limite', () => {
+    expect(getLineType(fixed('a', '10.00', false))).toBe('FIXED');
+    expect(getLineType(fixed('a', '-50.00', false))).toBe('REFUND');
+    expect(getLineType(limit('a', '180.00', 0))).toBe('LIMIT');
+  });
+});
+
+describe('formatAmountForInput', () => {
+  it('quita el signo y usa coma decimal', () => {
+    expect(formatAmountForInput('21.99')).toBe('21,99');
+    expect(formatAmountForInput('-50.00')).toBe('50');
+    expect(formatAmountForInput('1500.50')).toBe('1500,5');
+  });
+});
+
+describe('toLinePayload', () => {
+  it('una linea fija lleva importe positivo y sin categoria', () => {
+    expect(toLinePayload({ name: '  Netflix ', lineType: 'FIXED', amount: '21,99', categoryId: 'cat-1' })).toEqual({
+      name: 'Netflix',
+      kind: 'FIXED',
+      amount: 21.99,
+      categoryId: null,
+    });
+  });
+
+  it('un reembolso es una linea fija con importe negativo', () => {
+    expect(toLinePayload({ name: 'Luz Ivan', lineType: 'REFUND', amount: '50' })).toEqual({
+      name: 'Luz Ivan',
+      kind: 'FIXED',
+      amount: -50,
+      categoryId: null,
+    });
+  });
+
+  it('un limite lleva su categoria y el importe positivo', () => {
+    expect(toLinePayload({ name: 'Comida', lineType: 'LIMIT', amount: '1.500', categoryId: 'cat-1' })).toEqual({
+      name: 'Comida',
+      kind: 'CATEGORY_LIMIT',
+      amount: 1500,
+      categoryId: 'cat-1',
+    });
   });
 });
 

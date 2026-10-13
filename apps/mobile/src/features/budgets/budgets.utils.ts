@@ -2,6 +2,8 @@ import type {
   BudgetEntry,
   BudgetGroup,
   BudgetLimitStatus,
+  BudgetLinePayload,
+  BudgetLineType,
   BudgetMonthResponse,
   BudgetMonthTotals,
   BudgetTotals,
@@ -60,6 +62,30 @@ export const parseAmountInput = (text: string): number | null => {
   }
 
   return /^\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : null;
+};
+
+export const getLineType = (entry: BudgetEntry): BudgetLineType => {
+  if (entry.kind === 'CATEGORY_LIMIT') return 'LIMIT';
+  return Number(entry.amount) < 0 ? 'REFUND' : 'FIXED';
+};
+
+// Importe sin signo para el campo de texto del formulario ("21,99").
+export const formatAmountForInput = (amount: string): string => String(Math.abs(Number(amount))).replace('.', ',');
+
+export const toLinePayload = (values: {
+  name: string;
+  lineType: BudgetLineType;
+  amount: string;
+  categoryId?: string | null;
+}): BudgetLinePayload => {
+  const magnitude = parseAmountInput(values.amount) ?? 0;
+  const isLimit = values.lineType === 'LIMIT';
+  return {
+    name: values.name.trim(),
+    kind: isLimit ? 'CATEGORY_LIMIT' : 'FIXED',
+    amount: values.lineType === 'REFUND' ? -magnitude : magnitude,
+    categoryId: isLimit ? (values.categoryId ?? null) : null,
+  };
 };
 
 // Para la actualizacion optimista del check de pagado.

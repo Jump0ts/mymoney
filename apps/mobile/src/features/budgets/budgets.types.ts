@@ -28,6 +28,20 @@ export interface BudgetMonthResponse {
   groups: BudgetGroup[];
 }
 
+// Lo que elige el usuario al crear una linea; un reembolso es una linea fija con importe negativo.
+export type BudgetLineType = 'FIXED' | 'REFUND' | 'LIMIT';
+
+// "month": solo el mes abierto; "template": tambien la plantilla (meses siguientes).
+export type BudgetScope = 'month' | 'template';
+
+// Cuerpo comun de crear/editar una linea, ya con el importe con signo.
+export interface BudgetLinePayload {
+  name: string;
+  kind: BudgetLineKind;
+  amount: number;
+  categoryId: string | null;
+}
+
 export interface BudgetTotals {
   planned: number;
   paid: number;

@@ -1,0 +1,136 @@
+import { yupResolver } from '@hookform/resolvers/yup';
+import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { View } from 'react-native';
+
+import { Button } from '@/components/Button';
+import { ColorPicker } from '@/components/ColorPicker';
+import { FieldError } from '@/components/FieldError';
+import { Input } from '@/components/Input';
+import { CategoryPalette } from '@/features/categories/categories.constants';
+import { ApiError } from '@/lib/api';
+import { confirmAsync } from '@/utils/alert';
+import { budgetGroupSchema, type BudgetGroupFormValues } from './budgets.schema';
+import { styles } from './BudgetGroupForm.styles';
+
+interface BudgetGroupFormProps {
+  defaultValues?: BudgetGroupFormValues;
+  submitLabel: string;
+  onSubmit: (values: BudgetGroupFormValues) => Promise<unknown>;
+  onCancel: () => void;
+  // Solo al editar un grupo existente.
+  onDelete?: () => Promise<unknown>;
+}
+
+const messageOf = (error: unknown) => (error instanceof ApiError ? error.message : 'Error inesperado');
+
+export const BudgetGroupForm = ({ defaultValues, submitLabel, onSubmit, onCancel, onDelete }: BudgetGroupFormProps) => {
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting, isDirty },
+  } = useForm<BudgetGroupFormValues>({
+    resolver: yupResolver(budgetGroupSchema),
+    defaultValues: defaultValues ?? { name: '', color: CategoryPalette[0] },
+  });
+  // Con una peticion en curso no se puede cancelar, borrar ni volver a enviar.
+  const busy = isSubmitting || deleting;
+
+  const cancel = async () => {
+    if (isDirty) {
+      const discard = await confirmAsync({
+        title: 'Descartar cambios',
+        message: 'Tienes cambios sin guardar en este grupo. ¿Quieres descartarlos?',
+        confirmLabel: 'Descartar',
+        destructive: true,
+      });
+      if (!discard) return;
+    }
+    onCancel();
+  };
+
+  const submit = async (values: BudgetGroupFormValues) => {
+    setServerError(null);
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      setServerError(messageOf(error));
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!onDelete) return;
+    const confirmed = await confirmAsync({
+      title: 'Borrar grupo',
+      message: `¿Seguro que quieres borrar "${defaultValues?.name}"?`,
+      confirmLabel: 'Borrar',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setServerError(null);
+    setDeleting(true);
+    try {
+      await onDelete();
+    } catch (error) {
+      setServerError(messageOf(error));
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <View style={styles.form}>
+      <Controller
+        control={control}
+        name="name"
+        render={({ field }) => (
+          <Input
+            testID="budget-group-name"
+            autoFocus
+            accessibilityLabel="Nombre del grupo"
+            placeholder="Nombre del grupo"
+            value={field.value}
+            onChangeText={field.onChange}
+            onBlur={field.onBlur}
+          />
+        )}
+      />
+      <FieldError message={errors.name?.message} />
+
+      <Controller
+        control={control}
+        name="color"
+        render={({ field }) => (
+          <ColorPicker
+            accessibilityLabel="Color del grupo"
+            colors={CategoryPalette}
+            value={field.value}
+            onChange={field.onChange}
+          />
+        )}
+      />
+
+      <FieldError message={serverError} />
+
+      <Button
+        testID="budget-group-submit"
+        label={submitLabel}
+        loading={isSubmitting}
+        disabled={busy}
+        onPress={handleSubmit(submit)}
+      />
+      <Button testID="budget-group-cancel" label="Cancelar" variant="secondary" disabled={busy} onPress={cancel} />
+      {onDelete && (
+        <Button
+          testID="budget-group-delete"
+          label="Eliminar grupo"
+          variant="danger"
+          loading={deleting}
+          disabled={busy}
+          onPress={confirmDelete}
+        />
+      )}
+    </View>
+  );
+};

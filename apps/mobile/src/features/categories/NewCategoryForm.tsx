@@ -5,9 +5,9 @@ import { View } from 'react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { ColorPicker } from '@/components/ColorPicker';
 import { Input } from '@/components/Input';
 import { ThemedText } from '@/components/themed-text';
-import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { notify } from '@/utils/alert';
 import { CategoryPalette } from './categories.constants';
@@ -16,13 +16,11 @@ import { useCreateCategory } from './useCategories';
 import { styles } from './NewCategoryForm.styles';
 
 export const NewCategoryForm = ({ onDone }: { onDone: () => void }) => {
-  const theme = useTheme();
   const createCategory = useCreateCategory();
   const { control, handleSubmit, watch } = useForm<CreateCategoryFormValues>({
     resolver: yupResolver(createCategorySchema),
     defaultValues: { name: '', type: 'EXPENSE', color: CategoryPalette[0], icon: 'tag' },
   });
-  const selectedColor = watch('color');
   const selectedType = watch('type');
 
   const onSubmit = (values: CreateCategoryFormValues) => {
@@ -71,24 +69,7 @@ export const NewCategoryForm = ({ onDone }: { onDone: () => void }) => {
       <Controller
         control={control}
         name="color"
-        render={({ field }) => (
-          <View accessibilityRole="radiogroup" style={styles.paletteRow}>
-            {CategoryPalette.map((swatch, index) => (
-              <AnimatedPressable
-                key={swatch}
-                accessibilityRole="radio"
-                accessibilityLabel={`Color ${index + 1} de ${CategoryPalette.length}`}
-                accessibilityState={{ selected: selectedColor === swatch }}
-                onPress={() => field.onChange(swatch)}
-                style={[
-                  styles.swatch,
-                  { borderWidth: selectedColor === swatch ? 3 : 0, borderColor: theme.text },
-                ]}>
-                <View style={[styles.swatchDot, { backgroundColor: swatch }]} />
-              </AnimatedPressable>
-            ))}
-          </View>
-        )}
+        render={({ field }) => <ColorPicker colors={CategoryPalette} value={field.value} onChange={field.onChange} />}
       />
 
       <Button label="Crear categoría" loading={createCategory.isPending} onPress={handleSubmit(onSubmit)} />

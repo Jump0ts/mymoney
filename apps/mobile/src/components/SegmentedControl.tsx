@@ -16,6 +16,8 @@ interface SegmentedControlProps<T extends string | undefined> {
   options: SegmentOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  // Nombre del grupo de opciones para el lector de pantalla ("Tipo de línea"...).
+  accessibilityLabel?: string;
 }
 
 // Ease-in-out: la pastilla se mueve DENTRO de la pantalla, no entra ni sale de ella.
@@ -26,6 +28,7 @@ export const SegmentedControl = <T extends string | undefined>({
   options,
   value,
   onChange,
+  accessibilityLabel,
 }: SegmentedControlProps<T>) => {
   const theme = useTheme();
   const [layouts, setLayouts] = useState<Record<number, { x: number; width: number }>>({});
@@ -57,7 +60,10 @@ export const SegmentedControl = <T extends string | undefined>({
   }));
 
   return (
-    <View accessibilityRole="radiogroup" style={[styles.container, { backgroundColor: theme.backgroundElement }]}>
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={accessibilityLabel}
+      style={[styles.container, { backgroundColor: theme.backgroundElement }]}>
       <Animated.View style={[styles.pill, { backgroundColor: theme.primary }, pillStyle]} />
       {options.map((option, index) => {
         const active = option.value === value;

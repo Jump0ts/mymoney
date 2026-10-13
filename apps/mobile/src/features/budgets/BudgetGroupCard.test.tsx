@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import type { BudgetEntry, BudgetGroup } from './budgets.types';
 import { BudgetGroupCard } from './BudgetGroupCard';
 
@@ -41,7 +42,7 @@ describe('BudgetGroupCard', () => {
 
   it('usa un color de texto legible sobre el color del grupo', () => {
     const { rerender } = render(<BudgetGroupCard group={group([])} onTogglePaid={jest.fn()} />);
-    const colorOf = () => Object.assign({}, ...[screen.getByText('Hogar').props.style].flat().filter(Boolean)).color;
+    const colorOf = () => StyleSheet.flatten(screen.getByText('Hogar').props.style).color;
 
     expect(colorOf()).toBe('#FFFFFF');
 
