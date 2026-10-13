@@ -155,7 +155,7 @@ const TransactionsScreen = () => {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.headerRow}>
-          <ThemedText type="title" style={styles.title}>
+          <ThemedText type="title" accessibilityRole="header" style={styles.title}>
             Movimientos
           </ThemedText>
           <AnimatedPressable
@@ -204,6 +204,7 @@ const TransactionsScreen = () => {
                 <AnimatedPressable
                   accessibilityRole="button"
                   accessibilityLabel="Ver todo el mes"
+                  style={styles.textButton}
                   onPress={() => setSelectedDay(undefined)}>
                   <ThemedText type="small" themeColor="primary">
                     Ver todo el mes

@@ -49,6 +49,7 @@ export const styles = StyleSheet.create({
     ...Platform.select({ web: { position: 'absolute', right: 0 } }),
   },
   dayPickerPanel: { gap: Spacing.two, alignItems: 'center' },
+  textButton: { minHeight: 44, justifyContent: 'center' },
   chipScrollWrap: {
     position: 'relative',
     justifyContent: 'center',

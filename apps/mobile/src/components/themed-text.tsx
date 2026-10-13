@@ -9,12 +9,17 @@ export type ThemedTextProps = TextProps & {
   themeColor?: ThemeColor;
 };
 
+// Los textos de cuerpo escalan sin limite con el tamano de letra del sistema;
+// los grandes (48px y 32px) se acotan porque a 2x desbordan su contenedor.
+export const DISPLAY_MAX_FONT_SCALE = 1.3;
+
 export const ThemedText = ({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) => {
   const theme = useTheme();
   const resolvedThemeColor = themeColor ?? (type === 'linkPrimary' ? 'primary' : 'text');
 
   return (
     <Text
+      maxFontSizeMultiplier={type === 'title' || type === 'subtitle' ? DISPLAY_MAX_FONT_SCALE : undefined}
       style={[
         { color: theme[resolvedThemeColor] },
         type === 'default' && styles.default,

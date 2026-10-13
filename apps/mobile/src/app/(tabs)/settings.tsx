@@ -16,12 +16,14 @@ const SettingsScreen = () => {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.content}>
-          <ThemedText type="title" style={styles.title}>
+          <ThemedText type="title" accessibilityRole="header" style={styles.title}>
             Ajustes
           </ThemedText>
 
           <Card style={styles.card}>
-            <ThemedText type="smallBold">Tu cuenta</ThemedText>
+            <ThemedText type="smallBold" accessibilityRole="header">
+              Tu cuenta
+            </ThemedText>
             <ThemedText>{user?.name}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {user?.email}

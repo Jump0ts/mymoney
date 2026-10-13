@@ -5,6 +5,7 @@ import { KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
+import { FieldError } from '@/components/FieldError';
 import { Input } from '@/components/Input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -38,7 +39,7 @@ const LoginScreen = () => {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.form}>
-          <ThemedText type="title" style={styles.title}>
+          <ThemedText type="title" accessibilityRole="header" style={styles.title}>
             MyMoney
           </ThemedText>
           <ThemedText type="default" themeColor="textSecondary" style={styles.subtitle}>
@@ -61,11 +62,7 @@ const LoginScreen = () => {
               />
             )}
           />
-          {errors.email && (
-            <ThemedText themeColor="danger" type="small">
-              {errors.email.message}
-            </ThemedText>
-          )}
+          <FieldError message={errors.email?.message} />
 
           <Controller
             control={control}
@@ -82,17 +79,9 @@ const LoginScreen = () => {
               />
             )}
           />
-          {errors.password && (
-            <ThemedText themeColor="danger" type="small">
-              {errors.password.message}
-            </ThemedText>
-          )}
+          <FieldError message={errors.password?.message} />
 
-          {errorMessage && (
-            <ThemedText themeColor="danger" type="small">
-              {errorMessage}
-            </ThemedText>
-          )}
+          <FieldError message={errorMessage} />
 
           <Button label="Entrar" loading={login.isPending} onPress={handleSubmit(onSubmit)} />
 
