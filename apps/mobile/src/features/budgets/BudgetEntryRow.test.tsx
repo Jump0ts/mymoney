@@ -65,4 +65,27 @@ describe('BudgetEntryRow (modo edicion)', () => {
     expect(onEdit).toHaveBeenCalledWith(entry);
     expect(onTogglePaid).not.toHaveBeenCalled();
   });
+
+  it('con onMove muestra las flechas de subir y bajar junto al boton de editar', () => {
+    const onMove = jest.fn();
+    const entry = fixed();
+    render(
+      <BudgetEntryRow entry={entry} onTogglePaid={jest.fn()} editMode onMove={onMove} canMoveUp canMoveDown={false} />,
+    );
+
+    fireEvent.press(screen.getByLabelText('Subir Netflix'));
+    fireEvent.press(screen.getByLabelText('Bajar Netflix'));
+
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove).toHaveBeenCalledWith(entry, -1);
+    expect(screen.getByLabelText('Editar Netflix')).toBeTruthy();
+  });
+
+  it('sin onMove no hay flechas, y fuera del modo edicion tampoco', () => {
+    const { rerender } = render(<BudgetEntryRow entry={fixed()} onTogglePaid={jest.fn()} editMode />);
+    expect(screen.queryByLabelText('Subir Netflix')).toBeNull();
+
+    rerender(<BudgetEntryRow entry={fixed()} onTogglePaid={jest.fn()} onMove={jest.fn()} />);
+    expect(screen.queryByLabelText('Subir Netflix')).toBeNull();
+  });
 });

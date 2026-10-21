@@ -106,3 +106,28 @@ export const setEntryPaid = (month: BudgetMonthResponse, entryId: string, paid: 
     entries: group.entries.map((entry) => (entry.id === entryId ? { ...entry, paid } : entry)),
   })),
 });
+
+// Mueve un id una posicion arriba (-1) o abajo (1); devuelve la misma lista si no se puede.
+export const moveId = (ids: string[], id: string, delta: -1 | 1): string[] => {
+  const from = ids.indexOf(id);
+  const to = from + delta;
+  if (from === -1 || to < 0 || to >= ids.length) return ids;
+  const next = [...ids];
+  next.splice(to, 0, ...next.splice(from, 1));
+  return next;
+};
+
+const sortByIds = <T extends { id: string }>(items: T[], ids: string[]): T[] =>
+  ids.map((id) => items.find((item) => item.id === id)).filter((item): item is T => item !== undefined);
+
+// Para la actualizacion optimista del orden de los grupos.
+export const setGroupOrder = (month: BudgetMonthResponse, ids: string[]): BudgetMonthResponse => ({
+  ...month,
+  groups: sortByIds(month.groups, ids),
+});
+
+// Para la actualizacion optimista del orden de las lineas de un grupo.
+export const setEntryOrder = (month: BudgetMonthResponse, groupId: string, ids: string[]): BudgetMonthResponse => ({
+  ...month,
+  groups: month.groups.map((group) => (group.id === groupId ? { ...group, entries: sortByIds(group.entries, ids) } : group)),
+});

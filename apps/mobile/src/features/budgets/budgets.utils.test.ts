@@ -7,6 +7,9 @@ import {
   getLineType,
   getMonthTotals,
   getRemainderAvailable,
+  moveId,
+  setEntryOrder,
+  setGroupOrder,
   parseAmountInput,
   setEntryPaid,
   toGroupPayload,
@@ -270,6 +273,54 @@ describe('toGroupPayload', () => {
   it('un limite vacio o en blanco significa sin limite', () => {
     expect(toGroupPayload({ name: 'Hogar', color: '#112233', limit: '', isRemainder: false }).limit).toBeNull();
     expect(toGroupPayload({ name: 'Hogar', color: '#112233', limit: '   ', isRemainder: false }).limit).toBeNull();
+  });
+});
+
+describe('moveId', () => {
+  it('sube y baja una posicion', () => {
+    expect(moveId(['a', 'b', 'c'], 'b', -1)).toEqual(['b', 'a', 'c']);
+    expect(moveId(['a', 'b', 'c'], 'b', 1)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('en los extremos o con un id desconocido deja la lista igual', () => {
+    const ids = ['a', 'b', 'c'];
+
+    expect(moveId(ids, 'a', -1)).toBe(ids);
+    expect(moveId(ids, 'c', 1)).toBe(ids);
+    expect(moveId(ids, 'z', 1)).toBe(ids);
+  });
+
+  it('no muta la lista original', () => {
+    const ids = ['a', 'b'];
+    moveId(ids, 'a', 1);
+
+    expect(ids).toEqual(['a', 'b']);
+  });
+});
+
+describe('setGroupOrder / setEntryOrder', () => {
+  const month: BudgetMonthResponse = {
+    month: { year: 2026, month: 9, income: '1000' },
+    groups: [
+      group('g1', [fixed('a', '10.00', false), fixed('b', '20.00', false)]),
+      group('g2', [fixed('c', '30.00', false)]),
+    ],
+  };
+
+  it('reordena los grupos', () => {
+    expect(setGroupOrder(month, ['g2', 'g1']).groups.map((g) => g.id)).toEqual(['g2', 'g1']);
+  });
+
+  it('reordena solo las lineas del grupo indicado', () => {
+    const updated = setEntryOrder(month, 'g1', ['b', 'a']);
+
+    expect(updated.groups[0].entries.map((e) => e.id)).toEqual(['b', 'a']);
+    expect(updated.groups[1]).toBe(month.groups[1]);
+    expect(month.groups[0].entries.map((e) => e.id)).toEqual(['a', 'b']);
+  });
+
+  it('ignora ids que ya no existen', () => {
+    expect(setGroupOrder(month, ['zz', 'g2', 'g1']).groups.map((g) => g.id)).toEqual(['g2', 'g1']);
   });
 });
 

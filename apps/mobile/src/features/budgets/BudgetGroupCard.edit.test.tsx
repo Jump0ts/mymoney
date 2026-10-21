@@ -237,4 +237,77 @@ describe('BudgetGroupCard en modo edicion', () => {
     expect(screen.queryByTestId('budget-line-name')).toBeNull();
     expect(screen.getByTestId('budget-entry-e1').props.accessibilityRole).toBe('checkbox');
   });
+
+  describe('ordenar', () => {
+    const twoEntries = [entry({ id: 'e1', name: 'Netflix' }), entry({ id: 'e2', name: 'Spotify' })];
+
+    const renderMovable = (props: Partial<React.ComponentProps<typeof BudgetGroupCard>> = {}) => {
+      const onMoveGroup = jest.fn();
+      const onMoveEntry = jest.fn();
+      render(
+        <BudgetGroupCard
+          group={group(twoEntries)}
+          onTogglePaid={jest.fn()}
+          editMode
+          target={target}
+          onMoveGroup={onMoveGroup}
+          onMoveEntry={onMoveEntry}
+          {...props}
+        />,
+      );
+      return { onMoveGroup, onMoveEntry };
+    };
+
+    it('las flechas del grupo llaman a onMoveGroup con el grupo', () => {
+      const { onMoveGroup } = renderMovable();
+
+      fireEvent.press(screen.getByLabelText('Subir grupo Hogar'));
+      fireEvent.press(screen.getByLabelText('Bajar grupo Hogar'));
+
+      expect(onMoveGroup).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: 'g1' }), -1);
+      expect(onMoveGroup).toHaveBeenNthCalledWith(2, expect.objectContaining({ id: 'g1' }), 1);
+    });
+
+    it('el primer grupo no sube y el ultimo no baja', () => {
+      renderMovable({ isFirst: true, isLast: true });
+
+      expect(screen.getByLabelText('Subir grupo Hogar').props.accessibilityState).toMatchObject({ disabled: true });
+      expect(screen.getByLabelText('Bajar grupo Hogar').props.accessibilityState).toMatchObject({ disabled: true });
+    });
+
+    it('las flechas de una linea llaman a onMoveEntry con el grupo y la linea', () => {
+      const { onMoveEntry } = renderMovable();
+
+      fireEvent.press(screen.getByLabelText('Bajar Netflix'));
+
+      expect(onMoveEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'g1' }),
+        expect.objectContaining({ id: 'e1' }),
+        1,
+      );
+    });
+
+    it('la primera linea no sube y la ultima no baja', () => {
+      renderMovable();
+
+      expect(screen.getByLabelText('Subir Netflix').props.accessibilityState).toMatchObject({ disabled: true });
+      expect(screen.getByLabelText('Bajar Netflix').props.accessibilityState).toMatchObject({ disabled: false });
+      expect(screen.getByLabelText('Bajar Spotify').props.accessibilityState).toMatchObject({ disabled: true });
+      expect(screen.getByLabelText('Subir Spotify').props.accessibilityState).toMatchObject({ disabled: false });
+    });
+
+    it('fuera del modo edicion no hay flechas', () => {
+      renderMovable({ editMode: false });
+
+      expect(screen.queryByLabelText('Subir grupo Hogar')).toBeNull();
+      expect(screen.queryByLabelText('Subir Spotify')).toBeNull();
+    });
+
+    it('sin manejadores no se muestran flechas', () => {
+      renderMovable({ onMoveGroup: undefined, onMoveEntry: undefined });
+
+      expect(screen.queryByLabelText('Subir grupo Hogar')).toBeNull();
+      expect(screen.queryByLabelText('Subir Spotify')).toBeNull();
+    });
+  });
 });

@@ -3,6 +3,9 @@ import { Spacing } from '@/constants/theme';
 
 export const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, minHeight: 44 },
+  // En modo edicion la fila es el boton de editar mas las flechas de mover, que no pueden anidarse.
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  editMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, minHeight: 44 },
   // flexShrink: el nombre se parte en varias lineas antes que empujar el importe fuera.
   name: { flex: 1, flexShrink: 1 },
 });

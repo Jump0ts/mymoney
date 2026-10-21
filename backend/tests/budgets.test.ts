@@ -10,6 +10,7 @@ const authedUser = async () => {
 const as = (token: string) => ({
   get: (url: string) => request(app).get(url).set("Authorization", `Bearer ${token}`),
   post: (url: string, body: object) => request(app).post(url).set("Authorization", `Bearer ${token}`).send(body),
+  put: (url: string, body: object) => request(app).put(url).set("Authorization", `Bearer ${token}`).send(body),
   patch: (url: string, body: object) => request(app).patch(url).set("Authorization", `Bearer ${token}`).send(body),
   del: (url: string) => request(app).delete(url).set("Authorization", `Bearer ${token}`),
 });
@@ -175,6 +176,131 @@ describe("grupos de presupuesto", () => {
     expect((await post(0)).status).toBe(400);
     expect((await post(-10)).status).toBe(400);
     expect((await post(2_000_000)).status).toBe(400);
+  });
+});
+
+describe("orden de los grupos", () => {
+  it("guarda el nuevo orden de los grupos", async () => {
+    const { token } = await authedUser();
+    const a = await createGroup(token, "A");
+    const b = await createGroup(token, "B");
+    const c = await createGroup(token, "C");
+
+    const res = await as(token).put("/api/budgets/groups/order", { ids: [c.id, a.id, b.id] });
+    const list = await as(token).get("/api/budgets/groups");
+    const month = await as(token).get("/api/budgets/months/2026/9");
+
+    expect(res.status).toBe(204);
+    expect(list.body.groups.map((g: { name: string }) => g.name)).toEqual(["C", "A", "B"]);
+    expect(month.body.groups.map((g: { name: string }) => g.name)).toEqual(["C", "A", "B"]);
+  });
+
+  it("rechaza un orden incompleto, con repetidos o con grupos ajenos", async () => {
+    const { token: tokenA } = await authedUser();
+    const { token: tokenB } = await authedUser();
+    const a = await createGroup(tokenA, "A");
+    const b = await createGroup(tokenA, "B");
+    const foreign = await createGroup(tokenB, "X");
+
+    expect((await as(tokenA).put("/api/budgets/groups/order", { ids: [a.id] })).status).toBe(400);
+    expect((await as(tokenA).put("/api/budgets/groups/order", { ids: [a.id, a.id] })).status).toBe(400);
+    expect((await as(tokenA).put("/api/budgets/groups/order", { ids: [a.id, foreign.id] })).status).toBe(400);
+    expect((await as(tokenA).put("/api/budgets/groups/order", { ids: [] })).status).toBe(400);
+    expect((await as(tokenA).get("/api/budgets/groups")).body.groups.map((g: { id: string }) => g.id)).toEqual([
+      a.id,
+      b.id,
+    ]);
+  });
+});
+
+describe("orden de las lineas", () => {
+  const monthOrder = async (token: string, month = 9) => {
+    const res = await as(token).get(`/api/budgets/months/2026/${month}`);
+    return res.body.groups[0].entries.map((e: { name: string }) => e.name);
+  };
+
+  it("guarda el orden de las lineas de un grupo en ese mes", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token);
+    await createItem(token, group.id, { name: "Netflix" });
+    await createItem(token, group.id, { name: "Spotify" });
+    await createItem(token, group.id, { name: "Gimnasio" });
+    const month = await as(token).get("/api/budgets/months/2026/9");
+    const [netflix, spotify, gym] = month.body.groups[0].entries.map((e: { id: string }) => e.id);
+
+    const res = await as(token).put(`/api/budgets/months/2026/9/groups/${group.id}/entries/order`, {
+      ids: [gym, netflix, spotify],
+    });
+
+    expect(res.status).toBe(204);
+    expect(await monthOrder(token)).toEqual(["Gimnasio", "Netflix", "Spotify"]);
+  });
+
+  it("los meses que se generen despues heredan el orden y los anteriores no cambian", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token);
+    await createItem(token, group.id, { name: "Netflix" });
+    await createItem(token, group.id, { name: "Spotify" });
+    const september = await as(token).get("/api/budgets/months/2026/9");
+    const [netflix, spotify] = september.body.groups[0].entries.map((e: { id: string }) => e.id);
+    await as(token).get("/api/budgets/months/2026/10");
+
+    await as(token).put(`/api/budgets/months/2026/9/groups/${group.id}/entries/order`, { ids: [spotify, netflix] });
+
+    expect(await monthOrder(token, 10)).toEqual(["Netflix", "Spotify"]);
+    expect(await monthOrder(token, 11)).toEqual(["Spotify", "Netflix"]);
+  });
+
+  it("una linea puntual se reordena solo en su mes", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token);
+    await createItem(token, group.id, { name: "Netflix" });
+    const september = await as(token).get("/api/budgets/months/2026/9");
+    const netflix = september.body.groups[0].entries[0].id;
+    const gift = await as(token).post("/api/budgets/months/2026/9/entries", {
+      groupId: group.id,
+      name: "Regalo",
+      amount: 10,
+    });
+
+    await as(token).put(`/api/budgets/months/2026/9/groups/${group.id}/entries/order`, {
+      ids: [gift.body.entry.id, netflix],
+    });
+
+    expect(await monthOrder(token)).toEqual(["Regalo", "Netflix"]);
+    expect(await monthOrder(token, 10)).toEqual(["Netflix"]);
+  });
+
+  it("rechaza un orden incompleto o con lineas de otro grupo", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token, "A");
+    const other = await createGroup(token, "B");
+    await createItem(token, group.id, { name: "Netflix" });
+    await createItem(token, group.id, { name: "Spotify" });
+    await createItem(token, other.id, { name: "Luz" });
+    const month = await as(token).get("/api/budgets/months/2026/9");
+    const [netflix, spotify] = month.body.groups[0].entries.map((e: { id: string }) => e.id);
+    const luz = month.body.groups[1].entries[0].id;
+    const url = `/api/budgets/months/2026/9/groups/${group.id}/entries/order`;
+
+    expect((await as(token).put(url, { ids: [netflix] })).status).toBe(400);
+    expect((await as(token).put(url, { ids: [netflix, luz] })).status).toBe(400);
+    expect((await as(token).put(url, { ids: [netflix, spotify, spotify] })).status).toBe(400);
+    expect(await monthOrder(token)).toEqual(["Netflix", "Spotify"]);
+  });
+
+  it("no deja reordenar el grupo de otro usuario", async () => {
+    const { token: tokenA } = await authedUser();
+    const { token: tokenB } = await authedUser();
+    const group = await createGroup(tokenA);
+    await createItem(tokenA, group.id);
+    const month = await as(tokenA).get("/api/budgets/months/2026/9");
+
+    const res = await as(tokenB).put(`/api/budgets/months/2026/9/groups/${group.id}/entries/order`, {
+      ids: [month.body.groups[0].entries[0].id],
+    });
+
+    expect(res.status).toBe(404);
   });
 });
 

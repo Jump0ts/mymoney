@@ -15,6 +15,7 @@ import { BudgetEntryEditor } from './BudgetEntryEditor';
 import { BudgetEntryRow } from './BudgetEntryRow';
 import { BudgetGroupEditor } from './BudgetGroupEditor';
 import { BudgetLimitBar } from './BudgetLimitBar';
+import { BudgetMoveButtons } from './BudgetMoveButtons';
 import { BudgetNewLine } from './BudgetNewLine';
 import { styles } from './BudgetGroupCard.styles';
 
@@ -26,10 +27,26 @@ interface BudgetGroupCardProps {
   remainderAvailable?: number;
   // Solo hace falta en modo edicion (formularios de linea).
   target?: YearMonth;
+  // Subir/bajar el grupo en la lista (modo edicion); isFirst/isLast desactivan la flecha que no aplica.
+  onMoveGroup?: (group: BudgetGroup, delta: -1 | 1) => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+  // Subir/bajar una linea dentro del grupo (modo edicion).
+  onMoveEntry?: (group: BudgetGroup, entry: BudgetEntry, delta: -1 | 1) => void;
 }
 
 export const BudgetGroupCard = memo(
-  ({ group, onTogglePaid, editMode = false, remainderAvailable, target }: BudgetGroupCardProps) => {
+  ({
+    group,
+    onTogglePaid,
+    editMode = false,
+    remainderAvailable,
+    target,
+    onMoveGroup,
+    isFirst = false,
+    isLast = false,
+    onMoveEntry,
+  }: BudgetGroupCardProps) => {
     const theme = useTheme();
     const totals = getGroupTotals(group.entries);
     const headerTextColor = getReadableTextColor(group.color);
@@ -60,6 +77,16 @@ export const BudgetGroupCard = memo(
             style={[styles.title, { color: headerTextColor }]}>
             {group.name}
           </ThemedText>
+          {editMode && onMoveGroup && (
+            <BudgetMoveButtons
+              label={`grupo ${group.name}`}
+              testIDPrefix={`budget-group-move-${group.id}`}
+              canMoveUp={!isFirst}
+              canMoveDown={!isLast}
+              onMove={(delta) => onMoveGroup(group, delta)}
+              color={headerTextColor}
+            />
+          )}
           {editMode && (
             <AnimatedPressable
               testID={`budget-group-edit-${group.id}`}
@@ -83,7 +110,7 @@ export const BudgetGroupCard = memo(
               Sin líneas este mes.
             </ThemedText>
           ) : (
-            group.entries.map((entry) =>
+            group.entries.map((entry, index) =>
               editingEntryId === entry.id && target ? (
                 <BudgetEntryEditor key={entry.id} entry={entry} onDone={closeForms} />
               ) : (
@@ -92,6 +119,9 @@ export const BudgetGroupCard = memo(
                   entry={entry}
                   onTogglePaid={onTogglePaid}
                   editMode={editMode}
+                  onMove={onMoveEntry && ((moved, delta) => onMoveEntry(group, moved, delta))}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < group.entries.length - 1}
                   onEdit={(selected) => {
                     closeForms();
                     setEditingEntryId(selected.id);

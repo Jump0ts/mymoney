@@ -13,9 +13,14 @@ import { BudgetGroupCard } from '@/features/budgets/BudgetGroupCard';
 import { BudgetNewGroup } from '@/features/budgets/BudgetNewGroup';
 import { BudgetSkeleton } from '@/features/budgets/BudgetSkeleton';
 import { BudgetSummary } from '@/features/budgets/BudgetSummary';
-import type { BudgetEntry } from '@/features/budgets/budgets.types';
+import type { BudgetEntry, BudgetGroup } from '@/features/budgets/budgets.types';
 import { getMonthTotals, getRemainderAvailable } from '@/features/budgets/budgets.utils';
-import { useBudgetMonth, useToggleEntryPaid, useUpdateMonthIncome } from '@/features/budgets/useBudgets';
+import {
+  useBudgetMonth,
+  useMoveInBudget,
+  useToggleEntryPaid,
+  useUpdateMonthIncome,
+} from '@/features/budgets/useBudgets';
 import { useTheme } from '@/hooks/use-theme';
 import { styles } from '@/screens/tabs/budgets.styles';
 import { notify } from '@/utils/alert';
@@ -30,6 +35,7 @@ const BudgetsScreen = () => {
   const { data, isLoading, refetch } = useBudgetMonth(selected);
   const { mutate: togglePaid } = useToggleEntryPaid(selected);
   const { mutateAsync: saveIncome } = useUpdateMonthIncome(selected);
+  const { moveGroup, moveEntry } = useMoveInBudget(selected);
 
   const handleTogglePaid = useCallback(
     (entry: BudgetEntry) =>
@@ -38,6 +44,22 @@ const BudgetsScreen = () => {
         { onError: () => notify('No se pudo actualizar', `No se pudo cambiar "${entry.name}". Inténtalo de nuevo.`) },
       ),
     [togglePaid],
+  );
+
+  const handleMoveGroup = useCallback(
+    (group: BudgetGroup, delta: -1 | 1) =>
+      moveGroup(group.id, delta, () =>
+        notify('No se pudo mover', `No se pudo cambiar el orden de "${group.name}". Inténtalo de nuevo.`),
+      ),
+    [moveGroup],
+  );
+
+  const handleMoveEntry = useCallback(
+    (group: BudgetGroup, entry: BudgetEntry, delta: -1 | 1) =>
+      moveEntry(group.id, entry.id, delta, () =>
+        notify('No se pudo mover', `No se pudo cambiar el orden de "${entry.name}". Inténtalo de nuevo.`),
+      ),
+    [moveEntry],
   );
 
   const renderContent = () => {
@@ -84,13 +106,17 @@ const BudgetsScreen = () => {
           totals={getMonthTotals(data.groups, income)}
           onSaveIncome={saveIncome}
         />
-        {data.groups.map((group) => (
+        {data.groups.map((group, index) => (
           <BudgetGroupCard
             key={group.id}
             group={group}
             onTogglePaid={handleTogglePaid}
             editMode={editMode}
             remainderAvailable={remainderAvailable}
+            onMoveGroup={handleMoveGroup}
+            isFirst={index === 0}
+            isLast={index === data.groups.length - 1}
+            onMoveEntry={handleMoveEntry}
             target={selected}
           />
         ))}

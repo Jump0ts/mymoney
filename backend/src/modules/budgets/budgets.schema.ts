@@ -28,6 +28,17 @@ export const updateGroupSchema = createGroupSchema.partial().extend({
   position: z.number().int().min(0).optional(),
 });
 
+// Orden completo de una lista (grupos o lineas de un grupo): ids sin repetir, de primero a ultimo.
+export const reorderSchema = z.object({
+  ids: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(500)
+    .refine((ids) => new Set(ids).size === ids.length, "No puede haber ids repetidos"),
+});
+
+export const entriesOrderParamsSchema = monthParamsSchema.extend({ groupId: z.string().min(1) });
+
 export const createItemSchema = z.object({
   groupId: z.string().min(1),
   name: z.string().trim().min(1).max(60),

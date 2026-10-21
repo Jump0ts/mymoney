@@ -9,6 +9,7 @@ import {
   useCreateGroup,
   useDeleteEntry,
   useDeleteGroup,
+  useMoveInBudget,
   useToggleEntryPaid,
   useUpdateEntry,
   useUpdateGroup,
@@ -317,5 +318,116 @@ describe('useUpdateMonthIncome', () => {
 
     expect(apiRequest).toHaveBeenCalledWith('/api/budgets/months/2026/9', { method: 'PATCH', body: { income: 1500 } });
     expect(queryClient.getQueryData<BudgetMonthResponse>(budgetMonthKey(target))!.month!.income).toBe('1500.00');
+  });
+});
+
+describe('useMoveInBudget', () => {
+  const entryOf = (id: string, name: string) => ({
+    id,
+    groupId: 'g1',
+    itemId: null,
+    name,
+    amount: '10.00',
+    paid: false,
+    position: 0,
+  });
+
+  const orderSeed = (): BudgetMonthResponse => ({
+    month: { year: 2026, month: 9, income: '1000.00' },
+    groups: [
+      { id: 'g1', name: 'Hogar', color: '#4F5DFF', limit: null, isRemainder: false, position: 0, entries: [entryOf('a', 'A'), entryOf('b', 'B'), entryOf('c', 'C')] },
+      { id: 'g2', name: 'Ocio', color: '#E5484D', limit: null, isRemainder: false, position: 1, entries: [] },
+    ],
+  });
+
+  const setupOrder = () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(budgetMonthKey(target), orderSeed());
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const cache = () => queryClient.getQueryData<BudgetMonthResponse>(budgetMonthKey(target))!;
+    return { queryClient, wrapper, cache };
+  };
+
+  beforeEach(() => jest.mocked(apiRequest).mockReset().mockResolvedValue(undefined));
+
+  it('mueve un grupo al instante y manda el orden completo al servidor', async () => {
+    const { wrapper, cache } = setupOrder();
+    jest.mocked(apiRequest).mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => useMoveInBudget(target), { wrapper });
+
+    act(() => result.current.moveGroup('g2', -1));
+
+    expect(cache().groups.map((g) => g.id)).toEqual(['g2', 'g1']);
+    await waitFor(() =>
+      expect(apiRequest).toHaveBeenCalledWith('/api/budgets/groups/order', {
+        method: 'PUT',
+        body: { ids: ['g2', 'g1'] },
+      }),
+    );
+  });
+
+  it('mueve una linea dentro de su grupo en el mes abierto', async () => {
+    const { wrapper, cache } = setupOrder();
+    const { result } = renderHook(() => useMoveInBudget(target), { wrapper });
+
+    await act(async () => result.current.moveEntry('g1', 'c', -1));
+
+    expect(cache().groups[0].entries.map((e) => e.id)).toEqual(['a', 'c', 'b']);
+    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/months/2026/9/groups/g1/entries/order', {
+      method: 'PUT',
+      body: { ids: ['a', 'c', 'b'] },
+    });
+  });
+
+  it('varios toques seguidos se suman partiendo de lo que ya se ve', async () => {
+    const { wrapper, cache } = setupOrder();
+    jest.mocked(apiRequest).mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => useMoveInBudget(target), { wrapper });
+
+    act(() => {
+      result.current.moveEntry('g1', 'c', -1);
+      result.current.moveEntry('g1', 'c', -1);
+    });
+
+    expect(cache().groups[0].entries.map((e) => e.id)).toEqual(['c', 'a', 'b']);
+    await waitFor(() =>
+      expect(apiRequest).toHaveBeenLastCalledWith(expect.any(String), { method: 'PUT', body: { ids: ['c', 'a', 'b'] } }),
+    );
+  });
+
+  it('en el limite de la lista no hace nada', async () => {
+    const { wrapper, cache } = setupOrder();
+    const { result } = renderHook(() => useMoveInBudget(target), { wrapper });
+
+    await act(async () => {
+      result.current.moveEntry('g1', 'a', -1);
+      result.current.moveGroup('g2', 1);
+    });
+
+    expect(cache().groups[0].entries.map((e) => e.id)).toEqual(['a', 'b', 'c']);
+    expect(cache().groups.map((g) => g.id)).toEqual(['g1', 'g2']);
+  });
+
+  it('deshace el cambio y avisa si el servidor lo rechaza', async () => {
+    const { wrapper, cache } = setupOrder();
+    jest.mocked(apiRequest).mockRejectedValue(new ApiError(500, 'Error'));
+    const onError = jest.fn();
+    const { result } = renderHook(() => useMoveInBudget(target), { wrapper });
+
+    await act(async () => result.current.moveGroup('g2', -1, onError));
+
+    await waitFor(() => expect(onError).toHaveBeenCalled());
+    expect(cache().groups.map((g) => g.id)).toEqual(['g1', 'g2']);
+  });
+
+  it('refresca el presupuesto al terminar', async () => {
+    const { queryClient, wrapper } = setupOrder();
+    const { result } = renderHook(() => useMoveInBudget(target), { wrapper });
+
+    await act(async () => result.current.moveGroup('g2', -1));
+
+    await waitFor(() => expect(queryClient.getQueryState(budgetMonthKey(target))?.isInvalidated).toBe(true));
   });
 });

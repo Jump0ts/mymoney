@@ -8,7 +8,9 @@ import {
   createEntrySchema,
   createGroupSchema,
   createItemSchema,
+  entriesOrderParamsSchema,
   monthParamsSchema,
+  reorderSchema,
   updateEntrySchema,
   updateGroupSchema,
   updateItemSchema,
@@ -26,7 +28,9 @@ const findOwnedGroup = async (userId: string, groupId: string) => {
   return group;
 };
 
-const nextItemPosition = async (userId: string, groupId: string) => {
+const sameIds = (a: string[], b: string[]) => a.length === b.length && new Set([...a, ...b]).size === a.length;
+
+const nextItemPosition =async (userId: string, groupId: string) => {
   const max = await prisma.budgetItem.aggregate({ where: { userId, groupId }, _max: { position: true } });
   return (max._max.position ?? -1) + 1;
 };
@@ -160,6 +164,25 @@ budgetsRouter.post(
       data: { ...data, userId, position: (max._max.position ?? -1) + 1 },
     });
     res.status(201).json({ group });
+  }),
+);
+
+// Guarda el orden de todos los grupos. Hay que mandarlos todos: asi nunca quedan posiciones repetidas.
+budgetsRouter.put(
+  "/groups/order",
+  asyncHandler(async (req, res) => {
+    const { ids } = reorderSchema.parse(req.body);
+    const userId = req.auth!.userId;
+
+    const groups = await prisma.budgetGroup.findMany({ where: { userId }, select: { id: true } });
+    if (!sameIds(ids, groups.map((group) => group.id))) {
+      throw badRequest("El orden debe incluir exactamente todos tus grupos");
+    }
+
+    await prisma.$transaction(
+      ids.map((id, position) => prisma.budgetGroup.update({ where: { id }, data: { position } })),
+    );
+    res.status(204).send();
   }),
 );
 
@@ -330,6 +353,33 @@ budgetsRouter.post(
       },
     });
     res.status(201).json({ entry });
+  }),
+);
+
+// Guarda el orden de las lineas de un grupo en un mes. Las que vienen de la plantilla tambien
+// reordenan su item, para que los meses que se generen despues salgan en el mismo orden.
+budgetsRouter.put(
+  "/months/:year/:month/groups/:groupId/entries/order",
+  asyncHandler(async (req, res) => {
+    const { groupId, ...target } = entriesOrderParamsSchema.parse(req.params);
+    const { ids } = reorderSchema.parse(req.body);
+    const userId = req.auth!.userId;
+    await findOwnedGroup(userId, groupId);
+
+    const entries = await prisma.budgetEntry.findMany({ where: { userId, ...target, groupId } });
+    if (!sameIds(ids, entries.map((entry) => entry.id))) {
+      throw badRequest("El orden debe incluir exactamente las líneas del grupo en este mes");
+    }
+
+    const itemIdOf = new Map(entries.map((entry) => [entry.id, entry.itemId]));
+    await prisma.$transaction([
+      ...ids.map((id, position) => prisma.budgetEntry.update({ where: { id }, data: { position } })),
+      ...ids.flatMap((id, position) => {
+        const itemId = itemIdOf.get(id);
+        return itemId ? [prisma.budgetItem.update({ where: { id: itemId }, data: { position } })] : [];
+      }),
+    ]);
+    res.status(204).send();
   }),
 );
 

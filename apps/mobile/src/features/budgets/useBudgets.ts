@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import { ApiError, apiRequest } from '@/lib/api';
 import type { YearMonth } from '@/utils/date';
 import type {
@@ -8,7 +9,7 @@ import type {
   BudgetMonthResponse,
   BudgetScope,
 } from './budgets.types';
-import { setEntryPaid } from './budgets.utils';
+import { moveId, setEntryOrder, setEntryPaid, setGroupOrder } from './budgets.utils';
 
 export const budgetMonthKey = ({ year, month }: YearMonth) => ['budgets', 'month', year, month] as const;
 
@@ -138,4 +139,62 @@ export const useDeleteEntry = () => {
     },
     onSettled: refresh,
   });
+};
+
+// ---- Ordenar grupos y lineas ----
+
+interface ReorderVariables {
+  url: string;
+  ids: string[];
+  // Estado anterior de la cache, para deshacer el cambio optimista si el servidor lo rechaza.
+  previous: BudgetMonthResponse;
+}
+
+// Sube o baja un grupo, o una linea de un grupo, una posicion. El orden se refleja al instante en la
+// cache (partiendo siempre de lo ultimo que se ve, asi varios toques seguidos se suman) y se deshace
+// si el servidor falla. El servidor guarda el orden completo y deja la plantilla igual que el mes.
+export const useMoveInBudget = (target: YearMonth) => {
+  const queryClient = useQueryClient();
+  const key = budgetMonthKey(target);
+  const { mutate } = useMutation({
+    mutationFn: ({ url, ids }: ReorderVariables) => apiRequest(url, { method: 'PUT', body: { ids } }),
+    onError: (_error, { previous }) => queryClient.setQueryData(key, previous),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['budgets'] }),
+  });
+
+  const moveGroup = useCallback(
+    (groupId: string, delta: -1 | 1, onError?: () => void) => {
+      const previous = queryClient.getQueryData<BudgetMonthResponse>(key);
+      if (!previous) return;
+      const ids = moveId(
+        previous.groups.map((group) => group.id),
+        groupId,
+        delta,
+      );
+      queryClient.setQueryData(key, setGroupOrder(previous, ids));
+      mutate({ url: '/api/budgets/groups/order', ids, previous }, { onError });
+    },
+    [key, mutate, queryClient],
+  );
+
+  const moveEntry = useCallback(
+    (groupId: string, entryId: string, delta: -1 | 1, onError?: () => void) => {
+      const previous = queryClient.getQueryData<BudgetMonthResponse>(key);
+      const group = previous?.groups.find((candidate) => candidate.id === groupId);
+      if (!previous || !group) return;
+      const ids = moveId(
+        group.entries.map((entry) => entry.id),
+        entryId,
+        delta,
+      );
+      queryClient.setQueryData(key, setEntryOrder(previous, groupId, ids));
+      mutate(
+        { url: `/api/budgets/months/${target.year}/${target.month}/groups/${groupId}/entries/order`, ids, previous },
+        { onError },
+      );
+    },
+    [key, mutate, queryClient, target.month, target.year],
+  );
+
+  return { moveGroup, moveEntry };
 };
