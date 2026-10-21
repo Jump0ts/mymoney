@@ -26,6 +26,7 @@ const seed = (): BudgetMonthResponse => ({
       id: 'g1',
       name: 'Hogar',
       color: '#4F5DFF',
+      limit: null,
       position: 0,
       entries: [
         {
@@ -34,11 +35,8 @@ const seed = (): BudgetMonthResponse => ({
           itemId: null,
           name: 'Netflix',
           amount: '21.99',
-          kind: 'FIXED',
-          categoryId: null,
           paid: false,
           position: 0,
-          spent: null,
         },
       ],
     },
@@ -93,15 +91,12 @@ const entry = (overrides: Partial<BudgetEntry> = {}): BudgetEntry => ({
   itemId: 'i1',
   name: 'Netflix',
   amount: '21.99',
-  kind: 'FIXED',
-  categoryId: null,
   paid: false,
   position: 0,
-  spent: null,
   ...overrides,
 });
 
-const fixedLine = { name: 'Netflix HD', kind: 'FIXED', amount: 25, categoryId: null } as const;
+const fixedLine = { name: 'Netflix HD', amount: 25 } as const;
 
 describe('useUpdateEntry', () => {
   beforeEach(() => jest.mocked(apiRequest).mockReset().mockResolvedValue({}));
@@ -156,25 +151,6 @@ describe('useUpdateEntry', () => {
     });
 
     expect(apiRequest).toHaveBeenCalledTimes(2);
-  });
-
-  it('en una linea con limite envia tambien la categoria', async () => {
-    const { wrapper } = setup();
-    const { result } = renderHook(() => useUpdateEntry(), { wrapper });
-    const limitEntry = entry({ kind: 'CATEGORY_LIMIT', categoryId: 'cat-1', amount: '180.00' });
-
-    await act(async () => {
-      await result.current.mutateAsync({
-        entry: limitEntry,
-        line: { name: 'Comida', kind: 'CATEGORY_LIMIT', amount: 200, categoryId: 'cat-2' },
-        scope: 'month',
-      });
-    });
-
-    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1', {
-      method: 'PATCH',
-      body: { name: 'Comida', amount: 200, categoryId: 'cat-2' },
-    });
   });
 });
 
@@ -297,16 +273,19 @@ describe('grupos', () => {
     const remove = renderHook(() => useDeleteGroup(), { wrapper });
 
     await act(async () => {
-      await create.result.current.mutateAsync({ name: 'Hogar', color: '#4F5DFF' });
-      await update.result.current.mutateAsync({ id: 'g1', name: 'Casa' });
+      await create.result.current.mutateAsync({ name: 'Hogar', color: '#4F5DFF', limit: 600 });
+      await update.result.current.mutateAsync({ id: 'g1', name: 'Casa', color: '#4F5DFF', limit: null });
       await remove.result.current.mutateAsync('g1');
     });
 
     expect(apiRequest).toHaveBeenNthCalledWith(1, '/api/budgets/groups', {
       method: 'POST',
-      body: { name: 'Hogar', color: '#4F5DFF' },
+      body: { name: 'Hogar', color: '#4F5DFF', limit: 600 },
     });
-    expect(apiRequest).toHaveBeenNthCalledWith(2, '/api/budgets/groups/g1', { method: 'PATCH', body: { name: 'Casa' } });
+    expect(apiRequest).toHaveBeenNthCalledWith(2, '/api/budgets/groups/g1', {
+      method: 'PATCH',
+      body: { name: 'Casa', color: '#4F5DFF', limit: null },
+    });
     expect(apiRequest).toHaveBeenNthCalledWith(3, '/api/budgets/groups/g1', { method: 'DELETE' });
   });
 
@@ -315,7 +294,7 @@ describe('grupos', () => {
     const { result } = renderHook(() => useCreateGroup(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync({ name: 'Hogar', color: '#4F5DFF' });
+      await result.current.mutateAsync({ name: 'Hogar', color: '#4F5DFF', limit: null });
     });
 
     expect(queryClient.getQueryState(budgetMonthKey(target))?.isInvalidated).toBe(true);

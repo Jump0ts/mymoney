@@ -16,7 +16,6 @@ import { BudgetSummary } from '@/features/budgets/BudgetSummary';
 import type { BudgetEntry } from '@/features/budgets/budgets.types';
 import { getMonthTotals } from '@/features/budgets/budgets.utils';
 import { useBudgetMonth, useToggleEntryPaid, useUpdateMonthIncome } from '@/features/budgets/useBudgets';
-import { useCategories } from '@/features/categories/useCategories';
 import { useTheme } from '@/hooks/use-theme';
 import { styles } from '@/screens/tabs/budgets.styles';
 import { notify } from '@/utils/alert';
@@ -28,7 +27,6 @@ const BudgetsScreen = () => {
   const theme = useTheme();
   const [selected, setSelected] = useState(getCurrentYearMonth());
   const [editMode, setEditMode] = useState(false);
-  const { data: categories = [] } = useCategories();
   const { data, isLoading, refetch } = useBudgetMonth(selected);
   const { mutate: togglePaid } = useToggleEntryPaid(selected);
   const { mutateAsync: saveIncome } = useUpdateMonthIncome(selected);
@@ -89,7 +87,6 @@ const BudgetsScreen = () => {
             group={group}
             onTogglePaid={handleTogglePaid}
             editMode={editMode}
-            categories={categories}
             target={selected}
           />
         ))}

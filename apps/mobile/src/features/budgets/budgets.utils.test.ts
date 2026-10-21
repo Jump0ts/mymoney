@@ -8,6 +8,7 @@ import {
   getMonthTotals,
   parseAmountInput,
   setEntryPaid,
+  toGroupPayload,
   toLinePayload,
 } from './budgets.utils';
 
@@ -17,24 +18,15 @@ const fixed = (id: string, amount: string, paid: boolean): BudgetEntry => ({
   itemId: null,
   name: id,
   amount,
-  kind: 'FIXED',
-  categoryId: null,
   paid,
   position: 0,
-  spent: null,
-});
-
-const limit = (id: string, amount: string, spent: number): BudgetEntry => ({
-  ...fixed(id, amount, false),
-  kind: 'CATEGORY_LIMIT',
-  categoryId: 'cat-1',
-  spent,
 });
 
 const group = (id: string, entries: BudgetEntry[]): BudgetGroup => ({
   id,
   name: id,
   color: '#4F5DFF',
+  limit: null,
   position: 0,
   entries,
 });
@@ -43,10 +35,6 @@ describe('getEntryActual', () => {
   it('una linea fija solo cuenta si esta pagada', () => {
     expect(getEntryActual(fixed('a', '100.00', true))).toBe(100);
     expect(getEntryActual(fixed('a', '100.00', false))).toBe(0);
-  });
-
-  it('una linea con limite cuenta lo gastado, no el check', () => {
-    expect(getEntryActual(limit('a', '180.00', 52.5))).toBe(52.5);
   });
 
   it('un importe negativo pagado resta (reembolso)', () => {
@@ -61,14 +49,10 @@ describe('getGroupTotals', () => {
     expect(totals).toEqual({ planned: 472.64, paid: 469.65 });
   });
 
-  it('mezcla fijas, reembolsos negativos y limites', () => {
-    const totals = getGroupTotals([
-      fixed('a', '100.00', true),
-      fixed('b', '-40.15', true),
-      limit('c', '180.00', 50),
-    ]);
+  it('mezcla fijas y reembolsos negativos', () => {
+    const totals = getGroupTotals([fixed('a', '100.00', true), fixed('b', '-40.15', true), fixed('c', '180.00', false)]);
 
-    expect(totals).toEqual({ planned: 239.85, paid: 109.85 });
+    expect(totals).toEqual({ planned: 239.85, paid: 59.85 });
   });
 
   it('no arrastra errores de coma flotante', () => {
@@ -112,26 +96,43 @@ describe('getMonthTotals', () => {
 });
 
 describe('getLimitStatus', () => {
-  it('calcula lo que queda y la proporcion usada', () => {
-    expect(getLimitStatus(limit('a', '180.00', 45))).toEqual({
-      limit: 180,
-      spent: 45,
-      remaining: 135,
-      ratio: 0.25,
-      isOver: false,
-    });
+  const limited = (limitValue: string | null, entries: BudgetEntry[]): BudgetGroup => ({
+    ...group('g', entries),
+    limit: limitValue,
+  });
+
+  it('un grupo sin limite no tiene estado', () => {
+    expect(getLimitStatus(limited(null, [fixed('a', '100.00', true)]))).toBeNull();
+  });
+
+  it('cuenta lo previsto, este o no pagado, contra el limite', () => {
+    const status = getLimitStatus(limited('600.00', [fixed('a', '300.00', false), fixed('b', '150.00', true)]));
+
+    expect(status).toEqual({ limit: 600, used: 450, remaining: 150, ratio: 0.75, isOver: false });
+  });
+
+  it('un reembolso libera parte del limite', () => {
+    const status = getLimitStatus(limited('100.00', [fixed('a', '120.00', false), fixed('b', '-40.00', false)]));
+
+    expect(status?.used).toBe(80);
+    expect(status?.isOver).toBe(false);
   });
 
   it('marca que te has pasado y limita la proporcion a 1', () => {
-    const status = getLimitStatus(limit('a', '100.00', 130));
+    const status = getLimitStatus(limited('100.00', [fixed('a', '130.00', false)]));
 
-    expect(status.isOver).toBe(true);
-    expect(status.remaining).toBe(-30);
-    expect(status.ratio).toBe(1);
+    expect(status?.isOver).toBe(true);
+    expect(status?.remaining).toBe(-30);
+    expect(status?.ratio).toBe(1);
   });
 
-  it('gastar exactamente el limite no cuenta como pasarse', () => {
-    expect(getLimitStatus(limit('a', '100.00', 100)).isOver).toBe(false);
+  it('llegar exactamente al limite no cuenta como pasarse', () => {
+    expect(getLimitStatus(limited('100.00', [fixed('a', '100.00', false)]))?.isOver).toBe(false);
+  });
+
+  it('un grupo vacio con limite no ha consumido nada, y la proporcion nunca baja de 0', () => {
+    expect(getLimitStatus(limited('100.00', []))).toEqual({ limit: 100, used: 0, remaining: 100, ratio: 0, isOver: false });
+    expect(getLimitStatus(limited('100.00', [fixed('a', '-30.00', false)]))?.ratio).toBe(0);
   });
 });
 
@@ -162,10 +163,9 @@ describe('parseAmountInput', () => {
 });
 
 describe('getLineType', () => {
-  it('distingue fija, reembolso y limite', () => {
+  it('distingue fija y reembolso', () => {
     expect(getLineType(fixed('a', '10.00', false))).toBe('FIXED');
     expect(getLineType(fixed('a', '-50.00', false))).toBe('REFUND');
-    expect(getLineType(limit('a', '180.00', 0))).toBe('LIMIT');
   });
 });
 
@@ -178,31 +178,37 @@ describe('formatAmountForInput', () => {
 });
 
 describe('toLinePayload', () => {
-  it('una linea fija lleva importe positivo y sin categoria', () => {
-    expect(toLinePayload({ name: '  Netflix ', lineType: 'FIXED', amount: '21,99', categoryId: 'cat-1' })).toEqual({
+  it('una linea fija lleva importe positivo y el nombre sin espacios', () => {
+    expect(toLinePayload({ name: '  Netflix ', lineType: 'FIXED', amount: '21,99' })).toEqual({
       name: 'Netflix',
-      kind: 'FIXED',
       amount: 21.99,
-      categoryId: null,
     });
   });
 
-  it('un reembolso es una linea fija con importe negativo', () => {
+  it('un reembolso lleva el importe negativo', () => {
     expect(toLinePayload({ name: 'Luz Ivan', lineType: 'REFUND', amount: '50' })).toEqual({
       name: 'Luz Ivan',
-      kind: 'FIXED',
       amount: -50,
-      categoryId: null,
     });
   });
 
-  it('un limite lleva su categoria y el importe positivo', () => {
-    expect(toLinePayload({ name: 'Comida', lineType: 'LIMIT', amount: '1.500', categoryId: 'cat-1' })).toEqual({
-      name: 'Comida',
-      kind: 'CATEGORY_LIMIT',
-      amount: 1500,
-      categoryId: 'cat-1',
+  it('entiende el punto de miles', () => {
+    expect(toLinePayload({ name: 'Hipoteca', lineType: 'FIXED', amount: '1.500' }).amount).toBe(1500);
+  });
+});
+
+describe('toGroupPayload', () => {
+  it('un limite escrito se convierte en numero', () => {
+    expect(toGroupPayload({ name: '  Gastos fijos ', color: '#112233', limit: '600,50' })).toEqual({
+      name: 'Gastos fijos',
+      color: '#112233',
+      limit: 600.5,
     });
+  });
+
+  it('un limite vacio o en blanco significa sin limite', () => {
+    expect(toGroupPayload({ name: 'Hogar', color: '#112233', limit: '' }).limit).toBeNull();
+    expect(toGroupPayload({ name: 'Hogar', color: '#112233', limit: '   ' }).limit).toBeNull();
   });
 });
 

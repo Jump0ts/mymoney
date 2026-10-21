@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiRequest } from '@/lib/api';
 import type { YearMonth } from '@/utils/date';
-import type { BudgetEntry, BudgetLinePayload, BudgetMonthResponse, BudgetScope } from './budgets.types';
+import type {
+  BudgetEntry,
+  BudgetGroupPayload,
+  BudgetLinePayload,
+  BudgetMonthResponse,
+  BudgetScope,
+} from './budgets.types';
 import { setEntryPaid } from './budgets.utils';
 
 export const budgetMonthKey = ({ year, month }: YearMonth) => ['budgets', 'month', year, month] as const;
@@ -57,7 +63,7 @@ const useRefreshBudgets = () => {
 export const useCreateGroup = () => {
   const refresh = useRefreshBudgets();
   return useMutation({
-    mutationFn: (input: { name: string; color: string }) =>
+    mutationFn: (input: BudgetGroupPayload) =>
       apiRequest('/api/budgets/groups', { method: 'POST', body: input }),
     onSuccess: refresh,
   });
@@ -66,7 +72,7 @@ export const useCreateGroup = () => {
 export const useUpdateGroup = () => {
   const refresh = useRefreshBudgets();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; color?: string }) =>
+    mutationFn: ({ id, ...body }: { id: string } & BudgetGroupPayload) =>
       apiRequest(`/api/budgets/groups/${id}`, { method: 'PATCH', body }),
     onSuccess: refresh,
   });
@@ -109,11 +115,7 @@ export const useUpdateEntry = () => {
   const refresh = useRefreshBudgets();
   return useMutation({
     mutationFn: async ({ entry, line, scope }: { entry: BudgetEntry; line: BudgetLinePayload; scope: BudgetScope }) => {
-      const body = {
-        name: line.name,
-        amount: line.amount,
-        ...(entry.kind === 'CATEGORY_LIMIT' && { categoryId: line.categoryId }),
-      };
+      const body = { name: line.name, amount: line.amount };
       await apiRequest(`/api/budgets/entries/${entry.id}`, { method: 'PATCH', body });
       if (scope === 'template' && entry.itemId) {
         await ignoreNotFound(apiRequest(`/api/budgets/items/${entry.itemId}`, { method: 'PATCH', body }));

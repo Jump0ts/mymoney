@@ -33,7 +33,7 @@ export const BudgetGroupForm = ({ defaultValues, submitLabel, onSubmit, onCancel
     formState: { errors, isSubmitting, isDirty },
   } = useForm<BudgetGroupFormValues>({
     resolver: yupResolver(budgetGroupSchema),
-    defaultValues: defaultValues ?? { name: '', color: CategoryPalette[0] },
+    defaultValues: defaultValues ?? { name: '', color: CategoryPalette[0], limit: '' },
   });
   // Con una peticion en curso no se puede cancelar, borrar ni volver a enviar.
   const busy = isSubmitting || deleting;
@@ -110,6 +110,23 @@ export const BudgetGroupForm = ({ defaultValues, submitLabel, onSubmit, onCancel
           />
         )}
       />
+
+      <Controller
+        control={control}
+        name="limit"
+        render={({ field }) => (
+          <Input
+            testID="budget-group-limit"
+            accessibilityLabel="Límite del grupo en euros (opcional)"
+            placeholder="Límite (€, opcional)"
+            keyboardType="decimal-pad"
+            value={field.value}
+            onChangeText={field.onChange}
+            onBlur={field.onBlur}
+          />
+        )}
+      />
+      <FieldError message={errors.limit?.message} />
 
       <FieldError message={serverError} />
 

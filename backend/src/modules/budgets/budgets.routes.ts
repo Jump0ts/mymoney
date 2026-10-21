@@ -14,7 +14,7 @@ import {
   updateItemSchema,
   updateMonthSchema,
 } from "./budgets.schema.js";
-import { compareYearMonth, getMonthBoundsUtc, normalizeLine } from "./budgets.utils.js";
+import { compareYearMonth } from "./budgets.utils.js";
 import type { YearMonth } from "./budgets.types.js";
 
 export const budgetsRouter = Router();
@@ -24,12 +24,6 @@ const findOwnedGroup = async (userId: string, groupId: string) => {
   const group = await prisma.budgetGroup.findFirst({ where: { id: groupId, userId } });
   if (!group) throw notFound("Grupo no encontrado");
   return group;
-};
-
-const assertOwnedCategory = async (userId: string, categoryId: string | null) => {
-  if (!categoryId) return;
-  const category = await prisma.category.findFirst({ where: { id: categoryId, userId } });
-  if (!category) throw notFound("Categoría no encontrada");
 };
 
 const nextItemPosition = async (userId: string, groupId: string) => {
@@ -84,8 +78,6 @@ const openMonth = async (userId: string, target: YearMonth): Promise<boolean> =>
           itemId: item.id,
           name: item.name,
           amount: item.amount,
-          kind: item.kind,
-          categoryId: item.categoryId,
           position: item.position,
         })),
         skipDuplicates: true,
@@ -110,30 +102,11 @@ const buildMonthResponse = async (userId: string, target: YearMonth) => {
     }),
   ]);
 
-  // Lo gastado en cada categoria con limite se calcula desde Movimientos, no se guarda.
-  const limitCategoryIds = [
-    ...new Set(entries.filter((e) => e.kind === "CATEGORY_LIMIT" && e.categoryId).map((e) => e.categoryId!)),
-  ];
-  const bounds = getMonthBoundsUtc(target);
-  const spentRows = limitCategoryIds.length
-    ? await prisma.transaction.groupBy({
-        by: ["categoryId"],
-        where: { userId, categoryId: { in: limitCategoryIds }, occurredAt: { gte: bounds.from, lte: bounds.to } },
-        _sum: { amount: true },
-      })
-    : [];
-  const spentByCategory = new Map(spentRows.map((row) => [row.categoryId, Number(row._sum.amount ?? 0)]));
-
   return {
     month: month ? { ...target, income: month.income } : null,
     groups: groups.map((group) => ({
       ...group,
-      entries: entries
-        .filter((entry) => entry.groupId === group.id)
-        .map((entry) => ({
-          ...entry,
-          spent: entry.kind === "CATEGORY_LIMIT" ? (spentByCategory.get(entry.categoryId!) ?? 0) : null,
-        })),
+      entries: entries.filter((entry) => entry.groupId === group.id),
     })),
   };
 };
@@ -222,8 +195,6 @@ budgetsRouter.post(
     const body = createItemSchema.parse(req.body);
     const userId = req.auth!.userId;
     await findOwnedGroup(userId, body.groupId);
-    const { categoryId } = normalizeLine(body);
-    await assertOwnedCategory(userId, categoryId);
 
     const item = await prisma.budgetItem.create({
       data: {
@@ -231,8 +202,6 @@ budgetsRouter.post(
         groupId: body.groupId,
         name: body.name,
         amount: body.amount,
-        kind: body.kind,
-        categoryId,
         position: await nextItemPosition(userId, body.groupId),
       },
     });
@@ -249,17 +218,8 @@ budgetsRouter.patch(
     if (!item) throw notFound("Línea no encontrada");
 
     if (body.groupId) await findOwnedGroup(userId, body.groupId);
-    const { categoryId } = normalizeLine({
-      kind: item.kind,
-      amount: body.amount ?? Number(item.amount),
-      categoryId: body.categoryId === undefined ? item.categoryId : body.categoryId,
-    });
-    await assertOwnedCategory(userId, categoryId);
 
-    const updated = await prisma.budgetItem.update({
-      where: { id: item.id },
-      data: { ...body, categoryId },
-    });
+    const updated = await prisma.budgetItem.update({ where: { id: item.id }, data: body });
     res.json({ item: updated });
   }),
 );
@@ -314,8 +274,6 @@ budgetsRouter.post(
     const body = createEntrySchema.parse(req.body);
     const userId = req.auth!.userId;
     await findOwnedGroup(userId, body.groupId);
-    const { categoryId } = normalizeLine(body);
-    await assertOwnedCategory(userId, categoryId);
 
     // Si el mes es anterior al primer presupuesto no se genera con la plantilla,
     // pero editarlo a mano si lo deja existir (solo con sus propias lineas).
@@ -331,8 +289,6 @@ budgetsRouter.post(
               groupId: body.groupId,
               name: body.name,
               amount: body.amount,
-              kind: body.kind,
-              categoryId,
               position: await nextItemPosition(userId, body.groupId),
             },
           })
@@ -347,8 +303,6 @@ budgetsRouter.post(
         itemId,
         name: body.name,
         amount: body.amount,
-        kind: body.kind,
-        categoryId,
         position: await nextEntryPosition(userId, target, body.groupId),
       },
     });
@@ -365,17 +319,8 @@ budgetsRouter.patch(
     if (!entry) throw notFound("Línea no encontrada");
 
     if (body.groupId) await findOwnedGroup(userId, body.groupId);
-    const { categoryId } = normalizeLine({
-      kind: entry.kind,
-      amount: body.amount ?? Number(entry.amount),
-      categoryId: body.categoryId === undefined ? entry.categoryId : body.categoryId,
-    });
-    await assertOwnedCategory(userId, categoryId);
 
-    const updated = await prisma.budgetEntry.update({
-      where: { id: entry.id },
-      data: { ...body, categoryId },
-    });
+    const updated = await prisma.budgetEntry.update({ where: { id: entry.id }, data: body });
     res.json({ entry: updated });
   }),
 );

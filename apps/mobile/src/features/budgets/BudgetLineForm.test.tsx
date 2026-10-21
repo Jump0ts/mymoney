@@ -1,23 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { ApiError } from '@/lib/api';
 import { confirmAsync } from '@/utils/alert';
-import type { Category } from '@/features/categories/categories.types';
-import { LINE_TYPE_OPTIONS_ALL, SCOPE_OPTIONS_CREATE } from './budgets.constants';
+import { SCOPE_OPTIONS_CREATE } from './budgets.constants';
 import type { BudgetLineFormValues } from './budgets.schema';
 import { BudgetLineForm } from './BudgetLineForm';
 
 jest.mock('@/utils/alert', () => ({ confirmAsync: jest.fn().mockResolvedValue(true), notify: jest.fn() }));
 
-const categories: Category[] = [
-  { id: 'c1', name: 'Alimentación', icon: 'shopping-cart', color: '#E67E22', type: 'EXPENSE' },
-  { id: 'c2', name: 'Nómina', icon: 'briefcase', color: '#1FA971', type: 'INCOME' },
-];
-
 const emptyValues: BudgetLineFormValues = {
   name: '',
   lineType: 'FIXED',
   amount: '',
-  categoryId: undefined,
   scope: 'template',
 };
 
@@ -31,8 +24,6 @@ const renderForm = (props: Partial<React.ComponentProps<typeof BudgetLineForm>> 
   render(
     <BudgetLineForm
       defaultValues={emptyValues}
-      categories={categories}
-      typeOptions={LINE_TYPE_OPTIONS_ALL}
       scopeOptions={SCOPE_OPTIONS_CREATE}
       submitLabel="Añadir línea"
       onSubmit={onSubmit}
@@ -95,31 +86,27 @@ describe('BudgetLineForm', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('solo pide categoria cuando la linea es un limite, y solo de gastos', async () => {
+  it('un reembolso se puede elegir como tipo de linea', async () => {
     const { onSubmit } = renderForm();
-    expect(screen.queryByTestId('budget-line-category-c1')).toBeNull();
 
-    fireEvent.press(screen.getByLabelText('Límite'));
-
-    expect(screen.getByTestId('budget-line-category-c1')).toBeTruthy();
-    expect(screen.queryByTestId('budget-line-category-c2')).toBeNull();
-
-    fill('Comida casa', '180');
-    fireEvent.press(screen.getByTestId('budget-line-submit'));
-    expect(await screen.findByText('Elige una categoría')).toBeTruthy();
-    expect(onSubmit).not.toHaveBeenCalled();
-
-    fireEvent.press(screen.getByTestId('budget-line-category-c1'));
+    fill('Luz Ivan', '50');
+    fireEvent.press(screen.getByLabelText('Reembolso'));
     fireEvent.press(screen.getByTestId('budget-line-submit'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
-    expect(onSubmit.mock.calls[0][0]).toMatchObject({ lineType: 'LIMIT', categoryId: 'c1', amount: '180' });
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ lineType: 'REFUND', amount: '50' });
+  });
+
+  it('ya no ofrece el tipo limite ni pide categoria', () => {
+    renderForm();
+
+    expect(screen.queryByLabelText('Límite')).toBeNull();
+    expect(screen.queryByLabelText('Categoría')).toBeNull();
   });
 
   it('no muestra los selectores que no aplican', () => {
-    renderForm({ typeOptions: null, scopeOptions: null });
+    renderForm({ scopeOptions: null });
 
-    expect(screen.queryByLabelText('Reembolso')).toBeNull();
     expect(screen.queryByText('Se aplica a')).toBeNull();
   });
 
@@ -199,19 +186,9 @@ describe('BudgetLineForm', () => {
 
   it('nombra cada grupo de opciones para el lector de pantalla', () => {
     renderForm();
-    fireEvent.press(screen.getByLabelText('Límite'));
 
     expect(screen.getByLabelText('Tipo de línea').props.accessibilityRole).toBe('radiogroup');
     expect(screen.getByLabelText('Se aplica a').props.accessibilityRole).toBe('radiogroup');
-    expect(screen.getByLabelText('Categoría').props.accessibilityRole).toBe('radiogroup');
-  });
-
-  it('avisa si no hay categorias de gasto donde elegir', () => {
-    renderForm({ categories: [categories[1]] });
-
-    fireEvent.press(screen.getByLabelText('Límite'));
-
-    expect(screen.getByText(/No hay categorías de gasto/)).toBeTruthy();
   });
 
   describe('eliminar', () => {

@@ -1,13 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import { memo } from 'react';
-import { View } from 'react-native';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { formatMoney } from '@/utils/format';
 import type { BudgetEntry } from './budgets.types';
-import { getLimitStatus } from './budgets.utils';
 import { styles } from './BudgetEntryRow.styles';
 
 interface BudgetEntryRowProps {
@@ -31,44 +29,8 @@ export const BudgetEntryRow = memo(({ entry, onTogglePaid, editMode = false, onE
         style={styles.row}>
         <Feather name="edit-2" size={18} color={theme.textSecondary} />
         <ThemedText style={styles.name}>{entry.name}</ThemedText>
-        <ThemedText type="smallBold">
-          {entry.kind === 'CATEGORY_LIMIT' ? `Límite ${formatMoney(entry.amount)}` : formatMoney(entry.amount)}
-        </ThemedText>
+        <ThemedText type="smallBold">{formatMoney(entry.amount)}</ThemedText>
       </AnimatedPressable>
-    );
-  }
-
-  if (entry.kind === 'CATEGORY_LIMIT') {
-    const status = getLimitStatus(entry);
-    const statusText = status.isOver
-      ? `Te pasas ${formatMoney(Math.abs(status.remaining))}`
-      : `Quedan ${formatMoney(status.remaining)}`;
-    return (
-      <View
-        testID={`budget-entry-${entry.id}`}
-        accessible
-        accessibilityRole="progressbar"
-        accessibilityLabel={`${entry.name}: gastado ${formatMoney(status.spent)} de ${formatMoney(status.limit)}. ${statusText}`}
-        accessibilityValue={{ min: 0, max: status.limit, now: Math.min(status.spent, status.limit) }}
-        style={styles.limitRow}>
-        <View style={styles.limitHeader}>
-          <ThemedText style={styles.name}>{entry.name}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {formatMoney(status.spent)} de {formatMoney(status.limit)}
-          </ThemedText>
-        </View>
-        <View style={[styles.track, { backgroundColor: theme.backgroundSelected }]}>
-          <View
-            style={[
-              styles.fill,
-              { width: `${status.ratio * 100}%`, backgroundColor: status.isOver ? theme.expense : theme.primary },
-            ]}
-          />
-        </View>
-        <ThemedText type="small" themeColor={status.isOver ? 'expense' : 'textSecondary'}>
-          {statusText}
-        </ThemedText>
-      </View>
     );
   }
 

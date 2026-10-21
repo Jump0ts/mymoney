@@ -1,4 +1,5 @@
 import type { BudgetGroup } from './budgets.types';
+import { formatAmountForInput, toGroupPayload } from './budgets.utils';
 import { BudgetGroupForm } from './BudgetGroupForm';
 import { useDeleteGroup, useUpdateGroup } from './useBudgets';
 
@@ -13,10 +14,14 @@ export const BudgetGroupEditor = ({ group, onDone }: BudgetGroupEditorProps) => 
 
   return (
     <BudgetGroupForm
-      defaultValues={{ name: group.name, color: group.color }}
+      defaultValues={{
+        name: group.name,
+        color: group.color,
+        limit: group.limit === null ? '' : formatAmountForInput(group.limit),
+      }}
       submitLabel="Guardar"
       onSubmit={async (values) => {
-        await updateGroup({ id: group.id, ...values });
+        await updateGroup({ id: group.id, ...toGroupPayload(values) });
         onDone();
       }}
       onDelete={async () => {

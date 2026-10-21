@@ -1,14 +1,7 @@
 import type { SegmentOption } from '@/components/SegmentedControl';
 import type { BudgetLineType, BudgetScope } from './budgets.types';
 
-export const LINE_TYPE_OPTIONS_ALL: SegmentOption<BudgetLineType>[] = [
-  { label: 'Fijo', value: 'FIXED' },
-  { label: 'Reembolso', value: 'REFUND' },
-  { label: 'Límite', value: 'LIMIT' },
-];
-
-// Una línea con límite no puede pasar a fija (ni al revés): el servidor no cambia el tipo.
-export const LINE_TYPE_OPTIONS_FIXED: SegmentOption<BudgetLineType>[] = [
+export const LINE_TYPE_OPTIONS: SegmentOption<BudgetLineType>[] = [
   { label: 'Fijo', value: 'FIXED' },
   { label: 'Reembolso', value: 'REFUND' },
 ];

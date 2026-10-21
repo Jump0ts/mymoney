@@ -5,7 +5,6 @@ import { View } from 'react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Card } from '@/components/Card';
 import { ThemedText } from '@/components/themed-text';
-import type { Category } from '@/features/categories/categories.types';
 import { useTheme } from '@/hooks/use-theme';
 import { getReadableTextColor } from '@/utils/color';
 import type { YearMonth } from '@/utils/date';
@@ -15,6 +14,7 @@ import { BudgetAmountCell } from './BudgetAmountCell';
 import { BudgetEntryEditor } from './BudgetEntryEditor';
 import { BudgetEntryRow } from './BudgetEntryRow';
 import { BudgetGroupEditor } from './BudgetGroupEditor';
+import { BudgetLimitBar } from './BudgetLimitBar';
 import { BudgetNewLine } from './BudgetNewLine';
 import { styles } from './BudgetGroupCard.styles';
 
@@ -22,13 +22,12 @@ interface BudgetGroupCardProps {
   group: BudgetGroup;
   onTogglePaid: (entry: BudgetEntry) => void;
   editMode?: boolean;
-  // Solo hacen falta en modo edicion (formularios de linea y de grupo).
-  categories?: Category[];
+  // Solo hace falta en modo edicion (formularios de linea).
   target?: YearMonth;
 }
 
 export const BudgetGroupCard = memo(
-  ({ group, onTogglePaid, editMode = false, categories = [], target }: BudgetGroupCardProps) => {
+  ({ group, onTogglePaid, editMode = false, target }: BudgetGroupCardProps) => {
     const theme = useTheme();
     const totals = getGroupTotals(group.entries);
     const headerTextColor = getReadableTextColor(group.color);
@@ -84,7 +83,7 @@ export const BudgetGroupCard = memo(
           ) : (
             group.entries.map((entry) =>
               editingEntryId === entry.id && target ? (
-                <BudgetEntryEditor key={entry.id} entry={entry} categories={categories} onDone={closeForms} />
+                <BudgetEntryEditor key={entry.id} entry={entry} onDone={closeForms} />
               ) : (
                 <BudgetEntryRow
                   key={entry.id}
@@ -102,7 +101,7 @@ export const BudgetGroupCard = memo(
 
           {editMode && !editingGroup && target && (
             addingLine ? (
-              <BudgetNewLine group={group} categories={categories} target={target} onDone={closeForms} />
+              <BudgetNewLine group={group} target={target} onDone={closeForms} />
             ) : (
               <AnimatedPressable
                 testID={`budget-add-line-${group.id}`}
@@ -121,6 +120,8 @@ export const BudgetGroupCard = memo(
             )
           )}
         </View>
+
+        {!editingGroup && <BudgetLimitBar group={group} />}
 
         <View style={styles.footer}>
           <ThemedText type="smallBold" style={styles.footerLabel}>

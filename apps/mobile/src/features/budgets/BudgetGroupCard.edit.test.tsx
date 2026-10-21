@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import type { Category } from '@/features/categories/categories.types';
 import type { BudgetEntry, BudgetGroup } from './budgets.types';
 import { BudgetGroupCard } from './BudgetGroupCard';
 
@@ -19,9 +18,6 @@ jest.mock('./useBudgets', () => ({
 jest.mock('@/utils/alert', () => ({ confirmAsync: jest.fn().mockResolvedValue(true), notify: jest.fn() }));
 
 const target = { year: 2026, month: 10 };
-const categories: Category[] = [
-  { id: 'c1', name: 'Alimentación', icon: 'shopping-cart', color: '#E67E22', type: 'EXPENSE' },
-];
 
 const entry = (overrides: Partial<BudgetEntry> = {}): BudgetEntry => ({
   id: 'e1',
@@ -29,11 +25,8 @@ const entry = (overrides: Partial<BudgetEntry> = {}): BudgetEntry => ({
   itemId: 'i1',
   name: 'Netflix',
   amount: '21.99',
-  kind: 'FIXED',
-  categoryId: null,
   paid: false,
   position: 0,
-  spent: null,
   ...overrides,
 });
 
@@ -41,17 +34,17 @@ const group = (entries: BudgetEntry[] = [entry()]): BudgetGroup => ({
   id: 'g1',
   name: 'Hogar',
   color: '#4F5DFF',
+  limit: null,
   position: 0,
   entries,
 });
 
-const renderCard = (editMode: boolean, entries?: BudgetEntry[]) =>
+const renderCard = (editMode: boolean, entries?: BudgetEntry[], limit: string | null = null) =>
   render(
     <BudgetGroupCard
-      group={group(entries)}
+      group={{ ...group(entries), limit }}
       onTogglePaid={jest.fn()}
       editMode={editMode}
-      categories={categories}
       target={target}
     />,
   );
@@ -96,7 +89,7 @@ describe('BudgetGroupCard en modo edicion', () => {
     await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalledTimes(1));
     expect(mockUpdateEntry).toHaveBeenCalledWith({
       entry: expect.objectContaining({ id: 'e1' }),
-      line: { name: 'Netflix', kind: 'FIXED', amount: 25, categoryId: null },
+      line: { name: 'Netflix', amount: 25 },
       scope: 'month',
     });
     await waitFor(() => expect(screen.queryByTestId('budget-line-name')).toBeNull());
@@ -108,15 +101,6 @@ describe('BudgetGroupCard en modo edicion', () => {
     fireEvent.press(screen.getByTestId('budget-entry-e1'));
 
     expect(screen.queryByText('Se aplica a')).toBeNull();
-  });
-
-  it('una linea con limite no deja cambiar el tipo', () => {
-    renderCard(true, [entry({ kind: 'CATEGORY_LIMIT', amount: '180.00', categoryId: 'c1' })]);
-
-    fireEvent.press(screen.getByTestId('budget-entry-e1'));
-
-    expect(screen.queryByLabelText('Reembolso')).toBeNull();
-    expect(screen.getByTestId('budget-line-category-c1')).toBeTruthy();
   });
 
   it('borra la linea desde el formulario', async () => {
@@ -139,7 +123,7 @@ describe('BudgetGroupCard en modo edicion', () => {
     await waitFor(() => expect(mockCreateEntry).toHaveBeenCalledTimes(1));
     expect(mockCreateEntry).toHaveBeenCalledWith({
       groupId: 'g1',
-      line: { name: 'Gimnasio', kind: 'FIXED', amount: 60, categoryId: null },
+      line: { name: 'Gimnasio', amount: 60 },
       scope: 'template',
     });
   });
@@ -151,7 +135,44 @@ describe('BudgetGroupCard en modo edicion', () => {
     fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Casa');
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
-    await waitFor(() => expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Casa', color: '#4F5DFF' }));
+    await waitFor(() =>
+      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Casa', color: '#4F5DFF', limit: null }),
+    );
+  });
+
+  it('el formulario del grupo precarga su limite y permite cambiarlo', async () => {
+    renderCard(true, undefined, '600.00');
+
+    fireEvent.press(screen.getByTestId('budget-group-edit-g1'));
+    expect(screen.getByDisplayValue('600')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByTestId('budget-group-limit'), '750,5');
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+    await waitFor(() =>
+      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Hogar', color: '#4F5DFF', limit: 750.5 }),
+    );
+  });
+
+  it('vaciar el campo del limite lo quita', async () => {
+    renderCard(true, undefined, '600.00');
+
+    fireEvent.press(screen.getByTestId('budget-group-edit-g1'));
+    fireEvent.changeText(screen.getByTestId('budget-group-limit'), '');
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+    await waitFor(() =>
+      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Hogar', color: '#4F5DFF', limit: null }),
+    );
+  });
+
+  it('en modo edicion la barra de limite sigue visible, y se oculta mientras se edita el grupo', () => {
+    renderCard(true, undefined, '600.00');
+    expect(screen.getByTestId('budget-limit-g1')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('budget-group-edit-g1'));
+
+    expect(screen.queryByTestId('budget-limit-g1')).toBeNull();
   });
 
   it('solo hay un formulario abierto a la vez', () => {
@@ -174,7 +195,6 @@ describe('BudgetGroupCard en modo edicion', () => {
         group={group()}
         onTogglePaid={jest.fn()}
         editMode
-        categories={categories}
         target={{ year: 2026, month: 9 }}
       />,
     );
@@ -187,9 +207,7 @@ describe('BudgetGroupCard en modo edicion', () => {
     fireEvent.press(screen.getByTestId('budget-entry-e1'));
     expect(screen.getByTestId('budget-line-name')).toBeTruthy();
 
-    rerender(
-      <BudgetGroupCard group={group()} onTogglePaid={jest.fn()} editMode={false} categories={categories} target={target} />,
-    );
+    rerender(<BudgetGroupCard group={group()} onTogglePaid={jest.fn()} editMode={false} target={target} />);
 
     expect(screen.queryByTestId('budget-line-name')).toBeNull();
     expect(screen.getByTestId('budget-entry-e1').props.accessibilityRole).toBe('checkbox');

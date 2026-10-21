@@ -1,6 +1,7 @@
 import type {
   BudgetEntry,
   BudgetGroup,
+  BudgetGroupPayload,
   BudgetLimitStatus,
   BudgetLinePayload,
   BudgetLineType,
@@ -12,12 +13,8 @@ import type {
 // Evita arrastrar errores de coma flotante (0.1 + 0.2) a lo que se muestra.
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
 
-// Lo "pagado" de una linea fija es su importe si esta marcada; en una linea con
-// limite es lo realmente gastado en esa categoria ese mes.
-export const getEntryActual = (entry: BudgetEntry): number => {
-  if (entry.kind === 'CATEGORY_LIMIT') return entry.spent ?? 0;
-  return entry.paid ? Number(entry.amount) : 0;
-};
+// Lo "pagado" de una linea es su importe si esta marcada.
+export const getEntryActual = (entry: BudgetEntry): number => (entry.paid ? Number(entry.amount) : 0);
 
 export const getGroupTotals = (entries: BudgetEntry[]): BudgetTotals => ({
   planned: roundMoney(entries.reduce((sum, entry) => sum + Number(entry.amount), 0)),
@@ -36,15 +33,17 @@ export const getMonthTotals = (groups: BudgetGroup[], income: number): BudgetMon
   };
 };
 
-export const getLimitStatus = (entry: BudgetEntry): BudgetLimitStatus => {
-  const limit = Number(entry.amount);
-  const spent = entry.spent ?? 0;
+// Cuanto del limite del grupo se lleva consumido con lo previsto en sus lineas; null si no tiene limite.
+export const getLimitStatus = (group: BudgetGroup): BudgetLimitStatus | null => {
+  if (group.limit === null) return null;
+  const limit = Number(group.limit);
+  const used = getGroupTotals(group.entries).planned;
   return {
     limit,
-    spent,
-    remaining: roundMoney(limit - spent),
-    ratio: limit > 0 ? Math.min(spent / limit, 1) : 0,
-    isOver: spent > limit,
+    used,
+    remaining: roundMoney(limit - used),
+    ratio: limit > 0 ? Math.min(Math.max(used / limit, 0), 1) : 0,
+    isOver: used > limit,
   };
 };
 
@@ -64,29 +63,25 @@ export const parseAmountInput = (text: string): number | null => {
   return /^\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : null;
 };
 
-export const getLineType = (entry: BudgetEntry): BudgetLineType => {
-  if (entry.kind === 'CATEGORY_LIMIT') return 'LIMIT';
-  return Number(entry.amount) < 0 ? 'REFUND' : 'FIXED';
-};
+export const getLineType = (entry: BudgetEntry): BudgetLineType => (Number(entry.amount) < 0 ? 'REFUND' : 'FIXED');
 
 // Importe sin signo para el campo de texto del formulario ("21,99").
 export const formatAmountForInput = (amount: string): string => String(Math.abs(Number(amount))).replace('.', ',');
 
-export const toLinePayload = (values: {
-  name: string;
-  lineType: BudgetLineType;
-  amount: string;
-  categoryId?: string | null;
-}): BudgetLinePayload => {
+export const toLinePayload = (values: { name: string; lineType: BudgetLineType; amount: string }): BudgetLinePayload => {
   const magnitude = parseAmountInput(values.amount) ?? 0;
-  const isLimit = values.lineType === 'LIMIT';
   return {
     name: values.name.trim(),
-    kind: isLimit ? 'CATEGORY_LIMIT' : 'FIXED',
     amount: values.lineType === 'REFUND' ? -magnitude : magnitude,
-    categoryId: isLimit ? (values.categoryId ?? null) : null,
   };
 };
+
+// El campo del limite vacio significa "sin limite".
+export const toGroupPayload = (values: { name: string; color: string; limit: string }): BudgetGroupPayload => ({
+  name: values.name.trim(),
+  color: values.color,
+  limit: values.limit.trim() === '' ? null : parseAmountInput(values.limit),
+});
 
 // Para la actualizacion optimista del check de pagado.
 export const setEntryPaid = (month: BudgetMonthResponse, entryId: string, paid: boolean): BudgetMonthResponse => ({

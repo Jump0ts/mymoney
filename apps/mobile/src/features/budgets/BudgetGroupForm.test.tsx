@@ -21,7 +21,7 @@ describe('BudgetGroupForm', () => {
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0]).toEqual({ name: 'Hogar', color: CategoryPalette[0] });
+    expect(onSubmit.mock.calls[0][0]).toEqual({ name: 'Hogar', color: CategoryPalette[0], limit: '' });
   });
 
   it('envia el color que se elija', async () => {
@@ -33,6 +33,41 @@ describe('BudgetGroupForm', () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     expect(onSubmit.mock.calls[0][0].color).toBe(CategoryPalette[3]);
+  });
+
+  it('envia el limite escrito, y es opcional', async () => {
+    const { onSubmit } = renderForm();
+
+    fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Gastos fijos');
+    fireEvent.changeText(screen.getByTestId('budget-group-limit'), '600');
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ name: 'Gastos fijos', limit: '600' });
+  });
+
+  it('rechaza un limite que no es un importe valido', async () => {
+    const { onSubmit } = renderForm();
+
+    fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Gastos fijos');
+    fireEvent.changeText(screen.getByTestId('budget-group-limit'), '-20');
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+    expect(await screen.findByText('Introduce un límite válido mayor que 0')).toBeTruthy();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('precarga el limite al editar y se puede vaciar para quitarlo', async () => {
+    const { onSubmit } = renderForm({
+      defaultValues: { name: 'Gastos fijos', color: CategoryPalette[0], limit: '600' },
+    });
+    expect(screen.getByDisplayValue('600')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByTestId('budget-group-limit'), '');
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0].limit).toBe('');
   });
 
   it('exige un nombre', async () => {
@@ -54,7 +89,7 @@ describe('BudgetGroupForm', () => {
   });
 
   it('precarga los valores al editar', () => {
-    renderForm({ defaultValues: { name: 'Alquiler', color: CategoryPalette[2] } });
+    renderForm({ defaultValues: { name: 'Alquiler', color: CategoryPalette[2], limit: '' } });
 
     expect(screen.getByDisplayValue('Alquiler')).toBeTruthy();
     expect(screen.getByLabelText('Color 3 de 10').props.accessibilityState).toMatchObject({ selected: true });
@@ -113,7 +148,7 @@ describe('BudgetGroupForm', () => {
 
     it('pide confirmacion antes de borrar', async () => {
       const onDelete = jest.fn().mockResolvedValue(undefined);
-      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0] }, onDelete });
+      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '' }, onDelete });
 
       fireEvent.press(screen.getByTestId('budget-group-delete'));
 
@@ -124,7 +159,7 @@ describe('BudgetGroupForm', () => {
     it('no borra si se cancela la confirmacion', async () => {
       jest.mocked(confirmAsync).mockResolvedValueOnce(false);
       const onDelete = jest.fn();
-      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0] }, onDelete });
+      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '' }, onDelete });
 
       fireEvent.press(screen.getByTestId('budget-group-delete'));
 
@@ -136,7 +171,7 @@ describe('BudgetGroupForm', () => {
       const onDelete = jest
         .fn()
         .mockRejectedValue(new ApiError(400, 'No se puede borrar un grupo que tiene líneas, ni siquiera de meses anteriores'));
-      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0] }, onDelete });
+      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '' }, onDelete });
 
       fireEvent.press(screen.getByTestId('budget-group-delete'));
 

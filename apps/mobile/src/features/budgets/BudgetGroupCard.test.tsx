@@ -9,17 +9,15 @@ const entry = (id: string, amount: string, paid: boolean): BudgetEntry => ({
   itemId: null,
   name: `Linea ${id}`,
   amount,
-  kind: 'FIXED',
-  categoryId: null,
   paid,
   position: 0,
-  spent: null,
 });
 
 const group = (entries: BudgetEntry[]): BudgetGroup => ({
   id: 'g1',
   name: 'Hogar',
   color: '#4F5DFF',
+  limit: null,
   position: 0,
   entries,
 });
@@ -54,5 +52,23 @@ describe('BudgetGroupCard', () => {
     render(<BudgetGroupCard group={group([])} onTogglePaid={jest.fn()} />);
 
     expect(screen.getByText('Sin líneas este mes.')).toBeTruthy();
+  });
+
+  it('sin limite no muestra la barra de limite', () => {
+    render(<BudgetGroupCard group={group([entry('a', '100.00', false)])} onTogglePaid={jest.fn()} />);
+
+    expect(screen.queryByTestId('budget-limit-g1')).toBeNull();
+  });
+
+  it('con limite muestra cuanto se lleva consumido con lo previsto', () => {
+    render(
+      <BudgetGroupCard
+        group={{ ...group([entry('a', '350.00', false), entry('b', '100.00', true)]), limit: '600.00' }}
+        onTogglePaid={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('budget-limit-g1')).toBeTruthy();
+    expect(screen.getByText(/Quedan.*150,00/)).toBeTruthy();
   });
 });

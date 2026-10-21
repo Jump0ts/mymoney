@@ -25,8 +25,21 @@ describe('BudgetNewGroup', () => {
     fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Deseos');
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
-    await waitFor(() => expect(mockCreateGroup).toHaveBeenCalledWith({ name: 'Deseos', color: expect.any(String) }));
+    await waitFor(() => expect(mockCreateGroup).toHaveBeenCalledWith({ name: 'Deseos', color: expect.any(String), limit: null }));
     expect(await screen.findByTestId('budget-new-group')).toBeTruthy();
+  });
+
+  it('crea el grupo con su limite si se escribe', async () => {
+    render(<BudgetNewGroup />);
+
+    fireEvent.press(screen.getByTestId('budget-new-group'));
+    fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Gastos fijos');
+    fireEvent.changeText(screen.getByTestId('budget-group-limit'), '600,50');
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+    await waitFor(() =>
+      expect(mockCreateGroup).toHaveBeenCalledWith({ name: 'Gastos fijos', color: expect.any(String), limit: 600.5 }),
+    );
   });
 
   it('cancelar cierra el formulario sin crear nada', () => {

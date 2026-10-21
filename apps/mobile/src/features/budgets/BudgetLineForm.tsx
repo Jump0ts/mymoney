@@ -3,25 +3,21 @@ import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { View } from 'react-native';
 
-import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
-import { CategoryPill } from '@/components/CategoryPill';
 import { FieldError } from '@/components/FieldError';
 import { Input } from '@/components/Input';
 import { SegmentedControl, type SegmentOption } from '@/components/SegmentedControl';
 import { ThemedText } from '@/components/themed-text';
-import type { Category } from '@/features/categories/categories.types';
 import { ApiError } from '@/lib/api';
 import { confirmAsync } from '@/utils/alert';
 import { budgetLineSchema, type BudgetLineFormValues } from './budgets.schema';
-import type { BudgetLineType, BudgetScope } from './budgets.types';
+import { LINE_TYPE_OPTIONS } from './budgets.constants';
+import type { BudgetScope } from './budgets.types';
 import { styles } from './BudgetLineForm.styles';
 
 interface BudgetLineFormProps {
   defaultValues: BudgetLineFormValues;
-  categories: Category[];
-  // null = sin selector (el tipo no se puede cambiar / el alcance no aplica).
-  typeOptions: SegmentOption<BudgetLineType>[] | null;
+  // null = sin selector de alcance (la linea no esta en la plantilla).
   scopeOptions: SegmentOption<BudgetScope>[] | null;
   submitLabel: string;
   onSubmit: (values: BudgetLineFormValues) => Promise<unknown>;
@@ -34,8 +30,6 @@ const messageOf = (error: unknown) => (error instanceof ApiError ? error.message
 
 export const BudgetLineForm = ({
   defaultValues,
-  categories,
-  typeOptions,
   scopeOptions,
   submitLabel,
   onSubmit,
@@ -53,9 +47,7 @@ export const BudgetLineForm = ({
     resolver: yupResolver(budgetLineSchema),
     defaultValues,
   });
-  const lineType = watch('lineType');
   const scope = watch('scope');
-  const expenseCategories = categories.filter((category) => category.type === 'EXPENSE');
   // Con una peticion en curso no se puede cancelar, borrar ni volver a enviar.
   const busy = isSubmitting || deleting;
 
@@ -122,20 +114,18 @@ export const BudgetLineForm = ({
       />
       <FieldError message={errors.name?.message} />
 
-      {typeOptions && (
-        <Controller
-          control={control}
-          name="lineType"
-          render={({ field }) => (
-            <SegmentedControl
-              accessibilityLabel="Tipo de línea"
-              options={typeOptions}
-              value={field.value}
-              onChange={field.onChange}
-            />
-          )}
-        />
-      )}
+      <Controller
+        control={control}
+        name="lineType"
+        render={({ field }) => (
+          <SegmentedControl
+            accessibilityLabel="Tipo de línea"
+            options={LINE_TYPE_OPTIONS}
+            value={field.value}
+            onChange={field.onChange}
+          />
+        )}
+      />
 
       <Controller
         control={control}
@@ -143,8 +133,8 @@ export const BudgetLineForm = ({
         render={({ field }) => (
           <Input
             testID="budget-line-amount"
-            accessibilityLabel={lineType === 'LIMIT' ? 'Límite en euros' : 'Importe en euros'}
-            placeholder={lineType === 'LIMIT' ? 'Límite (€)' : 'Importe (€)'}
+            accessibilityLabel="Importe en euros"
+            placeholder="Importe (€)"
             keyboardType="decimal-pad"
             value={field.value}
             onChangeText={field.onChange}
@@ -153,40 +143,6 @@ export const BudgetLineForm = ({
         )}
       />
       <FieldError message={errors.amount?.message} />
-
-      {lineType === 'LIMIT' && (
-        <View style={styles.field}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Categoría
-          </ThemedText>
-          <Controller
-            control={control}
-            name="categoryId"
-            render={({ field }) => (
-              <View accessibilityRole="radiogroup" accessibilityLabel="Categoría" style={styles.chipWrap}>
-                {expenseCategories.length === 0 && (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    No hay categorías de gasto. Crea una en la pestaña Categorías.
-                  </ThemedText>
-                )}
-                {expenseCategories.map((category) => (
-                  <AnimatedPressable
-                    key={category.id}
-                    testID={`budget-line-category-${category.id}`}
-                    accessibilityRole="radio"
-                    accessibilityLabel={category.name}
-                    accessibilityState={{ selected: field.value === category.id }}
-                    onPress={() => field.onChange(category.id)}
-                    style={[styles.chipTouchArea, { opacity: !field.value || field.value === category.id ? 1 : 0.4 }]}>
-                    <CategoryPill category={category} />
-                  </AnimatedPressable>
-                ))}
-              </View>
-            )}
-          />
-          <FieldError message={errors.categoryId?.message} />
-        </View>
-      )}
 
       {scopeOptions && (
         <View style={styles.field}>

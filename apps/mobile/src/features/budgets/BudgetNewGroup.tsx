@@ -5,6 +5,7 @@ import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Card } from '@/components/Card';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
+import { toGroupPayload } from './budgets.utils';
 import { BudgetGroupForm } from './BudgetGroupForm';
 import { useCreateGroup } from './useBudgets';
 import { styles } from './BudgetNewGroup.styles';
@@ -20,7 +21,7 @@ export const BudgetNewGroup = () => {
         <BudgetGroupForm
           submitLabel="Crear grupo"
           onSubmit={async (values) => {
-            await createGroup(values);
+            await createGroup(toGroupPayload(values));
             setOpen(false);
           }}
           onCancel={() => setOpen(false)}

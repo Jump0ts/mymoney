@@ -11,14 +11,26 @@ const errorsOf = async (schema: typeof budgetLineSchema | typeof budgetGroupSche
   }
 };
 
+const validGroup = { name: 'Hogar', color: '#4F5DFF', limit: '' };
+
 describe('budgetGroupSchema', () => {
-  it('acepta un nombre y un color', async () => {
-    expect(await errorsOf(budgetGroupSchema, { name: 'Hogar', color: '#4F5DFF' })).toEqual([]);
+  it('acepta un nombre y un color, con el limite vacio (sin limite)', async () => {
+    expect(await errorsOf(budgetGroupSchema, validGroup)).toEqual([]);
+  });
+
+  it.each([['600'], ['600,50'], ['1.500'], ['  250  ']])('acepta el limite "%s"', async (limit) => {
+    expect(await errorsOf(budgetGroupSchema, { ...validGroup, limit })).toEqual([]);
+  });
+
+  it.each([['abc'], ['0'], ['-5'], ['1000001'], ['10,555']])('rechaza el limite "%s"', async (limit) => {
+    expect(await errorsOf(budgetGroupSchema, { ...validGroup, limit })).toContain(
+      'Introduce un límite válido mayor que 0',
+    );
   });
 
   it('rechaza un nombre vacio o demasiado largo', async () => {
-    expect(await errorsOf(budgetGroupSchema, { name: '  ', color: '#4F5DFF' })).toContain('El nombre es obligatorio');
-    expect(await errorsOf(budgetGroupSchema, { name: 'x'.repeat(41), color: '#4F5DFF' })).toContain(
+    expect(await errorsOf(budgetGroupSchema, { ...validGroup, name: '  ' })).toContain('El nombre es obligatorio');
+    expect(await errorsOf(budgetGroupSchema, { ...validGroup, name: 'x'.repeat(41) })).toContain(
       'Máximo 40 caracteres',
     );
   });
@@ -34,10 +46,9 @@ describe('budgetLineSchema', () => {
     expect(errors.some((message) => message.includes('importe'))).toBe(true);
   });
 
-  it('un limite exige categoria, una linea fija no', async () => {
-    expect(await errorsOf(budgetLineSchema, { ...validLine, lineType: 'LIMIT' })).toContain('Elige una categoría');
-    expect(await errorsOf(budgetLineSchema, { ...validLine, lineType: 'LIMIT', categoryId: 'cat-1' })).toEqual([]);
+  it('acepta un reembolso y rechaza el antiguo tipo limite', async () => {
     expect(await errorsOf(budgetLineSchema, { ...validLine, lineType: 'REFUND' })).toEqual([]);
+    expect((await errorsOf(budgetLineSchema, { ...validLine, lineType: 'LIMIT' })).length).toBeGreaterThan(0);
   });
 
   it('rechaza un nombre vacio y un alcance desconocido', async () => {
