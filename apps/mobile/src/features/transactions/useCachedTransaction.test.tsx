@@ -20,7 +20,9 @@ const page: TransactionsPage = {
 };
 
 const renderWithClient = (id: string | undefined, seed = true) => {
-  const queryClient = new QueryClient();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { gcTime: Infinity }, mutations: { gcTime: Infinity } },
+  });
   if (seed) {
     queryClient.setQueryData(['transactions', { page: 1 }], page);
   }

@@ -18,6 +18,7 @@ import {
 
 jest.mock('@/lib/api', () => ({ ...jest.requireActual('@/lib/api'), apiRequest: jest.fn() }));
 
+// gcTime infinito: sin temporizadores de limpieza que mantengan vivo el proceso de jest tras los tests.
 const target = { year: 2026, month: 9 };
 
 const seed = (): BudgetMonthResponse => ({
@@ -46,7 +47,9 @@ const seed = (): BudgetMonthResponse => ({
 });
 
 const setup = () => {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } },
+  });
   queryClient.setQueryData(budgetMonthKey(target), seed());
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -341,7 +344,9 @@ describe('useMoveInBudget', () => {
   });
 
   const setupOrder = () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } },
+  });
     queryClient.setQueryData(budgetMonthKey(target), orderSeed());
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -354,7 +359,6 @@ describe('useMoveInBudget', () => {
 
   it('mueve un grupo al instante y manda el orden completo al servidor', async () => {
     const { wrapper, cache } = setupOrder();
-    jest.mocked(apiRequest).mockReturnValue(new Promise(() => {}));
     const { result } = renderHook(() => useMoveInBudget(target), { wrapper });
 
     act(() => result.current.moveGroup('g2', -1));
@@ -383,7 +387,6 @@ describe('useMoveInBudget', () => {
 
   it('varios toques seguidos se suman partiendo de lo que ya se ve', async () => {
     const { wrapper, cache } = setupOrder();
-    jest.mocked(apiRequest).mockReturnValue(new Promise(() => {}));
     const { result } = renderHook(() => useMoveInBudget(target), { wrapper });
 
     act(() => {
