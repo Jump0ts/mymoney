@@ -33,16 +33,24 @@ export const getMonthTotals = (groups: BudgetGroup[], income: number): BudgetMon
   };
 };
 
-// Cuanto del limite del grupo se lleva consumido con lo previsto en sus lineas; null si no tiene limite.
-export const getLimitStatus = (group: BudgetGroup): BudgetLimitStatus | null => {
-  if (group.limit === null) return null;
-  const limit = Number(group.limit);
+// Lo que queda del sueldo tras repartir lo previsto en todos los grupos salvo el del sobrante.
+export const getRemainderAvailable = (groups: BudgetGroup[], income: number): number =>
+  roundMoney(
+    income -
+      groups.reduce((sum, group) => (group.isRemainder ? sum : sum + getGroupTotals(group.entries).planned), 0),
+  );
+
+// Cuanto del tope del grupo se lleva consumido con lo previsto en sus lineas. El tope es su limite,
+// o el disponible calculado si es el grupo del sobrante; null si no tiene ninguno.
+export const getLimitStatus = (group: BudgetGroup, remainderAvailable = 0): BudgetLimitStatus | null => {
+  if (!group.isRemainder && group.limit === null) return null;
+  const limit = group.isRemainder ? remainderAvailable : Number(group.limit);
   const used = getGroupTotals(group.entries).planned;
   return {
     limit,
     used,
     remaining: roundMoney(limit - used),
-    ratio: limit > 0 ? Math.min(Math.max(used / limit, 0), 1) : 0,
+    ratio: used > 0 && limit > 0 ? Math.min(used / limit, 1) : used > 0 ? 1 : 0,
     isOver: used > limit,
   };
 };
@@ -77,10 +85,17 @@ export const toLinePayload = (values: { name: string; lineType: BudgetLineType; 
 };
 
 // El campo del limite vacio significa "sin limite".
-export const toGroupPayload = (values: { name: string; color: string; limit: string }): BudgetGroupPayload => ({
+// El grupo del sobrante no tiene limite propio: su tope es el disponible.
+export const toGroupPayload = (values: {
+  name: string;
+  color: string;
+  limit: string;
+  isRemainder: boolean;
+}): BudgetGroupPayload => ({
   name: values.name.trim(),
   color: values.color,
-  limit: values.limit.trim() === '' ? null : parseAmountInput(values.limit),
+  limit: values.isRemainder || values.limit.trim() === '' ? null : parseAmountInput(values.limit),
+  isRemainder: values.isRemainder,
 });
 
 // Para la actualizacion optimista del check de pagado.

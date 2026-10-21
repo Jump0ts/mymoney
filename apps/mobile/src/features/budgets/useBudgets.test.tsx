@@ -27,6 +27,7 @@ const seed = (): BudgetMonthResponse => ({
       name: 'Hogar',
       color: '#4F5DFF',
       limit: null,
+      isRemainder: false,
       position: 0,
       entries: [
         {
@@ -273,18 +274,18 @@ describe('grupos', () => {
     const remove = renderHook(() => useDeleteGroup(), { wrapper });
 
     await act(async () => {
-      await create.result.current.mutateAsync({ name: 'Hogar', color: '#4F5DFF', limit: 600 });
-      await update.result.current.mutateAsync({ id: 'g1', name: 'Casa', color: '#4F5DFF', limit: null });
+      await create.result.current.mutateAsync({ name: 'Hogar', color: '#4F5DFF', limit: 600, isRemainder: false });
+      await update.result.current.mutateAsync({ id: 'g1', name: 'Casa', color: '#4F5DFF', limit: null, isRemainder: false });
       await remove.result.current.mutateAsync('g1');
     });
 
     expect(apiRequest).toHaveBeenNthCalledWith(1, '/api/budgets/groups', {
       method: 'POST',
-      body: { name: 'Hogar', color: '#4F5DFF', limit: 600 },
+      body: { name: 'Hogar', color: '#4F5DFF', limit: 600, isRemainder: false },
     });
     expect(apiRequest).toHaveBeenNthCalledWith(2, '/api/budgets/groups/g1', {
       method: 'PATCH',
-      body: { name: 'Casa', color: '#4F5DFF', limit: null },
+      body: { name: 'Casa', color: '#4F5DFF', limit: null, isRemainder: false },
     });
     expect(apiRequest).toHaveBeenNthCalledWith(3, '/api/budgets/groups/g1', { method: 'DELETE' });
   });
@@ -294,7 +295,7 @@ describe('grupos', () => {
     const { result } = renderHook(() => useCreateGroup(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync({ name: 'Hogar', color: '#4F5DFF', limit: null });
+      await result.current.mutateAsync({ name: 'Hogar', color: '#4F5DFF', limit: null, isRemainder: false });
     });
 
     expect(queryClient.getQueryState(budgetMonthKey(target))?.isInvalidated).toBe(true);

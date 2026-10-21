@@ -17,7 +17,8 @@ export const BudgetNewLine = ({ group, target, onDone }: BudgetNewLineProps) => 
   return (
     <BudgetLineForm
       // Por defecto "Todos los meses": lo normal al montar el presupuesto es definir lineas recurrentes.
-      defaultValues={{ name: '', lineType: 'FIXED', amount: '', scope: 'template' }}
+      // En el grupo del sobrante (caprichos, imprevistos) lo normal es un gasto puntual.
+      defaultValues={{ name: '', lineType: 'FIXED', amount: '', scope: group.isRemainder ? 'month' : 'template' }}
       scopeOptions={SCOPE_OPTIONS_CREATE}
       submitLabel="Añadir línea"
       onSubmit={async (values) => {

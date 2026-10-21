@@ -15,10 +15,16 @@ export const budgetGroupSchema = yup.object({
   limit: yup
     .string()
     .defined()
-    .test('valid-limit', 'Introduce un límite válido mayor que 0', (value) => {
-      const text = (value ?? '').trim();
-      return text === '' || isValidAmount(text);
+    .when('isRemainder', {
+      is: true,
+      then: (schema) => schema,
+      otherwise: (schema) =>
+        schema.test('valid-limit', 'Introduce un límite válido mayor que 0', (value) => {
+          const text = (value ?? '').trim();
+          return text === '' || isValidAmount(text);
+        }),
     }),
+  isRemainder: yup.boolean().required(),
 });
 
 export type BudgetGroupFormValues = yup.InferType<typeof budgetGroupSchema>;

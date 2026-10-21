@@ -22,12 +22,14 @@ interface BudgetGroupCardProps {
   group: BudgetGroup;
   onTogglePaid: (entry: BudgetEntry) => void;
   editMode?: boolean;
+  // Disponible del grupo que recibe el sobrante (sueldo menos lo previsto en el resto).
+  remainderAvailable?: number;
   // Solo hace falta en modo edicion (formularios de linea).
   target?: YearMonth;
 }
 
 export const BudgetGroupCard = memo(
-  ({ group, onTogglePaid, editMode = false, target }: BudgetGroupCardProps) => {
+  ({ group, onTogglePaid, editMode = false, remainderAvailable, target }: BudgetGroupCardProps) => {
     const theme = useTheme();
     const totals = getGroupTotals(group.entries);
     const headerTextColor = getReadableTextColor(group.color);
@@ -121,7 +123,7 @@ export const BudgetGroupCard = memo(
           )}
         </View>
 
-        {!editingGroup && <BudgetLimitBar group={group} />}
+        {!editingGroup && <BudgetLimitBar group={group} remainderAvailable={remainderAvailable} />}
 
         <View style={styles.footer}>
           <ThemedText type="smallBold" style={styles.footerLabel}>

@@ -92,6 +92,73 @@ describe("grupos de presupuesto", () => {
     expect(removed.body.group.limit).toBeNull();
   });
 
+  it("un grupo puede marcarse como el que recibe lo que sobra, y desmarcarse", async () => {
+    const { token } = await authedUser();
+
+    const created = await as(token).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+    const normal = await as(token).post("/api/budgets/groups", { name: "Hogar" });
+    const unmarked = await as(token).patch(`/api/budgets/groups/${created.body.group.id}`, { isRemainder: false });
+
+    expect(created.status).toBe(201);
+    expect(created.body.group.isRemainder).toBe(true);
+    expect(normal.body.group.isRemainder).toBe(false);
+    expect(unmarked.body.group.isRemainder).toBe(false);
+  });
+
+  it("solo puede haber un grupo que reciba lo que sobra por usuario", async () => {
+    const { token } = await authedUser();
+    const first = await as(token).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+    const second = await as(token).post("/api/budgets/groups", { name: "Imprevistos" });
+
+    const duplicate = await as(token).post("/api/budgets/groups", { name: "Otro", isRemainder: true });
+    const moved = await as(token).patch(`/api/budgets/groups/${second.body.group.id}`, { isRemainder: true });
+    const again = await as(token).patch(`/api/budgets/groups/${first.body.group.id}`, { isRemainder: true });
+
+    expect(duplicate.status).toBe(400);
+    expect(moved.status).toBe(400);
+    expect(again.status).toBe(200);
+  });
+
+  it("otro usuario puede tener su propio grupo del sobrante", async () => {
+    const { token: tokenA } = await authedUser();
+    const { token: tokenB } = await authedUser();
+    await as(tokenA).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+
+    const res = await as(tokenB).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("el grupo del sobrante no admite limite, y al marcarlo se quita el que tuviera", async () => {
+    const { token } = await authedUser();
+    const withLimit = await as(token).post("/api/budgets/groups", { name: "Hogar", limit: 600 });
+    const remainder = await as(token).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+
+    const createWithLimit = await as(token).post("/api/budgets/groups", { name: "X", isRemainder: true, limit: 50 });
+    const setLimit = await as(token).patch(`/api/budgets/groups/${remainder.body.group.id}`, { limit: 100 });
+    const markRemainder = await as(token).patch(`/api/budgets/groups/${withLimit.body.group.id}`, {
+      isRemainder: true,
+    });
+    await as(token).patch(`/api/budgets/groups/${remainder.body.group.id}`, { isRemainder: false });
+    const retry = await as(token).patch(`/api/budgets/groups/${withLimit.body.group.id}`, { isRemainder: true });
+
+    expect(createWithLimit.status).toBe(400);
+    expect(setLimit.status).toBe(400);
+    expect(markRemainder.status).toBe(400);
+    expect(retry.status).toBe(200);
+    expect(retry.body.group.limit).toBeNull();
+  });
+
+  it("devuelve la marca del sobrante junto a cada grupo del mes", async () => {
+    const { token } = await authedUser();
+    await as(token).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+    await createGroup(token, "Hogar");
+
+    const res = await as(token).get("/api/budgets/months/2026/9");
+
+    expect(res.body.groups.map((g: { isRemainder: boolean }) => g.isRemainder)).toEqual([true, false]);
+  });
+
   it("editar otros campos del grupo no toca su limite", async () => {
     const { token } = await authedUser();
     const group = await as(token).post("/api/budgets/groups", { name: "Gastos fijos", limit: 600 });

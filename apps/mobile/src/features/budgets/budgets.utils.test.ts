@@ -6,6 +6,7 @@ import {
   getLimitStatus,
   getLineType,
   getMonthTotals,
+  getRemainderAvailable,
   parseAmountInput,
   setEntryPaid,
   toGroupPayload,
@@ -27,6 +28,7 @@ const group = (id: string, entries: BudgetEntry[]): BudgetGroup => ({
   name: id,
   color: '#4F5DFF',
   limit: null,
+  isRemainder: false,
   position: 0,
   entries,
 });
@@ -136,6 +138,64 @@ describe('getLimitStatus', () => {
   });
 });
 
+describe('grupo que recibe lo que sobra', () => {
+  const remainder = (entries: BudgetEntry[]): BudgetGroup => ({ ...group('r', entries), isRemainder: true });
+
+  it('el disponible es el sueldo menos lo previsto en los otros grupos', () => {
+    const groups = [
+      group('a', [fixed('a1', '600.00', false), fixed('a2', '150.50', true)]),
+      group('b', [fixed('b1', '-50.00', false)]),
+      remainder([fixed('r1', '80.00', true)]),
+    ];
+
+    expect(getRemainderAvailable(groups, 1500)).toBe(799.5);
+  });
+
+  it('las lineas del propio grupo del sobrante no reducen su disponible', () => {
+    expect(getRemainderAvailable([remainder([fixed('r1', '500.00', true)])], 1000)).toBe(1000);
+  });
+
+  it('si el reparto supera el sueldo el disponible sale negativo', () => {
+    expect(getRemainderAvailable([group('a', [fixed('a1', '1200.00', false)])], 1000)).toBe(-200);
+  });
+
+  it('su tope es el disponible y lo gastado son sus lineas', () => {
+    const status = getLimitStatus(remainder([fixed('r1', '30.00', true), fixed('r2', '20.00', false)]), 200);
+
+    expect(status).toEqual({ limit: 200, used: 50, remaining: 150, ratio: 0.25, isOver: false });
+  });
+
+  it('siempre tiene estado, aunque no tenga limite propio, y avisa al pasarse', () => {
+    const status = getLimitStatus(remainder([fixed('r1', '120.00', false)]), 100);
+
+    expect(status?.isOver).toBe(true);
+    expect(status?.remaining).toBe(-20);
+    expect(status?.ratio).toBe(1);
+  });
+
+  it('sin disponible, cualquier gasto lo desborda', () => {
+    const status = getLimitStatus(remainder([fixed('r1', '10.00', false)]), -50);
+
+    expect(status?.isOver).toBe(true);
+    expect(status?.ratio).toBe(1);
+  });
+
+  it('el disponible manda sobre un limite que pudiera quedar guardado', () => {
+    const status = getLimitStatus({ ...remainder([]), limit: '999.00' }, 300);
+
+    expect(status?.limit).toBe(300);
+  });
+
+  it('su payload no lleva limite aunque el campo tenga texto', () => {
+    expect(toGroupPayload({ name: 'Caprichos', color: '#112233', limit: '50', isRemainder: true })).toEqual({
+      name: 'Caprichos',
+      color: '#112233',
+      limit: null,
+      isRemainder: true,
+    });
+  });
+});
+
 describe('parseAmountInput', () => {
   it.each([
     ['1700', 1700],
@@ -199,16 +259,17 @@ describe('toLinePayload', () => {
 
 describe('toGroupPayload', () => {
   it('un limite escrito se convierte en numero', () => {
-    expect(toGroupPayload({ name: '  Gastos fijos ', color: '#112233', limit: '600,50' })).toEqual({
+    expect(toGroupPayload({ name: '  Gastos fijos ', color: '#112233', limit: '600,50', isRemainder: false })).toEqual({
       name: 'Gastos fijos',
       color: '#112233',
       limit: 600.5,
+      isRemainder: false,
     });
   });
 
   it('un limite vacio o en blanco significa sin limite', () => {
-    expect(toGroupPayload({ name: 'Hogar', color: '#112233', limit: '' }).limit).toBeNull();
-    expect(toGroupPayload({ name: 'Hogar', color: '#112233', limit: '   ' }).limit).toBeNull();
+    expect(toGroupPayload({ name: 'Hogar', color: '#112233', limit: '', isRemainder: false }).limit).toBeNull();
+    expect(toGroupPayload({ name: 'Hogar', color: '#112233', limit: '   ', isRemainder: false }).limit).toBeNull();
   });
 });
 

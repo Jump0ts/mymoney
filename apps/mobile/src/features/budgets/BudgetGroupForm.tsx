@@ -3,11 +3,15 @@ import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { View } from 'react-native';
 
+import { Feather } from '@expo/vector-icons';
+import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
 import { ColorPicker } from '@/components/ColorPicker';
 import { FieldError } from '@/components/FieldError';
 import { Input } from '@/components/Input';
+import { ThemedText } from '@/components/themed-text';
 import { CategoryPalette } from '@/features/categories/categories.constants';
+import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { confirmAsync } from '@/utils/alert';
 import { budgetGroupSchema, type BudgetGroupFormValues } from './budgets.schema';
@@ -25,16 +29,20 @@ interface BudgetGroupFormProps {
 const messageOf = (error: unknown) => (error instanceof ApiError ? error.message : 'Error inesperado');
 
 export const BudgetGroupForm = ({ defaultValues, submitLabel, onSubmit, onCancel, onDelete }: BudgetGroupFormProps) => {
+  const theme = useTheme();
   const [serverError, setServerError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const {
     control,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<BudgetGroupFormValues>({
     resolver: yupResolver(budgetGroupSchema),
-    defaultValues: defaultValues ?? { name: '', color: CategoryPalette[0], limit: '' },
+    defaultValues: defaultValues ?? { name: '', color: CategoryPalette[0], limit: '', isRemainder: false },
   });
+  const isRemainder = watch('isRemainder');
   // Con una peticion en curso no se puede cancelar, borrar ni volver a enviar.
   const busy = isSubmitting || deleting;
 
@@ -113,20 +121,50 @@ export const BudgetGroupForm = ({ defaultValues, submitLabel, onSubmit, onCancel
 
       <Controller
         control={control}
-        name="limit"
+        name="isRemainder"
         render={({ field }) => (
-          <Input
-            testID="budget-group-limit"
-            accessibilityLabel="Límite del grupo en euros (opcional)"
-            placeholder="Límite (€, opcional)"
-            keyboardType="decimal-pad"
-            value={field.value}
-            onChangeText={field.onChange}
-            onBlur={field.onBlur}
-          />
+          <AnimatedPressable
+            testID="budget-group-remainder"
+            accessibilityRole="switch"
+            accessibilityLabel="Recibe lo que sobra del sueldo"
+            accessibilityHint="El disponible del grupo es el sueldo menos lo previsto en el resto de grupos"
+            accessibilityState={{ checked: field.value }}
+            onPress={() => {
+              // Un grupo del sobrante no tiene limite propio: se vacia al marcarlo.
+              if (!field.value) setValue('limit', '');
+              field.onChange(!field.value);
+            }}
+            style={styles.toggle}>
+            <Feather
+              name={field.value ? 'check-square' : 'square'}
+              size={20}
+              color={field.value ? theme.primary : theme.textSecondary}
+            />
+            <ThemedText style={styles.toggleLabel}>Recibe lo que sobra del sueldo</ThemedText>
+          </AnimatedPressable>
         )}
       />
-      <FieldError message={errors.limit?.message} />
+
+      {!isRemainder && (
+        <>
+          <Controller
+            control={control}
+            name="limit"
+            render={({ field }) => (
+              <Input
+                testID="budget-group-limit"
+                accessibilityLabel="Límite del grupo en euros (opcional)"
+                placeholder="Límite (€, opcional)"
+                keyboardType="decimal-pad"
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
+          />
+          <FieldError message={errors.limit?.message} />
+        </>
+      )}
 
       <FieldError message={serverError} />
 

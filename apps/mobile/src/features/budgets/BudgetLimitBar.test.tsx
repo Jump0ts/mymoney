@@ -17,8 +17,35 @@ const group = (limit: string | null, amounts: string[]): BudgetGroup => ({
   name: 'Gastos fijos',
   color: '#4F5DFF',
   limit,
+  isRemainder: false,
   position: 0,
   entries: amounts.map((amount, index) => entry(`e${index}`, amount)),
+});
+
+describe('BudgetLimitBar (grupo que recibe lo que sobra)', () => {
+  const remainder = (amounts: string[]): BudgetGroup => ({ ...group(null, amounts), isRemainder: true });
+
+  it('muestra el disponible aunque no tenga limite y lo que queda', () => {
+    render(<BudgetLimitBar group={remainder(['30.00', '20.00'])} remainderAvailable={200} />);
+
+    expect(screen.getByText(/Disponible.*200,00/)).toBeTruthy();
+    expect(screen.getByText(/Quedan.*150,00/)).toBeTruthy();
+    expect(screen.queryByText(/Límite/)).toBeNull();
+  });
+
+  it('avisa cuando lo gastado supera el disponible', () => {
+    render(<BudgetLimitBar group={remainder(['120.00'])} remainderAvailable={100} />);
+
+    expect(screen.getByText(/Te pasas.*20,00/)).toBeTruthy();
+  });
+
+  it('se anuncia como disponible y el valor no baja de 0 con disponible negativo', () => {
+    render(<BudgetLimitBar group={remainder(['10.00'])} remainderAvailable={-50} />);
+    const bar = screen.getByTestId('budget-limit-g1');
+
+    expect(bar.props.accessibilityLabel).toMatch(/^Disponible de Gastos fijos/);
+    expect(bar.props.accessibilityValue).toEqual({ min: 0, max: 0, now: 0 });
+  });
 });
 
 describe('BudgetLimitBar', () => {

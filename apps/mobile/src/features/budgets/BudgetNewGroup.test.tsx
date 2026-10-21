@@ -25,7 +25,7 @@ describe('BudgetNewGroup', () => {
     fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Deseos');
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
-    await waitFor(() => expect(mockCreateGroup).toHaveBeenCalledWith({ name: 'Deseos', color: expect.any(String), limit: null }));
+    await waitFor(() => expect(mockCreateGroup).toHaveBeenCalledWith({ name: 'Deseos', color: expect.any(String), limit: null, isRemainder: false }));
     expect(await screen.findByTestId('budget-new-group')).toBeTruthy();
   });
 
@@ -38,7 +38,7 @@ describe('BudgetNewGroup', () => {
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
     await waitFor(() =>
-      expect(mockCreateGroup).toHaveBeenCalledWith({ name: 'Gastos fijos', color: expect.any(String), limit: 600.5 }),
+      expect(mockCreateGroup).toHaveBeenCalledWith({ name: 'Gastos fijos', color: expect.any(String), limit: 600.5, isRemainder: false }),
     );
   });
 

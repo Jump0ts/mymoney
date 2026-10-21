@@ -18,6 +18,7 @@ export const BudgetGroupEditor = ({ group, onDone }: BudgetGroupEditorProps) => 
         name: group.name,
         color: group.color,
         limit: group.limit === null ? '' : formatAmountForInput(group.limit),
+        isRemainder: group.isRemainder,
       }}
       submitLabel="Guardar"
       onSubmit={async (values) => {

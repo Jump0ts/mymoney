@@ -39,6 +39,27 @@ const nextEntryPosition = async (userId: string, target: YearMonth, groupId: str
   return (max._max.position ?? -1) + 1;
 };
 
+// El grupo que recibe lo que sobra no tiene limite propio (su disponible se calcula) y
+// solo puede haber uno por usuario. Devuelve los datos a guardar, con el limite quitado
+// si el grupo pasa a ser el del sobrante.
+const checkRemainder = async <T extends { limit?: number | null; isRemainder?: boolean }>(
+  userId: string,
+  body: T,
+  current?: { id: string; isRemainder: boolean },
+): Promise<T> => {
+  const willBeRemainder = body.isRemainder ?? current?.isRemainder ?? false;
+  if (!willBeRemainder) return body;
+
+  if (body.limit != null) throw badRequest("El grupo que recibe lo que sobra no puede tener límite");
+  if (body.isRemainder) {
+    const other = await prisma.budgetGroup.findFirst({
+      where: { userId, isRemainder: true, ...(current && { id: { not: current.id } }) },
+    });
+    if (other) throw badRequest(`Ya existe un grupo que recibe lo que sobra: ${other.name}`);
+  }
+  return { ...body, limit: null };
+};
+
 // Abre el presupuesto de un mes: la primera vez lo genera copiando la plantilla
 // (con "pagado" en false) y el sueldo del ultimo mes anterior. Devuelve false si
 // el mes es anterior al primer presupuesto del usuario: no tiene sentido
@@ -133,9 +154,10 @@ budgetsRouter.post(
     const duplicate = await prisma.budgetGroup.findUnique({ where: { userId_name: { userId, name: body.name } } });
     if (duplicate) throw badRequest("Ya existe un grupo con ese nombre");
 
+    const data = await checkRemainder(userId, body);
     const max = await prisma.budgetGroup.aggregate({ where: { userId }, _max: { position: true } });
     const group = await prisma.budgetGroup.create({
-      data: { ...body, userId, position: (max._max.position ?? -1) + 1 },
+      data: { ...data, userId, position: (max._max.position ?? -1) + 1 },
     });
     res.status(201).json({ group });
   }),
@@ -153,7 +175,8 @@ budgetsRouter.patch(
       if (duplicate) throw badRequest("Ya existe un grupo con ese nombre");
     }
 
-    const updated = await prisma.budgetGroup.update({ where: { id: group.id }, data: body });
+    const data = await checkRemainder(userId, body, group);
+    const updated = await prisma.budgetGroup.update({ where: { id: group.id }, data });
     res.json({ group: updated });
   }),
 );

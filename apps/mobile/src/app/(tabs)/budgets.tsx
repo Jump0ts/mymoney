@@ -14,7 +14,7 @@ import { BudgetNewGroup } from '@/features/budgets/BudgetNewGroup';
 import { BudgetSkeleton } from '@/features/budgets/BudgetSkeleton';
 import { BudgetSummary } from '@/features/budgets/BudgetSummary';
 import type { BudgetEntry } from '@/features/budgets/budgets.types';
-import { getMonthTotals } from '@/features/budgets/budgets.utils';
+import { getMonthTotals, getRemainderAvailable } from '@/features/budgets/budgets.utils';
 import { useBudgetMonth, useToggleEntryPaid, useUpdateMonthIncome } from '@/features/budgets/useBudgets';
 import { useTheme } from '@/hooks/use-theme';
 import { styles } from '@/screens/tabs/budgets.styles';
@@ -74,11 +74,14 @@ const BudgetsScreen = () => {
       );
     }
 
+    const income = Number(data.month.income);
+    const remainderAvailable = getRemainderAvailable(data.groups, income);
+
     return (
       <Animated.View entering={CONTENT_FADE_IN} style={styles.list}>
         <BudgetSummary
           key={`${selected.year}-${selected.month}`}
-          totals={getMonthTotals(data.groups, Number(data.month.income))}
+          totals={getMonthTotals(data.groups, income)}
           onSaveIncome={saveIncome}
         />
         {data.groups.map((group) => (
@@ -87,6 +90,7 @@ const BudgetsScreen = () => {
             group={group}
             onTogglePaid={handleTogglePaid}
             editMode={editMode}
+            remainderAvailable={remainderAvailable}
             target={selected}
           />
         ))}

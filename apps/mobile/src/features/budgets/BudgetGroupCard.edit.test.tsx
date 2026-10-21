@@ -35,6 +35,7 @@ const group = (entries: BudgetEntry[] = [entry()]): BudgetGroup => ({
   name: 'Hogar',
   color: '#4F5DFF',
   limit: null,
+  isRemainder: false,
   position: 0,
   entries,
 });
@@ -136,8 +137,32 @@ describe('BudgetGroupCard en modo edicion', () => {
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
     await waitFor(() =>
-      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Casa', color: '#4F5DFF', limit: null }),
+      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Casa', color: '#4F5DFF', limit: null, isRemainder: false }),
     );
+  });
+
+  it('en el grupo del sobrante una linea nueva es solo de este mes por defecto', async () => {
+    render(
+      <BudgetGroupCard
+        group={{ ...group([]), isRemainder: true }}
+        onTogglePaid={jest.fn()}
+        editMode
+        remainderAvailable={300}
+        target={target}
+      />,
+    );
+
+    fireEvent.press(screen.getByTestId('budget-add-line-g1'));
+    fireEvent.changeText(screen.getByTestId('budget-line-name'), 'Cena con amigos');
+    fireEvent.changeText(screen.getByTestId('budget-line-amount'), '35');
+    fireEvent.press(screen.getByTestId('budget-line-submit'));
+
+    await waitFor(() => expect(mockCreateEntry).toHaveBeenCalledTimes(1));
+    expect(mockCreateEntry).toHaveBeenCalledWith({
+      groupId: 'g1',
+      line: { name: 'Cena con amigos', amount: 35 },
+      scope: 'month',
+    });
   });
 
   it('el formulario del grupo precarga su limite y permite cambiarlo', async () => {
@@ -150,7 +175,7 @@ describe('BudgetGroupCard en modo edicion', () => {
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
     await waitFor(() =>
-      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Hogar', color: '#4F5DFF', limit: 750.5 }),
+      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Hogar', color: '#4F5DFF', limit: 750.5, isRemainder: false }),
     );
   });
 
@@ -162,7 +187,7 @@ describe('BudgetGroupCard en modo edicion', () => {
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
     await waitFor(() =>
-      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Hogar', color: '#4F5DFF', limit: null }),
+      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Hogar', color: '#4F5DFF', limit: null, isRemainder: false }),
     );
   });
 

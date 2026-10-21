@@ -21,7 +21,12 @@ describe('BudgetGroupForm', () => {
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0]).toEqual({ name: 'Hogar', color: CategoryPalette[0], limit: '' });
+    expect(onSubmit.mock.calls[0][0]).toEqual({
+      name: 'Hogar',
+      color: CategoryPalette[0],
+      limit: '',
+      isRemainder: false,
+    });
   });
 
   it('envia el color que se elija', async () => {
@@ -43,7 +48,7 @@ describe('BudgetGroupForm', () => {
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
-    expect(onSubmit.mock.calls[0][0]).toMatchObject({ name: 'Gastos fijos', limit: '600' });
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ name: 'Gastos fijos', limit: '600', isRemainder: false });
   });
 
   it('rechaza un limite que no es un importe valido', async () => {
@@ -59,7 +64,7 @@ describe('BudgetGroupForm', () => {
 
   it('precarga el limite al editar y se puede vaciar para quitarlo', async () => {
     const { onSubmit } = renderForm({
-      defaultValues: { name: 'Gastos fijos', color: CategoryPalette[0], limit: '600' },
+      defaultValues: { name: 'Gastos fijos', color: CategoryPalette[0], limit: '600', isRemainder: false },
     });
     expect(screen.getByDisplayValue('600')).toBeTruthy();
 
@@ -68,6 +73,45 @@ describe('BudgetGroupForm', () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     expect(onSubmit.mock.calls[0][0].limit).toBe('');
+  });
+
+  it('marcar que recibe lo que sobra oculta el limite y envia el grupo sin limite', async () => {
+    const { onSubmit } = renderForm();
+
+    fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Caprichos');
+    fireEvent.changeText(screen.getByTestId('budget-group-limit'), '50');
+    fireEvent.press(screen.getByTestId('budget-group-remainder'));
+
+    expect(screen.queryByTestId('budget-group-limit')).toBeNull();
+    expect(screen.getByTestId('budget-group-remainder').props.accessibilityState).toMatchObject({ checked: true });
+
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ name: 'Caprichos', limit: '', isRemainder: true });
+  });
+
+  it('el interruptor se expone como switch y se puede desmarcar', () => {
+    renderForm({ defaultValues: { name: 'Caprichos', color: CategoryPalette[0], limit: '', isRemainder: true } });
+    const toggle = screen.getByLabelText('Recibe lo que sobra del sueldo');
+
+    expect(toggle.props.accessibilityRole).toBe('switch');
+    expect(screen.queryByTestId('budget-group-limit')).toBeNull();
+
+    fireEvent.press(toggle);
+
+    expect(screen.getByTestId('budget-group-limit')).toBeTruthy();
+  });
+
+  it('muestra el error del servidor si ya hay otro grupo del sobrante', async () => {
+    renderForm({
+      onSubmit: jest.fn().mockRejectedValue(new ApiError(400, 'Ya existe un grupo que recibe lo que sobra: Ocio')),
+    });
+
+    fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Caprichos');
+    fireEvent.press(screen.getByTestId('budget-group-remainder'));
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+    expect(await screen.findByText(/Ya existe un grupo que recibe lo que sobra/)).toBeTruthy();
   });
 
   it('exige un nombre', async () => {
@@ -89,7 +133,7 @@ describe('BudgetGroupForm', () => {
   });
 
   it('precarga los valores al editar', () => {
-    renderForm({ defaultValues: { name: 'Alquiler', color: CategoryPalette[2], limit: '' } });
+    renderForm({ defaultValues: { name: 'Alquiler', color: CategoryPalette[2], limit: '', isRemainder: false } });
 
     expect(screen.getByDisplayValue('Alquiler')).toBeTruthy();
     expect(screen.getByLabelText('Color 3 de 10').props.accessibilityState).toMatchObject({ selected: true });
@@ -148,7 +192,7 @@ describe('BudgetGroupForm', () => {
 
     it('pide confirmacion antes de borrar', async () => {
       const onDelete = jest.fn().mockResolvedValue(undefined);
-      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '' }, onDelete });
+      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '', isRemainder: false }, onDelete });
 
       fireEvent.press(screen.getByTestId('budget-group-delete'));
 
@@ -159,7 +203,7 @@ describe('BudgetGroupForm', () => {
     it('no borra si se cancela la confirmacion', async () => {
       jest.mocked(confirmAsync).mockResolvedValueOnce(false);
       const onDelete = jest.fn();
-      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '' }, onDelete });
+      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '', isRemainder: false }, onDelete });
 
       fireEvent.press(screen.getByTestId('budget-group-delete'));
 
@@ -171,7 +215,7 @@ describe('BudgetGroupForm', () => {
       const onDelete = jest
         .fn()
         .mockRejectedValue(new ApiError(400, 'No se puede borrar un grupo que tiene líneas, ni siquiera de meses anteriores'));
-      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '' }, onDelete });
+      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '', isRemainder: false }, onDelete });
 
       fireEvent.press(screen.getByTestId('budget-group-delete'));
 

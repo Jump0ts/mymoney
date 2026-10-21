@@ -21,6 +21,7 @@ export const createGroupSchema = z.object({
   name: z.string().trim().min(1).max(40),
   color: colorSchema.default("#6C5CE7"),
   limit: groupLimitSchema.optional(),
+  isRemainder: z.boolean().optional(),
 });
 
 export const updateGroupSchema = createGroupSchema.partial().extend({

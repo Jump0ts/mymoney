@@ -18,6 +18,7 @@ const group = (entries: BudgetEntry[]): BudgetGroup => ({
   name: 'Hogar',
   color: '#4F5DFF',
   limit: null,
+  isRemainder: false,
   position: 0,
   entries,
 });
@@ -52,6 +53,19 @@ describe('BudgetGroupCard', () => {
     render(<BudgetGroupCard group={group([])} onTogglePaid={jest.fn()} />);
 
     expect(screen.getByText('Sin líneas este mes.')).toBeTruthy();
+  });
+
+  it('el grupo del sobrante muestra lo disponible y lo que queda tras sus lineas', () => {
+    render(
+      <BudgetGroupCard
+        group={{ ...group([entry('a', '35.00', true)]), isRemainder: true }}
+        onTogglePaid={jest.fn()}
+        remainderAvailable={300}
+      />,
+    );
+
+    expect(screen.getByText(/Disponible.*300,00/)).toBeTruthy();
+    expect(screen.getByText(/Quedan.*265,00/)).toBeTruthy();
   });
 
   it('sin limite no muestra la barra de limite', () => {

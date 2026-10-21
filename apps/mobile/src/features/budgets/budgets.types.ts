@@ -14,6 +14,8 @@ export interface BudgetGroup {
   color: string;
   // Tope opcional para la suma de lo previsto en las lineas del grupo.
   limit: string | null;
+  // Recibe lo que sobra del sueldo tras repartir el resto; su "limite" es ese disponible (calculado).
+  isRemainder: boolean;
   position: number;
   entries: BudgetEntry[];
 }
@@ -41,6 +43,7 @@ export interface BudgetGroupPayload {
   name: string;
   color: string;
   limit: number | null;
+  isRemainder: boolean;
 }
 
 export interface BudgetTotals {
