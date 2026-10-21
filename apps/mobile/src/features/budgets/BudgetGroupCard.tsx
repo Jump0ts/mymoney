@@ -31,6 +31,9 @@ interface BudgetGroupCardProps {
   onMoveGroup?: (group: BudgetGroup, delta: -1 | 1) => void;
   isFirst?: boolean;
   isLast?: boolean;
+  // Lugar del grupo en la lista (desde 0) y numero de grupos, para anunciar el movimiento.
+  groupPosition?: number;
+  groupCount?: number;
   // Subir/bajar una linea dentro del grupo (modo edicion).
   onMoveEntry?: (group: BudgetGroup, entry: BudgetEntry, delta: -1 | 1) => void;
 }
@@ -45,6 +48,8 @@ export const BudgetGroupCard = memo(
     onMoveGroup,
     isFirst = false,
     isLast = false,
+    groupPosition,
+    groupCount,
     onMoveEntry,
   }: BudgetGroupCardProps) => {
     const theme = useTheme();
@@ -85,6 +90,8 @@ export const BudgetGroupCard = memo(
               canMoveDown={!isLast}
               onMove={(delta) => onMoveGroup(group, delta)}
               color={headerTextColor}
+              position={groupPosition}
+              total={groupCount}
             />
           )}
           {editMode && (
@@ -122,6 +129,8 @@ export const BudgetGroupCard = memo(
                   onMove={onMoveEntry && ((moved, delta) => onMoveEntry(group, moved, delta))}
                   canMoveUp={index > 0}
                   canMoveDown={index < group.entries.length - 1}
+                  position={index}
+                  total={group.entries.length}
                   onEdit={(selected) => {
                     closeForms();
                     setEditingEntryId(selected.id);

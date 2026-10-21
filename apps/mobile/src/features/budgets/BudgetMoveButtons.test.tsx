@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 import { BudgetMoveButtons } from './BudgetMoveButtons';
 
 const renderButtons = (props: Partial<React.ComponentProps<typeof BudgetMoveButtons>> = {}) => {
@@ -46,5 +47,37 @@ describe('BudgetMoveButtons', () => {
     fireEvent.press(screen.getByTestId('move-down'));
 
     expect(onMove).not.toHaveBeenCalled();
+  });
+
+  describe('anuncio para lectores de pantalla', () => {
+    beforeEach(() => {
+      jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+      jest.mocked(AccessibilityInfo.announceForAccessibility).mockClear();
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    it('al subir anuncia la nueva posicion', () => {
+      renderButtons({ position: 2, total: 5 });
+
+      fireEvent.press(screen.getByLabelText('Subir Netflix'));
+
+      expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith('Netflix movido a la posición 2 de 5');
+    });
+
+    it('al bajar anuncia la nueva posicion', () => {
+      renderButtons({ position: 0, total: 3 });
+
+      fireEvent.press(screen.getByLabelText('Bajar Netflix'));
+
+      expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith('Netflix movido a la posición 2 de 3');
+    });
+
+    it('sin posicion no anuncia nada', () => {
+      renderButtons();
+
+      fireEvent.press(screen.getByLabelText('Subir Netflix'));
+
+      expect(AccessibilityInfo.announceForAccessibility).not.toHaveBeenCalled();
+    });
   });
 });

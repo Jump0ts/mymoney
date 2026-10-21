@@ -20,6 +20,9 @@ interface BudgetEntryRowProps {
   onMove?: (entry: BudgetEntry, delta: -1 | 1) => void;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
+  // Lugar de la linea en su grupo (desde 0) y numero de lineas, para anunciar el movimiento.
+  position?: number;
+  total?: number;
 }
 
 export const BudgetEntryRow = memo(
@@ -31,6 +34,8 @@ export const BudgetEntryRow = memo(
     onMove,
     canMoveUp = false,
     canMoveDown = false,
+    position,
+    total,
   }: BudgetEntryRowProps) => {
     const theme = useTheme();
 
@@ -45,7 +50,9 @@ export const BudgetEntryRow = memo(
             style={styles.editMain}>
             <Feather name="edit-2" size={18} color={theme.textSecondary} />
             <ThemedText style={styles.name}>{entry.name}</ThemedText>
-            <ThemedText type="smallBold">{formatMoney(entry.amount)}</ThemedText>
+            <ThemedText type="smallBold" style={styles.amount}>
+              {formatMoney(entry.amount)}
+            </ThemedText>
           </AnimatedPressable>
           {onMove && (
             <BudgetMoveButtons
@@ -55,6 +62,8 @@ export const BudgetEntryRow = memo(
               canMoveDown={canMoveDown}
               onMove={(delta) => onMove(entry, delta)}
               color={theme.textSecondary}
+              position={position}
+              total={total}
             />
           )}
         </View>

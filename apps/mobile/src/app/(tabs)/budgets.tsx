@@ -21,6 +21,7 @@ import {
   useToggleEntryPaid,
   useUpdateMonthIncome,
 } from '@/features/budgets/useBudgets';
+import { EditGuardProvider, useEditGuard } from '@/features/budgets/useEditGuard';
 import { useTheme } from '@/hooks/use-theme';
 import { styles } from '@/screens/tabs/budgets.styles';
 import { notify } from '@/utils/alert';
@@ -36,6 +37,7 @@ const BudgetsScreen = () => {
   const { mutate: togglePaid } = useToggleEntryPaid(selected);
   const { mutateAsync: saveIncome } = useUpdateMonthIncome(selected);
   const { moveGroup, moveEntry } = useMoveInBudget(selected);
+  const { guard, confirmDiscard } = useEditGuard();
 
   const handleTogglePaid = useCallback(
     (entry: BudgetEntry) =>
@@ -61,6 +63,17 @@ const BudgetsScreen = () => {
       ),
     [moveEntry],
   );
+
+  // Cerrar el modo edicion o cambiar de mes descarta los formularios abiertos: antes se confirma.
+  const toggleEditMode = async () => {
+    if (editMode && !(await confirmDiscard())) return;
+    setEditMode((value) => !value);
+  };
+
+  const changeMonth = async (year: number, month: number) => {
+    if (!(await confirmDiscard())) return;
+    setSelected({ year, month });
+  };
 
   const renderContent = () => {
     if (isLoading) return <BudgetSkeleton />;
@@ -116,6 +129,8 @@ const BudgetsScreen = () => {
             onMoveGroup={handleMoveGroup}
             isFirst={index === 0}
             isLast={index === data.groups.length - 1}
+            groupPosition={index}
+            groupCount={data.groups.length}
             onMoveEntry={handleMoveEntry}
             target={selected}
           />
@@ -126,6 +141,7 @@ const BudgetsScreen = () => {
   };
 
   return (
+    <EditGuardProvider value={guard}>
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
@@ -141,7 +157,7 @@ const BudgetsScreen = () => {
               accessibilityRole="button"
               accessibilityLabel={editMode ? 'Terminar de editar el presupuesto' : 'Editar el presupuesto'}
               accessibilityState={{ selected: editMode }}
-              onPress={() => setEditMode((value) => !value)}
+              onPress={toggleEditMode}
               style={[
                 styles.editButton,
                 { backgroundColor: editMode ? theme.primary : theme.backgroundElement },
@@ -154,12 +170,13 @@ const BudgetsScreen = () => {
           <MonthYearPicker
             year={selected.year}
             month={selected.month}
-            onChange={(year, month) => setSelected({ year, month })}
+            onChange={changeMonth}
           />
           <View>{renderContent()}</View>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
+    </EditGuardProvider>
   );
 };
 

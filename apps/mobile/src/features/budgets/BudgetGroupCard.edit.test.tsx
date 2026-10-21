@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 import type { BudgetEntry, BudgetGroup } from './budgets.types';
 import { BudgetGroupCard } from './BudgetGroupCard';
 
@@ -308,6 +309,18 @@ describe('BudgetGroupCard en modo edicion', () => {
 
       expect(screen.queryByLabelText('Subir grupo Hogar')).toBeNull();
       expect(screen.queryByLabelText('Subir Spotify')).toBeNull();
+    });
+
+    it('anuncia la nueva posicion de la linea y del grupo al moverlos', () => {
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+      renderMovable({ groupPosition: 1, groupCount: 3 });
+
+      fireEvent.press(screen.getByLabelText('Bajar Netflix'));
+      fireEvent.press(screen.getByLabelText('Subir grupo Hogar'));
+
+      expect(announce).toHaveBeenCalledWith('Netflix movido a la posición 2 de 2');
+      expect(announce).toHaveBeenCalledWith('grupo Hogar movido a la posición 1 de 3');
+      announce.mockRestore();
     });
   });
 });

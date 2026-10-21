@@ -1,10 +1,8 @@
 import { yupResolver } from '@hookform/resolvers/yup';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { View } from 'react-native';
+import { Switch, View } from 'react-native';
 
-import { Feather } from '@expo/vector-icons';
-import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
 import { ColorPicker } from '@/components/ColorPicker';
 import { FieldError } from '@/components/FieldError';
@@ -15,6 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { confirmAsync } from '@/utils/alert';
 import { budgetGroupSchema, type BudgetGroupFormValues } from './budgets.schema';
+import { useReportDirty } from './useEditGuard';
 import { styles } from './BudgetGroupForm.styles';
 
 interface BudgetGroupFormProps {
@@ -43,6 +42,7 @@ export const BudgetGroupForm = ({ defaultValues, submitLabel, onSubmit, onCancel
     defaultValues: defaultValues ?? { name: '', color: CategoryPalette[0], limit: '', isRemainder: false },
   });
   const isRemainder = watch('isRemainder');
+  useReportDirty(isDirty);
   // Con una peticion en curso no se puede cancelar, borrar ni volver a enviar.
   const busy = isSubmitting || deleting;
 
@@ -123,25 +123,21 @@ export const BudgetGroupForm = ({ defaultValues, submitLabel, onSubmit, onCancel
         control={control}
         name="isRemainder"
         render={({ field }) => (
-          <AnimatedPressable
-            testID="budget-group-remainder"
-            accessibilityRole="switch"
-            accessibilityLabel="Recibe lo que sobra del sueldo"
-            accessibilityHint="El disponible del grupo es el sueldo menos lo previsto en el resto de grupos"
-            accessibilityState={{ checked: field.value }}
-            onPress={() => {
-              // Un grupo del sobrante no tiene limite propio: se vacia al marcarlo.
-              if (!field.value) setValue('limit', '');
-              field.onChange(!field.value);
-            }}
-            style={styles.toggle}>
-            <Feather
-              name={field.value ? 'check-square' : 'square'}
-              size={20}
-              color={field.value ? theme.primary : theme.textSecondary}
-            />
+          <View style={styles.toggle}>
             <ThemedText style={styles.toggleLabel}>Recibe lo que sobra del sueldo</ThemedText>
-          </AnimatedPressable>
+            <Switch
+              testID="budget-group-remainder"
+              accessibilityLabel="Recibe lo que sobra del sueldo"
+              accessibilityHint="El disponible del grupo es el sueldo menos lo previsto en el resto de grupos"
+              value={field.value}
+              onValueChange={(value) => {
+                // Un grupo del sobrante no tiene limite propio: se vacia al marcarlo.
+                if (value) setValue('limit', '');
+                field.onChange(value);
+              }}
+              trackColor={{ true: theme.primary }}
+            />
+          </View>
         )}
       />
 

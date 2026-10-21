@@ -80,10 +80,10 @@ describe('BudgetGroupForm', () => {
 
     fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Caprichos');
     fireEvent.changeText(screen.getByTestId('budget-group-limit'), '50');
-    fireEvent.press(screen.getByTestId('budget-group-remainder'));
+    fireEvent(screen.getByTestId('budget-group-remainder'), 'valueChange', true);
 
     expect(screen.queryByTestId('budget-group-limit')).toBeNull();
-    expect(screen.getByTestId('budget-group-remainder').props.accessibilityState).toMatchObject({ checked: true });
+    expect(screen.getByTestId('budget-group-remainder').props.value).toBe(true);
 
     fireEvent.press(screen.getByTestId('budget-group-submit'));
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
@@ -94,10 +94,10 @@ describe('BudgetGroupForm', () => {
     renderForm({ defaultValues: { name: 'Caprichos', color: CategoryPalette[0], limit: '', isRemainder: true } });
     const toggle = screen.getByLabelText('Recibe lo que sobra del sueldo');
 
-    expect(toggle.props.accessibilityRole).toBe('switch');
+    expect(toggle.props.value).toBe(true);
     expect(screen.queryByTestId('budget-group-limit')).toBeNull();
 
-    fireEvent.press(toggle);
+    fireEvent(toggle, 'valueChange', false);
 
     expect(screen.getByTestId('budget-group-limit')).toBeTruthy();
   });
@@ -108,7 +108,7 @@ describe('BudgetGroupForm', () => {
     });
 
     fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Caprichos');
-    fireEvent.press(screen.getByTestId('budget-group-remainder'));
+    fireEvent(screen.getByTestId('budget-group-remainder'), 'valueChange', true);
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
     expect(await screen.findByText(/Ya existe un grupo que recibe lo que sobra/)).toBeTruthy();

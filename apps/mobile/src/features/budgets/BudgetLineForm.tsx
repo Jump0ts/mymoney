@@ -13,6 +13,7 @@ import { confirmAsync } from '@/utils/alert';
 import { budgetLineSchema, type BudgetLineFormValues } from './budgets.schema';
 import { LINE_TYPE_OPTIONS } from './budgets.constants';
 import type { BudgetScope } from './budgets.types';
+import { useReportDirty } from './useEditGuard';
 import { styles } from './BudgetLineForm.styles';
 
 interface BudgetLineFormProps {
@@ -48,6 +49,7 @@ export const BudgetLineForm = ({
     defaultValues,
   });
   const scope = watch('scope');
+  useReportDirty(isDirty);
   // Con una peticion en curso no se puede cancelar, borrar ni volver a enviar.
   const busy = isSubmitting || deleting;
 

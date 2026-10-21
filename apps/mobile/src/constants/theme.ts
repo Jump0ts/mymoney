@@ -10,9 +10,10 @@ export const Colors = {
     border: '#E3E4EA',
     primary: '#4F5DFF',
     primaryText: '#FFFFFF',
-    income: '#1FA971',
-    expense: '#E5484D',
-    danger: '#E5484D',
+    // Oscurecidos respecto al color de marca para llegar a 4.5:1 como texto pequeno sobre blanco.
+    income: '#0F7A50',
+    expense: '#C9252B',
+    danger: '#C9252B',
   },
   dark: {
     text: '#F5F6FA',
