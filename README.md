@@ -97,7 +97,7 @@ Requirements: Node 24 (see `.nvmrc`) and PostgreSQL.
 npm ci
 
 # API
-cp backend/.env.example backend/.env       # set DATABASE_URL and JWT_SECRET
+cp backend/.env.example backend/.env       # set DATABASE_URL, TEST_DATABASE_URL and JWT_SECRET
 npm run prisma:deploy --workspace=backend  # apply migrations
 npm run prisma:seed --workspace=backend    # optional demo user: demo@mymoney.local / demo12345
 npm run backend:dev                        # http://localhost:4000
@@ -106,7 +106,7 @@ npm run backend:dev                        # http://localhost:4000
 npm run mobile:dev                         # web uses EXPO_PUBLIC_API_URL (default http://localhost:4000)
 ```
 
-> **Heads-up on the API tests:** they empty the tables of the database in `DATABASE_URL`. Use a different database from your development one (for example `mymoney_test`).
+> **API tests and your data:** the API tests empty every table before each test, so they run against `TEST_DATABASE_URL`, a database separate from your development one (`DATABASE_URL`). A guard refuses to run them unless the database name ends in `_test`, so they cannot wipe a development or production database by mistake. Apply the migrations to the test database too.
 
 ```bash
 npm run test --workspace=backend
