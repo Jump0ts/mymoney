@@ -82,7 +82,7 @@ The production setup is designed, documented and covered by automated tests (it 
 - Secrets are generated on the server and never stored in the repo; `.gitignore` blocks `.env.*`, keys and database dumps.
 - The database publishes no ports and lives on a network with no Internet access; only `/api/*` and `/health` are reachable, everything else is a 404.
 - The API container runs as non-root with a read-only filesystem and no Linux capabilities.
-- Deployments are manual, pinned to an image **digest**, and the build's provenance attestation is verified before anything is deployed.
+- Deployments are automatic on every push to `master` but **wait for a human approval** (protected `production` environment, no admin bypass), are pinned to an image **digest**, and the build's provenance attestation is verified before anything is deployed. `master` only accepts pull requests with passing CI.
 - The CI deploy key has a forced command: it can only ask for `deploy <digest> <user>`; no shell, no tunnels, no file copy.
 - nginx changes are validated with `nginx -t` and rolled back on failure, so a bad config cannot take down the other site sharing the server.
 - Brute-force protection on the auth endpoints, strict CORS, and public registration switched off in production.
