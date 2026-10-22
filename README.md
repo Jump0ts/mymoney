@@ -2,83 +2,126 @@
 
 [![CI](https://github.com/Jump0ts/mymoney/actions/workflows/ci.yml/badge.svg)](https://github.com/Jump0ts/mymoney/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+![Status: beta](https://img.shields.io/badge/status-beta-orange)
 
-Aplicación de **finanzas personales**: registro de gastos e ingresos, categorías, filtros, gráficos y un **presupuesto mensual al estilo de una hoja de cálculo**. Una sola base de código para iOS, Android y Web (Expo) con un backend propio.
+A **personal-finance app** for iOS, Android and the web, built end to end as a solo project: expense and income tracking, categories, filters, charts and an **Excel-style monthly budget**. One TypeScript codebase for every client (React Native + Expo), a Node/Express/PostgreSQL API, automated tests, a CI pipeline and a hardened production deployment.
 
-> **In English:** a personal-finance app (React Native + Expo for iOS/Android/Web, Node/Express/Prisma/PostgreSQL backend) with expense/income tracking, charts and an Excel-style monthly budget (recurring template, per-group limits, a "whatever is left" group). Built solo as a personal tool, with per-user data isolation, automated tests and a hardened deployment pipeline. Status: **beta**.
+It is a personal tool, not a product: every account is **individual and private**, and no user can ever see another user's data.
 
-Es una herramienta personal: no se va a comercializar y cada cuenta es **individual y privada** (nadie comparte datos con nadie).
+## What this project demonstrates
 
-## Qué hace
-
-- **Movimientos**: gastos e ingresos con categoría, edición, borrado y paginación; filtros por tipo, categoría y mes.
-- **Resumen**: totales del mes y gráficos (donut por categoría y barras mensuales), con selector de mes.
-- **Presupuesto** (como un Excel):
-  - Grupos con color (Hogar, Alquiler, Deseos…) y líneas con importe, con check de *pagado*.
-  - Una **plantilla recurrente** que se copia sola a cada mes nuevo; también líneas puntuales solo de un mes.
-  - Sueldo del mes, *total a gastar* (previsto y real) y *resto*.
-  - **Límite opcional por grupo** con una barra de cuánto llevas ("Quedan X €" / "Te pasas X €").
-  - Un grupo que **recibe lo que sobra del sueldo** (caprichos, imprevistos) y calcula su disponible.
-  - Reembolsos como líneas negativas y reordenación de grupos y líneas.
-- **Accesibilidad y diseño**: lectores de pantalla, tamaño de texto, *reduce motion*, contraste AA y modo claro/oscuro.
-
-## Stack
-
-| Capa | Tecnología |
+| Area | What you will find in this repo |
 |---|---|
-| App | React Native + Expo (Expo Router), TypeScript, React Query, React Hook Form + Yup, Reanimated |
-| Backend | Node.js, Express, Prisma ORM, PostgreSQL, Zod, JWT, Helmet |
-| Pruebas | Jest + React Native Testing Library (app), Vitest + supertest contra PostgreSQL real (backend), tests de shell con `docker` simulado (despliegue) |
-| CI/CD | GitHub Actions: lint, typecheck, build, tests con cobertura, construcción y arranque de la imagen Docker, `shellcheck` |
-| Despliegue | Docker, nginx + Let's Encrypt, GHCR, DigitalOcean; la web en Cloudflare Pages |
+| **Full-stack TypeScript** | React Native/Expo client and Express/Prisma API sharing conventions, strict typing, Zod validation on the server and Yup on forms. |
+| **Product & domain design** | A monthly budget modelled as a recurring template plus per-month entries, group limits, a "whatever is left of my salary" group, refunds and drag-free reordering — designed from a real spreadsheet workflow. |
+| **Testing** | 300+ client tests (Jest, React Native Testing Library) and 70+ API tests (Vitest + supertest against a real PostgreSQL), including tenant-isolation tests, plus shell tests for the deployment scripts. Features ship with their own tests. |
+| **CI/CD** | GitHub Actions: lint, typecheck, build, tests with coverage, a job that builds and boots the production Docker image under the same restrictions as production, and `shellcheck`. |
+| **Security** | Per-user data isolation, Helmet, JWT, rate limiting at the proxy, closed registration in production, secrets kept out of the repo, a strict Content Security Policy for the web build, supply-chain controls (pinned actions, image digests, provenance attestation). See [Security](#security). |
+| **DevOps** | Docker (non-root, read-only, no capabilities), nginx + Let's Encrypt, GHCR, a forced-command SSH deploy key, automatic rollback, verified database backups that are restore-tested. |
+| **Accessibility** | Screen-reader labels and announcements, large-text and reduce-motion support, AA contrast, touch targets, several audit-and-fix rounds. |
+| **Engineering judgement** | Documented trade-offs and known limitations instead of pretending everything is perfect (see the deploy docs). |
 
-## Decisiones de diseño que merecen mención
+## Features
 
-- **Aislamiento por usuario como invariante**: cada consulta del backend filtra por el usuario autenticado y hay tests que comprueban que un usuario no puede ver ni tocar datos de otro.
-- **Organización por dominio** (`transactions`, `categories`, `budgets`…), cada uno con sus rutas, esquemas de validación y tipos; nada compartido se duplica.
-- **Presupuesto mensual generado de forma perezosa**: el mes se crea al abrirlo copiando la plantilla, de forma idempotente y tolerando peticiones simultáneas.
-- **Seguridad del despliegue** (ver [`deploy/vps/README.md`](./deploy/vps/README.md)): imagen sin root y con sistema de ficheros de solo lectura, base de datos sin puertos publicados, despliegue por *digest* con la procedencia de la imagen verificada, clave SSH de CI con comando forzado, política de seguridad de contenido (CSP) estricta en la web y backups verificados que se restauran en pruebas.
-- **Cuentas cerradas en producción**: el registro público se puede desactivar con una variable de entorno.
+- **Transactions** — income and expenses with categories; edit, delete, pagination; filters by type, category and month.
+- **Overview** — monthly totals and charts (category donut and monthly bars) with a month picker.
+- **Budget (spreadsheet style)**
+  - Colour-coded groups (Home, Rent, Wants…) with lines that can be ticked as *paid*.
+  - A **recurring template** that is copied into every new month, plus one-off lines for a single month.
+  - Monthly salary, *total to spend* (planned vs. actual) and *remaining*.
+  - An optional **limit per group** with a progress bar ("€X left" / "€X over").
+  - A group that **receives whatever is left of the salary** (treats, surprises) and computes its own available amount.
+  - Refunds as negative lines, and reordering of groups and lines.
+- **Accessibility & theming** — light/dark mode, scalable text, reduced motion, screen-reader support.
 
-## Estructura
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Client | React Native, Expo (Expo Router), TypeScript, React Query, React Hook Form + Yup, Reanimated |
+| API | Node.js, Express, Prisma ORM, PostgreSQL, Zod, JWT, Helmet |
+| Testing | Jest + React Native Testing Library, Vitest + supertest (real PostgreSQL), shell tests with a mocked `docker` |
+| CI/CD | GitHub Actions, Docker, GHCR |
+| Deployment target | DigitalOcean (API + PostgreSQL behind nginx/Let's Encrypt), Cloudflare Pages (web), Cloudflare DNS |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Clients
+    A["iOS / Android app"]
+    W["Web app - Cloudflare Pages"]
+  end
+  A -->|"HTTPS + JWT"| N["nginx + Let's Encrypt"]
+  W -->|"HTTPS + JWT"| N
+  N -->|"/api/* only"| API["Express API - non-root, read-only container"]
+  API --> DB[("PostgreSQL - no published ports")]
+```
+
+The code is organised **by domain** (`transactions`, `categories`, `budgets`, `auth`), not by technical layer. Each domain owns its routes, validation schemas and types on the server, and its types, schemas, hooks and components on the client. Anything shared by two domains lives in the domain that owns the concept, never duplicated.
 
 ```
-apps/mobile/   App Expo (iOS, Android y Web)
-backend/       API Node.js + Prisma + PostgreSQL
-deploy/        Despliegue (servidor doméstico y VPS), backups y su documentación
+apps/mobile/   Expo app (iOS, Android, web)
+backend/       Node.js + Prisma + PostgreSQL API
+deploy/        Deployment (home server and VPS), backups and their documentation
 ```
 
-Más contexto de arquitectura y flujo de trabajo en [CLAUDE.md](./CLAUDE.md).
+## Notable design decisions
 
-## Ejecutarlo en local
+- **Tenant isolation as an invariant.** Every query is scoped to the authenticated user, and tests assert that one user cannot read or modify another's data (including the budget endpoints).
+- **Lazily generated, idempotent months.** Opening a month creates it from the recurring template and the previous salary; concurrent requests are tolerated and months before the first budget are never back-filled with today's template.
+- **Predictable money handling.** Amounts are stored as fixed-precision decimals and totals are rounded to cents in one place.
+- **Optimistic UI with rollback.** Ticking a line as paid or reordering is instant on screen and is undone with a notice if the server refuses it.
+- **Safe two-step operations.** Changes that touch both the template and the current month are retryable: a missing item counts as already done, so a half-failed request can be finished.
+- **Accessible by construction.** Reordering uses buttons instead of drag gestures so it works with a keyboard and a screen reader, and moves are announced.
 
-Requisitos: Node 24 (ver `.nvmrc`) y PostgreSQL.
+## Security
+
+The production setup is designed, documented and covered by automated tests (it is being rolled out for the first release); the full threat model and trade-offs are in [`deploy/vps/README.md`](./deploy/vps/README.md) (in Spanish).
+
+- Secrets are generated on the server and never stored in the repo; `.gitignore` blocks `.env.*`, keys and database dumps.
+- The database publishes no ports and lives on a network with no Internet access; only `/api/*` and `/health` are reachable, everything else is a 404.
+- The API container runs as non-root with a read-only filesystem and no Linux capabilities.
+- Deployments are manual, pinned to an image **digest**, and the build's provenance attestation is verified before anything is deployed.
+- The CI deploy key has a forced command: it can only ask for `deploy <digest> <user>`; no shell, no tunnels, no file copy.
+- nginx changes are validated with `nginx -t` and rolled back on failure, so a bad config cannot take down the other site sharing the server.
+- Brute-force protection on the auth endpoints, strict CORS, and public registration switched off in production.
+- The web build ships a strict Content Security Policy (no inline or `eval` scripts; it can only talk to its own API).
+- Backups are private (`umask 077`), taken before every migration, copied off the server with SHA-256 verification, and exercised by a restore test.
+
+## Run it locally
+
+Requirements: Node 24 (see `.nvmrc`) and PostgreSQL.
 
 ```bash
 npm ci
 
-# Backend
-cp backend/.env.example backend/.env      # ajusta DATABASE_URL y JWT_SECRET
-npm run prisma:deploy --workspace=backend # aplica las migraciones
-npm run prisma:seed --workspace=backend   # (opcional) usuario demo: demo@mymoney.local / demo12345
-npm run backend:dev                       # http://localhost:4000
+# API
+cp backend/.env.example backend/.env       # set DATABASE_URL and JWT_SECRET
+npm run prisma:deploy --workspace=backend  # apply migrations
+npm run prisma:seed --workspace=backend    # optional demo user: demo@mymoney.local / demo12345
+npm run backend:dev                        # http://localhost:4000
 
-# App (web, iOS o Android con Expo)
-npm run mobile:dev                        # la web usa EXPO_PUBLIC_API_URL (por defecto http://localhost:4000)
+# App (web, iOS or Android through Expo)
+npm run mobile:dev                         # web uses EXPO_PUBLIC_API_URL (default http://localhost:4000)
 ```
 
-> **Ojo con los tests del backend**: vacían las tablas de la base indicada en `DATABASE_URL`. Usa una base distinta a la de desarrollo (por ejemplo `mymoney_test`).
+> **Heads-up on the API tests:** they empty the tables of the database in `DATABASE_URL`. Use a different database from your development one (for example `mymoney_test`).
 
 ```bash
-npm run test --workspace=backend    # Vitest + PostgreSQL
+npm run test --workspace=backend
 npm run test --workspace=apps/mobile
 npm run lint --workspace=backend && npm run lint --workspace=apps/mobile
 ```
 
-## Estado
+## Status and roadmap
 
-Versión **beta** de uso personal: las funciones principales están completas y probadas; faltan detección automática de pagos (Android), cuentas/carteras múltiples y gastos recurrentes fuera del presupuesto.
+**Beta.** The core features are complete and tested. Not built yet: automatic payment detection (Android), multiple accounts/wallets, and recurring expenses outside the budget.
 
-## Licencia
+## Documentation
+
+Project conventions and workflow are in [CLAUDE.md](./CLAUDE.md); deployment, backups and the security model are in [`deploy/`](./deploy) (Spanish).
+
+## License
 
 [MIT](./LICENSE) © 2026 Jose Antonio Fernández Salado

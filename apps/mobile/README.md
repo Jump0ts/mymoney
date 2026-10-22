@@ -1,34 +1,37 @@
-# MyMoney — app (Expo)
+# MyMoney — client app (Expo)
 
-App de MyMoney para iOS, Android y Web con [Expo](https://expo.dev) y Expo Router. La descripción del proyecto, el stack y cómo
-ejecutarlo todo está en el [README de la raíz](../../README.md).
+The iOS, Android and web client of MyMoney, built with [Expo](https://expo.dev), Expo Router and TypeScript. For what the project does,
+the overall architecture and how to run everything, see the [root README](../../README.md).
 
 ## Scripts
 
-Desde la raíz del repositorio (workspace `apps/mobile`):
+Run them from the repository root (workspace `apps/mobile`):
 
-| Comando | Qué hace |
+| Command | What it does |
 |---|---|
-| `npm run mobile:dev` | Arranca Expo (web, Expo Go, emuladores). |
-| `npm run test --workspace=apps/mobile` | Pruebas con Jest y React Native Testing Library, con cobertura. |
+| `npm run mobile:dev` | Starts Expo (web, Expo Go, emulators). |
+| `npm run test --workspace=apps/mobile` | Jest + React Native Testing Library, with coverage. |
 | `npm run lint --workspace=apps/mobile` | ESLint. |
-| `npm run typecheck --workspace=apps/mobile` | TypeScript sin emitir. |
-| `npm run build:web --workspace=apps/mobile` | Exporta la web a `dist/` y genera `dist/_headers` con la política de seguridad de contenido (necesita `EXPO_PUBLIC_API_URL` con `https`). |
+| `npm run typecheck --workspace=apps/mobile` | TypeScript, no emit. |
+| `npm run build:web --workspace=apps/mobile` | Exports the web app to `dist/` and writes `dist/_headers` with a strict Content Security Policy (requires `EXPO_PUBLIC_API_URL` to be `https`). |
 
-## Variables de entorno
+## Environment variables
 
-| Variable | Para qué |
+| Variable | Purpose |
 |---|---|
-| `EXPO_PUBLIC_API_URL` | URL de la API (por defecto `http://localhost:4000`). Se incorpora al construir la web. |
-| `EXPO_PUBLIC_APP_ENV` | `pre`, `staging` o `production`: cambia el nombre y el identificador de la app para poder instalar varias a la vez. |
+| `EXPO_PUBLIC_API_URL` | API base URL (default `http://localhost:4000`). Baked into the web build. |
+| `EXPO_PUBLIC_APP_ENV` | `pre`, `staging` or `production`: changes the app name and bundle id so several builds can be installed side by side. |
 
-## Estructura
+## Code organisation
 
 ```
-src/app/        Rutas (Expo Router). Aquí no van estilos ni tests: se registrarían como pantallas.
-src/features/   Un directorio por dominio (transactions, categories, budgets, auth…): tipos, esquemas, hooks y componentes.
-src/components/ Componentes genéricos reutilizables.
-src/screens/    Estilos de las pantallas (fuera de src/app a propósito).
-src/utils/      Utilidades genéricas.
-scripts/        Scripts de build (cabeceras de seguridad de la web).
+src/app/         Routes (Expo Router). No styles or tests here: every file in a routed folder becomes a screen.
+src/features/    One folder per domain (transactions, categories, budgets, auth…): types, schemas, hooks and components.
+src/components/  Generic, reusable components.
+src/screens/     Screen styles (deliberately outside src/app).
+src/utils/       Generic helpers.
+scripts/         Build scripts (web security headers).
 ```
+
+Conventions: forms use React Hook Form + Yup with one schema per domain; styles live in a `*.styles.ts` file next to the component;
+anything needed by two domains is owned by one of them and imported, never duplicated; every feature ships with its own tests.
