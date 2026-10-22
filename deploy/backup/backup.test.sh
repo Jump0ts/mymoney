@@ -10,6 +10,7 @@ trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/bin"
 cat >"$WORK/bin/docker" <<'EOF'
 #!/usr/bin/env bash
+echo "$*" >>"${FAKE_DOCKER_LOG:-/dev/null}"
 case "${FAKE_DOCKER_MODE:-ok}" in
   ok) printf -- '--\n-- PostgreSQL database dump\n--\nCREATE TABLE "User" (id text);\n' ;;
   empty) ;;
@@ -73,5 +74,29 @@ pass "la retencion borra lo antiguo y conserva lo reciente"
 # 5. Entorno desconocido
 if run_backup ok "$WORK/t5" produccion; then fail "un entorno desconocido deberia fallar"; fi
 pass "rechaza un entorno desconocido"
+
+# 6. En el VPS el .env y el compose estan en otra ruta: se pueden indicar y se usan tal cual
+D="$WORK/t6"
+LOG="$WORK/t6.log"
+FAKE_DOCKER_LOG="$LOG" ENV_FILE="/opt/mymoney/.env.production" COMPOSE_FILE="/opt/mymoney/release/docker-compose.yml"   run_backup ok "$D" || fail "con rutas personalizadas deberia salir con 0"
+grep -q -- '--env-file /opt/mymoney/.env.production' "$LOG" || fail "no uso el ENV_FILE indicado"
+grep -q -- '-f /opt/mymoney/release/docker-compose.yml' "$LOG" || fail "no uso el COMPOSE_FILE indicado"
+LOG="$WORK/t6b.log"
+FAKE_DOCKER_LOG="$LOG" run_backup ok "$WORK/t6b" || fail "sin rutas personalizadas deberia salir con 0"
+grep -q -- '--env-file .*/deploy/.env.production' "$LOG" || fail "por defecto debe usar deploy/.env.<entorno>"
+pass "acepta ENV_FILE y COMPOSE_FILE (VPS) y por defecto usa las rutas de siempre"
+
+# 7. Los backups contienen finanzas y hashes de contrasenas: solo legibles por su dueno
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) echo "skip - permisos de ficheros (el sistema de ficheros de Windows no los refleja)" ;;
+  *)
+    D="$WORK/t7"
+    run_backup ok "$D"
+    F="$(find "$D/production/daily" -type f)"
+    [ "$(stat -c %a "$F")" = "600" ] || fail "el backup deberia ser 600 y es $(stat -c %a "$F")"
+    [ "$(stat -c %a "$D/production/daily")" = "700" ] || fail "el directorio de backups deberia ser 700"
+    pass "los backups y su directorio son privados (600/700)"
+    ;;
+esac
 
 echo "$PASSED pruebas correctas"
