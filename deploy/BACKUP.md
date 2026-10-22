@@ -3,7 +3,7 @@
 Protege el entorno **production** (`mymoney-prod`). Los scripts aceptan `pre` y `staging` como parametro por si hace falta.
 
 ```
-SERVIDOR (192.168.1.132)                        ESTE PC (Windows)
+SERVIDOR (IP-DEL-SERVIDOR)                        ESTE PC (Windows)
 backup.sh  (cron, 03:15)                        pull-backups.ps1  (Programador de tareas, 04:00)
   pg_dump -> gzip -> /var/backups/mymoney/  --ssh-->  %USERPROFILE%\MyMoneyBackups\
   14 diarios + 8 semanales (domingos)               verifica SHA-256, retencion propia,
@@ -36,16 +36,16 @@ Clave SSH para que la tarea programada no pida contrasena:
 
 ```powershell
 ssh-keygen -t ed25519
-type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh usuario@192.168.1.132 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
-ssh -o BatchMode=yes usuario@192.168.1.132 echo ok     # debe imprimir "ok" sin pedir nada
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh usuario@IP-DEL-SERVIDOR "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+ssh -o BatchMode=yes usuario@IP-DEL-SERVIDOR echo ok     # debe imprimir "ok" sin pedir nada
 ```
 
 Primera descarga a mano y despues programarla:
 
 ```powershell
-powershell -File deploy\backup\pull-backups.ps1 -Server usuario@192.168.1.132
+powershell -File deploy\backup\pull-backups.ps1 -Server usuario@IP-DEL-SERVIDOR
 
-schtasks /Create /SC DAILY /ST 04:00 /TN "MyMoney backup pull" /TR "powershell -NoProfile -ExecutionPolicy Bypass -File G:\Desktop\Proyectos\mymoney\deploy\backup\pull-backups.ps1 -Server usuario@192.168.1.132"
+schtasks /Create /SC DAILY /ST 04:00 /TN "MyMoney backup pull" /TR "powershell -NoProfile -ExecutionPolicy Bypass -File G:\Desktop\Proyectos\mymoney\deploy\backup\pull-backups.ps1 -Server usuario@IP-DEL-SERVIDOR"
 ```
 
 - El PC tiene que estar encendido a esa hora. En el Programador de tareas activa "Ejecutar la tarea lo antes posible si se omitio un inicio programado".
@@ -69,7 +69,7 @@ cd deploy
 # 1. Levanta solo la base de datos (si es un servidor nuevo: configura .env.production antes)
 docker compose --env-file .env.production -p mymoney-prod up -d db
 
-# 2. (Si el backup esta en este PC) copialo al servidor:  scp fichero.sql.gz usuario@192.168.1.132:/tmp/
+# 2. (Si el backup esta en este PC) copialo al servidor:  scp fichero.sql.gz usuario@IP-DEL-SERVIDOR:/tmp/
 
 # 3. Cargalo
 gunzip -c /tmp/mymoney-production-AAAAMMDD-HHMMSS.sql.gz | \

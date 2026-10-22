@@ -2,7 +2,7 @@
 
 App de finanzas personales: registro de gastos e ingresos, categorización, filtros y gráficos.
 
-**Alcance del proyecto: herramienta personal del autor.** MyMoney **no** se va a comercializar (decisión del 2026-10-13): no hay plan de SaaS, precios ni captación de usuarios, y no se deben proponer funcionalidades pensadas para monetizar o escalar a terceros. Si algún día hace falta algo compartido o multiusuario (p. ej. la contabilidad y revisión de pagos del grupo scout del autor), será un **proyecto aparte** con su propio modelo de datos, no una extensión de este.
+**Alcance del proyecto: herramienta personal del autor.** MyMoney **no** se va a comercializar (decisión del 2026-10-13): no hay plan de SaaS, precios ni captación de usuarios, y no se deben proponer funcionalidades pensadas para monetizar o escalar a terceros. Si algún día hace falta algo compartido o multiusuario, será un **proyecto aparte** con su propio modelo de datos, no una extensión de este.
 
 **Modelo de datos: cuentas individuales y privadas.** No existe ningún concepto de "familia" ni de grupo que comparta datos — cada usuario ve únicamente sus propias categorías y movimientos, sin excepción. Se mantiene por diseño y por privacidad: simplifica el modelo y evita exponer datos financieros ajenos.
 
