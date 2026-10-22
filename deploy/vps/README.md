@@ -1,70 +1,70 @@
-# MyMoney en el VPS de DigitalOcean
+# MyMoney on the DigitalOcean VPS
 
-Backend + base de datos de producción en el droplet que ya aloja `travel_agency`; la web en Cloudflare Pages.
-Esta carpeta es todo lo necesario para desplegar. **Nada de esto se ha aplicado todavía en el servidor**: los pasos
-de la sección 3 marcados con 🔴 cambian infraestructura real y se hacen juntos, uno a uno, con confirmación.
+Production backend + database on the droplet that already hosts `travel_agency`; the web app on Cloudflare Pages.
+This folder contains everything needed to deploy. Steps marked 🔴 in section 3 change real infrastructure, so they are done one at a
+time, each with explicit confirmation.
 
 ```
- Móvil / Web (Cloudflare Pages)
+ Mobile / Web (Cloudflare Pages)
         │ HTTPS
         ▼
- DNS (Cloudflare) ──► VPS 139.59.143.82 ── firewall DO: solo 22, 80, 443
+ DNS (Cloudflare) ──► VPS 139.59.143.82 ── DO firewall: only 22, 80, 443
                        ┌──────────────────────────────────────────────┐
-                       │ nginx de travel_agency (dueño de 80/443)     │
-                       │   travel.…       → app de travel             │
-                       │   mymoney-api.…  → /api/ y /health únicamente│
+                       │ travel_agency's nginx (owns 80/443)          │
+                       │   travel.…       → travel app                │
+                       │   mymoney-api.…  → /api/ and /health only    │
                        └───────────────┬──────────────────────────────┘
-                          red `travel-agency_default` (solo nginx ↔ api)
-                       ┌───────────────▼──────────────┐   red `internal` (sin Internet)
-                       │ api (Node, sin root, 200 MB) ├──────────► db (Postgres, sin puertos publicados)
+                          network `travel-agency_default` (nginx ↔ api only)
+                       ┌───────────────▼──────────────┐   network `internal` (no Internet)
+                       │ api (Node, non-root, 200 MB) ├──────────► db (Postgres, no published ports)
                        └──────────────────────────────┘
 ```
 
-## 1. Principios de seguridad
+## 1. Security principles
 
-| Qué | Cómo |
+| What | How |
 |---|---|
-| Secretos | Solo en `~/mymoney/.env.production` **en el servidor** (modo 600), generados allí y nunca mostrados. En GitHub solo hay una clave SSH de despliegue (secret) y datos no sensibles (variables). Nada va al repo: `.gitignore` bloquea `.env.*` (salvo `*.example`), `*.pem`, `*.key` y `*.sql.gz`. |
-| Exposición | Solo se publica `https://mymoney-api…/api/*` y `/health`. La base de datos no publica ningún puerto y vive en una red sin salida a Internet. Cualquier otra ruta da 404. |
-| Registro | `REGISTRATION_ENABLED=false`: nadie más puede crear cuentas. Se abre solo el rato necesario para crear la tuya. |
-| Fuerza bruta | nginx limita `/api/auth/` a 10 intentos/min por IP (429) y `/api/` a 10 req/s. |
-| CORS | Solo el origen exacto de la web (`CORS_ORIGINS`, sin comodines; el despliegue lo valida). |
-| Contenedores | API sin root, sistema de ficheros de solo lectura, sin capabilities, `no-new-privileges`, 200 MB. Imagen construida desde el `package-lock.json`. |
-| Cadena de suministro | Acciones de GitHub fijadas por commit SHA; imagen por **digest** con *attestation* verificada antes de desplegar; GHCR privado. |
-| Clave SSH de CI | Clave propia, con `restrict` y un **comando forzado**: solo puede pedir `deploy <digest> <usuario>` (el token de GHCR viaja por stdin y se cierra la sesión del registro nada más descargar). No da shell, túneles ni scp. El repositorio de imágenes está fijado en el servidor. |
-| Aprobación | El job de despliegue usa el entorno `production`: con *Required reviewers* nada se despliega sin tu aprobación. |
-| Web | Cabeceras de Cloudflare Pages generadas en el build: CSP sin `unsafe-inline`/`unsafe-eval` en scripts (hash por script), solo puede conectar con la API, HSTS, sin iframes, sin referrer. |
-| Datos | Backups con permisos 600/700, hechos antes de cada migración, descargados a tu PC con verificación SHA-256. |
+| Secrets | Only in `~/mymoney/.env.production` **on the server** (mode 600), generated there and never displayed. GitHub only holds a deploy SSH key (secret) and non-sensitive data (variables). Nothing goes into the repo: `.gitignore` blocks `.env.*` (except `*.example`), `*.pem`, `*.key` and `*.sql.gz`. |
+| Exposure | Only `https://mymoney-api…/api/*` and `/health` are published. The database publishes no ports and lives on a network with no Internet access. Any other path returns 404. |
+| Registration | `REGISTRATION_ENABLED=false`: nobody else can create accounts. It is switched on only for as long as needed to create your own. |
+| Brute force | nginx limits `/api/auth/` to 10 attempts/min per IP (429) and `/api/` to 10 req/s. |
+| CORS | Only the exact origin of the web app (`CORS_ORIGINS`, no wildcards; the deploy script validates it). |
+| Containers | API runs as non-root with a read-only filesystem, no capabilities, `no-new-privileges` and a 200 MB limit. Image built from `package-lock.json`. |
+| Supply chain | GitHub Actions pinned by commit SHA; image deployed by **digest** with its *attestation* verified before deploying; private GHCR package. |
+| CI SSH key | A dedicated key with `restrict` and a **forced command**: it can only request `deploy <digest> <user>` (the GHCR token travels over stdin and the registry session is closed right after the pull). No shell, no tunnels, no scp. The image repository is pinned on the server. |
+| Approval | Deployment is **manual only** (`workflow_dispatch`) and **only from `master`**: launching it is the approval, nothing is deployed on push. The `production` environment also admits only the `master` branch. (GitHub's plan does not offer *Required reviewers* on private repositories; if it did, add them as a second key.) |
+| Web | Cloudflare Pages headers generated at build time: CSP without `unsafe-inline`/`unsafe-eval` for scripts (one hash per script), it can only connect to the API, HSTS, no framing, no referrer. |
+| Data | Backups with 600/700 permissions, taken before every migration, downloaded to your PC with SHA-256 verification. |
 
-## 2. Qué vive dónde (servidor, usuario `deploy`)
+## 2. What lives where (server, user `deploy`)
 
-El usuario `deploy` no tiene `sudo`, así que todo vive en su home (modo 750):
+The `deploy` user has no `sudo`, so everything lives in its home directory (mode 750):
 
 ```
 ~/mymoney/
-  .env.production     secretos (600). NUNCA se sobrescribe ni sale del servidor
-  bin/ssh-entry.sh    comando forzado de la clave de CI (555). Lo instalas tú una vez; no lo toca la CI
-  release/            ficheros de despliegue extraídos de cada imagen verificada (compose, deploy.sh, nginx, backups)
-  state/              imagen actual/anterior (current, previous, image.env)
-  backups/            volcados diarios/semanales
-/opt/travel-agency/nginx/conf.d/zz-mymoney-api.conf   vhost (se añade; no se toca nada de travel)
+  .env.production     secrets (600). NEVER overwritten and never leaves the server
+  bin/ssh-entry.sh    forced command of the CI key (555). You install it once; CI cannot change it
+  release/            deployment files extracted from each verified image (compose, deploy.sh, nginx, backups)
+  state/              current/previous image (current, previous, image.env)
+  backups/            daily/weekly dumps
+/opt/travel-agency/nginx/conf.d/zz-mymoney-api.conf   vhost (added; nothing of travel is touched)
 ```
 
-## 3. Puesta en marcha (una sola vez)
+## 3. First-time setup (once)
 
-Orden recomendado. 🔴 = cambia infraestructura real.
+Recommended order. 🔴 = changes real infrastructure.
 
-**3.1 🔴 DNS (Cloudflare).** Registros `A` y `AAAA` de `mymoney-api` hacia la IP/IPv6 del droplet (los mismos que
-`travel`), en modo **solo DNS** (nube gris), igual que travel. La web irá en otro nombre (3.8).
+**3.1 🔴 DNS (Cloudflare).** `A` and `AAAA` records for `mymoney-api` pointing to the droplet's IP/IPv6 (the same ones as
+`travel`), **DNS only** mode (grey cloud), just like travel. The web app will use a different name (3.8).
 
-**3.2 En tu PC: clave SSH de despliegue (nueva, solo para esto).**
+**3.2 On your PC: deploy SSH key (new, used only for this).**
 
 ```powershell
 ssh-keygen -t ed25519 -N '""' -C mymoney-ci -f $env:USERPROFILE\.ssh\mymoney_deploy_ci
 ```
-La clave privada se pega en el secret de GitHub (3.5) y después se guarda en tu gestor de contraseñas o se borra del PC.
+The private key is pasted into the GitHub secret (3.5) and afterwards kept in your password manager or deleted from the PC.
 
-**3.3 🔴 Servidor: carpeta y secretos.** Los secretos se escriben directamente en el fichero, sin pasar por pantalla ni por historial:
+**3.3 🔴 Server: directory and secrets.** Secrets are written straight into the file, without going through the screen or the shell history:
 
 ```bash
 ssh -i ~/.ssh/do_travel_agency deploy@139.59.143.82
@@ -77,47 +77,49 @@ mkdir -p ~/mymoney/bin ~/mymoney/state ~/mymoney/backups
   echo "POSTGRES_DB=mymoney_production"
   echo "JWT_SECRET=$(openssl rand -hex 48)"
   echo "CORS_ORIGINS=https://mymoney.josanfersal.dev"
-  echo "REGISTRATION_ENABLED=true"      # temporal: hasta crear tu cuenta (3.7)
+  echo "REGISTRATION_ENABLED=true"      # temporary: until you create your account (3.7)
 } > ~/mymoney/.env.production
 chmod 600 ~/mymoney/.env.production
 ```
-Guarda `POSTGRES_PASSWORD` y `JWT_SECRET` en tu gestor de contraseñas **leyéndolos tú** del fichero en el servidor
-(`less ~/mymoney/.env.production`), no en este chat. Perder el `JWT_SECRET` solo cierra las sesiones.
+Store `POSTGRES_PASSWORD` and `JWT_SECRET` in your password manager by **reading them yourself** from the file on the server
+(`less ~/mymoney/.env.production`), never in a chat or a ticket. Losing `JWT_SECRET` only signs everyone out.
 
-**3.4 🔴 Servidor: comando forzado de la clave de CI.**
+**3.4 🔴 Server: forced command for the CI key.**
 
 ```bash
-# Desde tu PC (clave de administración): copia el script y fíjalo en solo lectura
+# From your PC (admin key): copy the script and make it read-only
 scp -i ~/.ssh/do_travel_agency deploy/vps/bin/ssh-entry.sh deploy@139.59.143.82:~/mymoney/bin/ssh-entry.sh
 ssh -i ~/.ssh/do_travel_agency deploy@139.59.143.82 'chmod 555 ~/mymoney/bin/ssh-entry.sh'
 
-# En el servidor: añade la clave pública de CI con restricciones (una sola línea)
-echo 'restrict,command="/home/deploy/mymoney/bin/ssh-entry.sh" <contenido de mymoney_deploy_ci.pub>' >> ~/.ssh/authorized_keys
+# On the server: add the CI public key with restrictions (a single line)
+echo 'restrict,command="/home/deploy/mymoney/bin/ssh-entry.sh" <contents of mymoney_deploy_ci.pub>' >> ~/.ssh/authorized_keys
 ```
-Comprueba que la clave **no** da shell: `ssh -i ~/.ssh/mymoney_deploy_ci deploy@139.59.143.82 id` debe responder `ssh-entry: orden no permitida`.
+Check that the key does **not** give a shell: `ssh -i ~/.ssh/mymoney_deploy_ci deploy@139.59.143.82 id` must answer `ssh-entry: orden no permitida`
+(the script's error messages are in Spanish).
 
-**3.5 GitHub.** *Settings → Environments → New → `production`*: activa **Required reviewers** (tú) y limita las ramas a `master`.
-En ese entorno:
+**3.5 GitHub.** *Settings → Environments → New → `production`*, with *Deployment branches* restricted to `master`.
+In that environment:
 
-| Tipo | Nombre | Valor |
+| Type | Name | Value |
 |---|---|---|
-| Secret | `DEPLOY_SSH_KEY` | clave **privada** `mymoney_deploy_ci` |
+| Secret | `DEPLOY_SSH_KEY` | the **private** key `mymoney_deploy_ci` |
 | Variable | `DEPLOY_HOST` | `139.59.143.82` |
 | Variable | `DEPLOY_USER` | `deploy` |
-| Variable | `DEPLOY_KNOWN_HOSTS` | salida de `ssh-keyscan -t ed25519 139.59.143.82`, **tras comprobar la huella** `SHA256:Comn+KcaSl0+Rby9Kl1xqAVR4fB8DaBamWeXPaTjbFE` (en el servidor: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`) |
+| Variable | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan -t ed25519 139.59.143.82`, **after checking the fingerprint** `SHA256:Comn+KcaSl0+Rby9Kl1xqAVR4fB8DaBamWeXPaTjbFE` (on the server: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`) |
 | Variable | `API_DOMAIN` | `mymoney-api.josanfersal.dev` |
 
-**3.6 🔴 Primer despliegue y certificado.** Ejecuta *Actions → Deploy API → Run workflow* (o mergea a `master`) y aprueba el
-despliegue. La primera vez termina en rojo en la comprobación final (aún no hay HTTPS): es lo esperado. Entonces:
+**3.6 🔴 First deployment and certificate.** GitHub only knows the workflow once it is on `master`, so these changes must reach `master`
+first (release PR). Then run *Actions → Deploy API → Run workflow* on `master`. The first run ends red at the final check (there is no
+HTTPS yet): that is expected. Then:
 
 ```bash
 cd ~/mymoney/release && DOMAIN=mymoney-api.josanfersal.dev ./bootstrap-cert.sh
 curl -fsS https://mymoney-api.josanfersal.dev/health
 ```
-Desde ahí el certificado lo renueva solo el certbot de travel. Si `nginx -t` rechaza algo, `nginx-apply.sh` restaura la
-configuración anterior y **no recarga**: travel no se ve afectado.
+From then on travel's certbot renews the certificate by itself. If `nginx -t` rejects anything, `nginx-apply.sh` restores the previous
+configuration and **does not reload**: travel is not affected.
 
-**3.7 Tu cuenta y cierre del registro.** Crea tu usuario desde la app, y cierra el registro:
+**3.7 Your account, and closing registration.** Create your user from the app, then close registration:
 
 ```bash
 sed -i 's/^REGISTRATION_ENABLED=.*/REGISTRATION_ENABLED=false/' ~/mymoney/.env.production
@@ -126,28 +128,28 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://mymoney-api.josanfersal
   -H 'Content-Type: application/json' -d '{}'     # 403
 ```
 
-**3.8 Web en Cloudflare Pages** (sin tokens en GitHub: se conecta desde el panel de Cloudflare).
-*Workers & Pages → Create → Pages → Connect to Git* → este repo:
+**3.8 Web app on Cloudflare Pages** (no tokens in GitHub: it is connected from the Cloudflare dashboard).
+*Workers & Pages → Create → Pages → Connect to Git* → this repository:
 
-| Ajuste | Valor |
+| Setting | Value |
 |---|---|
 | Production branch | `master` |
 | Build command | `npm ci && npm run build:web --workspace=apps/mobile` |
 | Build output directory | `apps/mobile/dist` |
 | Variables (Production) | `NODE_VERSION=24`, `EXPO_PUBLIC_API_URL=https://mymoney-api.josanfersal.dev`, `EXPO_PUBLIC_APP_ENV=production` |
-| Preview deployments | **Desactivados** (no hay API para ellas y expondrían builds sin revisar) |
-| Dominio personalizado | `mymoney.josanfersal.dev` (debe coincidir con `CORS_ORIGINS`) |
+| Preview deployments | **Disabled** (there is no API for them and they would expose unreviewed builds) |
+| Custom domain | `mymoney.josanfersal.dev` (must match `CORS_ORIGINS`) |
 
-El build escribe `dist/_headers` con la CSP calculada (`apps/mobile/scripts/web-headers.js`). Si cambias el dominio de la API
-solo hay que cambiar `EXPO_PUBLIC_API_URL`.
+The build writes `dist/_headers` with the computed CSP (`apps/mobile/scripts/web-headers.js`). If you change the API's domain,
+only `EXPO_PUBLIC_API_URL` needs to change.
 
-**3.9 🔴 Backups.** En el servidor (cron del usuario `deploy`):
+**3.9 🔴 Backups.** On the server (the `deploy` user's cron):
 
 ```bash
 crontab -e
 15 3 * * * BACKUP_DIR=$HOME/mymoney/backups ENV_FILE=$HOME/mymoney/.env.production COMPOSE_FILE=$HOME/mymoney/release/docker-compose.yml $HOME/mymoney/release/backup/backup.sh production >> $HOME/mymoney-backup.log 2>&1
 ```
-En tu PC, alias y descarga programada (ver [../BACKUP.md](../BACKUP.md)):
+On your PC, an SSH alias and a scheduled download (see [../BACKUP.md](../BACKUP.md), in Spanish):
 
 ```
 # ~/.ssh/config
@@ -161,38 +163,38 @@ Host mymoney-vps
 ```powershell
 powershell -File deploy\backup\pull-backups.ps1 -Server mymoney-vps -RemoteRoot /home/deploy/mymoney/backups
 ```
-Limitación conocida: esta descarga usa la clave de administración (da shell como `deploy`). Está en tu PC; protege el disco con BitLocker.
+Known limitation: this download uses the admin key (which gives a shell as `deploy`). It lives on your PC; protect the disk with BitLocker.
 
-**3.10 Monitorización.** Añade a DigitalOcean (Uptime) la comprobación `https://mymoney-api.josanfersal.dev/health`. La alerta de memoria al 85 % de travel
-ya cubre el droplet: si salta de forma repetida, sube a 2 GB.
+**3.10 Monitoring.** Add the check `https://mymoney-api.josanfersal.dev/health` to DigitalOcean (Uptime). travel's 85 % memory alert
+already covers the droplet: if it fires repeatedly, upgrade to 2 GB.
 
-## 4. Operación
+## 4. Operations
 
 ```bash
-# Estado y logs (sin secretos)
+# Status and logs (no secrets)
 docker ps --filter name=mymoney-prod --format 'table {{.Names}}\t{{.Status}}'
 docker logs --tail 50 mymoney-prod-api-1
 
-# Volver a la versión anterior: Actions → Deploy API → Run workflow → image_tag = sha-xxxxxxx (aprobación manual incluida)
-# Aplicar cambios del .env.production sin cambiar de imagen:
+# Roll back to the previous version: Actions → Deploy API → Run workflow → image_tag = sha-xxxxxxx (manual by design)
+# Apply .env.production changes without changing the image:
 cd ~/mymoney/release && ./deploy.sh "$(cat ../state/current)"
-# Rotar JWT_SECRET (cierra todas las sesiones): editar el fichero y repetir la línea anterior.
+# Rotate JWT_SECRET (signs everyone out): edit the file and repeat the line above.
 ```
-Un despliegue hace, en este orden: comprobar configuración → backup → migrar → arrancar la API nueva → nginx. Si la API nueva no queda
-sana, vuelve sola a la anterior. Las migraciones solo avanzan: escríbelas compatibles con la versión anterior de la API.
+A deployment does, in this order: check configuration → backup → migrate → start the new API → nginx. If the new API does not become
+healthy it rolls back to the previous one by itself. Migrations only move forward: write them so they stay compatible with the previous API version.
 
-## 5. Riesgos aceptados y límites
+## 5. Accepted risks and limits
 
-- **nginx compartido**: un error de nginx afecta también a travel. Por eso el vhost se valida con `nginx -t` y se revierte, la API se resuelve en cada petición (si MyMoney está parado solo él da 502) y el fichero carga después de `site.conf` de travel (sigue siendo su servidor por defecto).
-- **Mismo droplet**: un fallo de MyMoney (memoria) puede afectar a travel. Límites de memoria en ambos contenedores y alerta al 85 %.
-- **Grupo `docker`**: el usuario `deploy` equivale a root en la máquina. Por eso la clave de CI tiene comando forzado y la de administración no sale de tu PC.
-- La imagen lleva dentro los ficheros de despliegue (sin secretos): el servidor solo ejecuta lo que sale de tu CI y se verifica por digest.
-- No hay cifrado de los backups en el servidor (contienen lo mismo que la base viva); sí en tu PC por BitLocker.
+- **Shared nginx**: an nginx mistake also affects travel. That is why the vhost is validated with `nginx -t` and reverted on failure, the API is resolved on every request (if MyMoney is down only it returns 502) and the file loads after travel's `site.conf` (travel stays the default server).
+- **Same droplet**: a MyMoney failure (memory) can affect travel. Memory limits on both containers and an 85 % alert.
+- **`docker` group**: the `deploy` user is equivalent to root on the machine. That is why the CI key has a forced command and the admin key never leaves your PC.
+- The image carries the deployment files (no secrets): the server only runs what comes out of your CI, verified by digest.
+- Backups are not encrypted on the server (they contain the same as the live database); on your PC they are protected by BitLocker.
 
-## 6. Pruebas
+## 6. Tests
 
 ```bash
-bash deploy/vps/vps.test.sh      # comando forzado, nginx-apply y deploy.sh con docker/stat simulados
+bash deploy/vps/vps.test.sh      # forced command, nginx-apply and deploy.sh with mocked docker/stat
 bash deploy/backup/backup.test.sh
 ```
-La CI además construye la imagen, la arranca con las mismas restricciones que producción y comprueba salud, usuario sin root, registro cerrado (403) y 401 sin token.
+CI additionally builds the image, starts it with the same restrictions as production and checks health, a non-root user, closed registration (403) and 401 without a token.

@@ -77,7 +77,7 @@ deploy/        Deployment (home server and VPS), backups and their documentation
 
 ## Security
 
-The production setup is designed, documented and covered by automated tests (it is being rolled out for the first release); the full threat model and trade-offs are in [`deploy/vps/README.md`](./deploy/vps/README.md) (in Spanish).
+The production setup is designed, documented and covered by automated tests (it is being rolled out for the first release); the full threat model and trade-offs are in [`deploy/vps/README.md`](./deploy/vps/README.md).
 
 - Secrets are generated on the server and never stored in the repo; `.gitignore` blocks `.env.*`, keys and database dumps.
 - The database publishes no ports and lives on a network with no Internet access; only `/api/*` and `/health` are reachable, everything else is a 404.
@@ -120,7 +120,7 @@ npm run lint --workspace=backend && npm run lint --workspace=apps/mobile
 
 ## Documentation
 
-Project conventions and workflow are in [CLAUDE.md](./CLAUDE.md); deployment, backups and the security model are in [`deploy/`](./deploy) (Spanish).
+Project conventions and workflow are in [CLAUDE.md](./CLAUDE.md); the deployment runbook and the security model are in [`deploy/vps/README.md`](./deploy/vps/README.md) (English); the older backup and home-server guides in [`deploy/`](./deploy) are in Spanish.
 
 ## License
 
