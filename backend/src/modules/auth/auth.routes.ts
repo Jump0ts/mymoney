@@ -2,7 +2,8 @@ import { Router } from "express";
 import { prisma } from "../../prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
-import { badRequest, unauthorized } from "../../utils/errors.js";
+import { env } from "../../env.js";
+import { badRequest, forbidden, unauthorized } from "../../utils/errors.js";
 import { hashPassword, signAuthToken, verifyPassword } from "./auth.utils.js";
 import { loginSchema, registerSchema } from "./auth.schema.js";
 import { DEFAULT_CATEGORIES } from "../categories/categories.constants.js";
@@ -12,6 +13,7 @@ export const authRouter = Router();
 authRouter.post(
   "/register",
   asyncHandler(async (req, res) => {
+    if (!env.REGISTRATION_ENABLED) throw forbidden("El registro de cuentas está cerrado");
     const body = registerSchema.parse(req.body);
 
     const existing = await prisma.user.findUnique({ where: { email: body.email } });
