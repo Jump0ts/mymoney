@@ -12,11 +12,14 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
-      - "${DB_PORT}:5432"
+      # Solo en loopback: la base de datos nunca debe quedar accesible desde la red.
+      - "127.0.0.1:${DB_PORT}:5432"
 
   api:
     build:
-      context: ../backend
+      # Raiz del repo: el Dockerfile usa el package-lock.json de los workspaces.
+      context: ..
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     depends_on:
       - db
@@ -27,7 +30,8 @@ services:
       PORT: 4000
       CORS_ORIGINS: ${CORS_ORIGINS}
     ports:
-      - "${API_PORT}:4000"
+      # Nginx del servidor llega por loopback; la API no se expone directamente.
+      - "127.0.0.1:${API_PORT}:4000"
 
 volumes:
   db_data:

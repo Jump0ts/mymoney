@@ -17,6 +17,9 @@ case "$ENVIRONMENT" in
 esac
 
 DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Por defecto el .env y el compose viven junto a este directorio; en el VPS el .env esta fuera de release/.
+ENV_FILE="${ENV_FILE:-$DEPLOY_DIR/.env.$ENVIRONMENT}"
+COMPOSE_FILE="${COMPOSE_FILE:-$DEPLOY_DIR/docker-compose.yml}"
 BACKUP_ROOT="${BACKUP_DIR:-/var/backups/mymoney}/$ENVIRONMENT"
 TABLES=("User" "Category" "Transaction")
 
@@ -48,8 +51,8 @@ restored_count() {
   docker exec "$CONTAINER" psql -U postgres -d restore_test -tAc "SELECT count(*) FROM \"$1\""
 }
 live_count() {
-  docker compose --env-file "$DEPLOY_DIR/.env.$ENVIRONMENT" -p "$COMPOSE_PROJECT" \
-    -f "$DEPLOY_DIR/docker-compose.yml" exec -T db \
+  docker compose --env-file "$ENV_FILE" -p "$COMPOSE_PROJECT" \
+    -f "$COMPOSE_FILE" exec -T db \
     sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -tAc 'SELECT count(*) FROM \"$1\"'"
 }
 

@@ -5,6 +5,8 @@
 # Genera un volcado comprimido en $BACKUP_DIR/<entorno>/daily, copia los domingos
 # a weekly y borra lo que supere la retencion. Sale con codigo != 0 si algo falla.
 set -euo pipefail
+# Los volcados contienen las finanzas y los hashes de las contrasenas: solo legibles por su dueno.
+umask 077
 
 ENVIRONMENT="${1:-production}"
 case "$ENVIRONMENT" in
@@ -18,6 +20,9 @@ case "$ENVIRONMENT" in
 esac
 
 DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Por defecto el .env y el compose viven junto a este directorio; en el VPS el .env esta fuera de release/.
+ENV_FILE="${ENV_FILE:-$DEPLOY_DIR/.env.$ENVIRONMENT}"
+COMPOSE_FILE="${COMPOSE_FILE:-$DEPLOY_DIR/docker-compose.yml}"
 BACKUP_ROOT="${BACKUP_DIR:-/var/backups/mymoney}/$ENVIRONMENT"
 DAILY_KEEP_DAYS="${DAILY_KEEP_DAYS:-14}"
 WEEKLY_KEEP_DAYS="${WEEKLY_KEEP_DAYS:-56}"
@@ -32,8 +37,8 @@ trap 'rm -f "$PARTIAL"' EXIT
 # El usuario y la base de datos se leen de las variables del propio contenedor,
 # asi no hay que parsear el .env (las contrasenas pueden llevar caracteres raros).
 # pipefail hace que un fallo de pg_dump no quede tapado por gzip.
-docker compose --env-file "$DEPLOY_DIR/.env.$ENVIRONMENT" -p "$COMPOSE_PROJECT" \
-  -f "$DEPLOY_DIR/docker-compose.yml" exec -T db \
+docker compose --env-file "$ENV_FILE" -p "$COMPOSE_PROJECT" \
+  -f "$COMPOSE_FILE" exec -T db \
   sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --no-privileges' \
   | gzip >"$PARTIAL"
 

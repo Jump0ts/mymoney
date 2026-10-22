@@ -1,0 +1,85 @@
+# MyMoney en el VPS de DigitalOcean (comparte el droplet con travel_agency).
+# Lo lanza deploy.sh; no se ejecuta a mano. Ver README.md.
+#
+# Seguridad:
+#  - La base de datos solo esta en la red `internal` (sin salida a Internet) y NO publica ningun puerto.
+#  - La API tampoco publica puertos: solo la ve el nginx de travel_agency a traves de la red `edge`.
+#  - Los secretos salen de /opt/mymoney/.env.production (modo 600, fuera del repo) y jamas de este fichero.
+
+name: mymoney-prod
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    # Ajustado al droplet de 1 GB, que comparte con travel_agency.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=20
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - effective_cache_size=192MB
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks: [internal]
+    mem_limit: 256m
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  api:
+    # La imagen la fija deploy.sh por digest (state/image.env); el valor por defecto solo permite
+    # que `docker compose exec db` (backups) interpole el fichero sin una imagen concreta.
+    image: ${API_IMAGE:-mymoney-api-sin-desplegar}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}
+      JWT_SECRET: ${JWT_SECRET:?}
+      CORS_ORIGINS: ${CORS_ORIGINS:?}
+      # Cuenta personal: el registro publico queda cerrado salvo que se abra a proposito.
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-false}
+    networks:
+      internal: {}
+      edge:
+        aliases: [mymoney-api]
+    mem_limit: 200m
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+networks:
+  # Sin salida a Internet: la base de datos no necesita (ni debe poder) hablar con el exterior.
+  internal:
+    internal: true
+  # Red del compose de travel_agency, donde vive su nginx (unico dueno de los puertos 80 y 443).
+  edge:
+    external: true
+    name: travel-agency_default
+
+volumes:
+  db_data:

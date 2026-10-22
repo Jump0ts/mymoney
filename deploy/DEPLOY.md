@@ -1,5 +1,8 @@
 # Despliegue en el servidor doméstico
 
+> **Producción** no va aquí sino en el VPS de DigitalOcean: ver [vps/README.md](./vps/README.md). Esta guía queda para los
+> entornos `pre` y `staging` del servidor de casa.
+
 Requiere: Docker + Docker Compose, Nginx, Certbot, un dominio propio con DNS gestionado en Cloudflare.
 
 ## 1. Preparar variables de entorno
