@@ -9,7 +9,7 @@ copia sigue intacta. Aplica su propia retencion, y sale con error si el backup m
 reciente es demasiado viejo (para que el Programador de tareas lo marque como fallo).
 
 .EXAMPLE
-.\pull-backups.ps1 -Server usuario@192.168.1.132
+.\pull-backups.ps1 -Server usuario@IP-DEL-SERVIDOR
 #>
 [CmdletBinding()]
 param(
