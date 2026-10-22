@@ -170,6 +170,11 @@ grep -q "limit_req zone=mymoney_auth" "$CONF" || fail "falta el freno de fuerza 
 grep -q "return 404" "$CONF" || fail "las rutas desconocidas deben dar 404"
 grep -q "Strict-Transport-Security" "$CONF" || fail "falta HSTS"
 [ -f "$TRAVEL_DIR/nginx/conf.d/mymoney-proxy.inc" ] || fail "falta el include del proxy"
+# La API envia sus propias cabeceras (Helmet): el proxy debe descartarlas para que no salgan duplicadas con las del vhost.
+for HEADER in Strict-Transport-Security X-Content-Type-Options X-Frame-Options Content-Security-Policy Referrer-Policy; do
+  grep -q "^proxy_hide_header $HEADER;" "$TRAVEL_DIR/nginx/conf.d/mymoney-proxy.inc" || fail "el proxy no descarta $HEADER de la API"
+  grep -q "add_header $HEADER " "$CONF" || fail "el vhost no define $HEADER"
+done
 # nginx carga conf.d por orden alfabetico: debe ir despues de site.conf para no quitarle a travel el "servidor por defecto".
 [[ "$(basename "$CONF")" > "site.conf" ]] || fail "el vhost de MyMoney se cargaria antes que el de travel_agency"
 pass "con certificado instala el vhost HTTPS con limites, HSTS y 404 por defecto"
