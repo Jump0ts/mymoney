@@ -11,6 +11,8 @@ trap 'rm -rf "$WORK"' EXIT
 PASSED=0
 fail() { echo "FALLO: $*" >&2; exit 1; }
 pass() { PASSED=$((PASSED + 1)); echo "ok - $1"; }
+# before <n1> <n2>: ambos numeros de linea existen y el primero va antes que el segundo
+before() { [ -n "$1" ] && [ -n "$2" ] && [ "$1" -lt "$2" ]; }
 
 # ---- docker y stat falsos. Cada llamada de docker queda en $FAKE_LOG; el comportamiento se controla con variables FAKE_* ----
 mkdir -p "$WORK/bin"
@@ -128,7 +130,7 @@ grep -q "docker pull --quiet ghcr.io/jump0ts/mymoney-api@$DIGEST" "$FAKE_LOG" ||
 [ "$(cat "$CASE/deploy_called")" = "DEPLOY ghcr.io/jump0ts/mymoney-api@$DIGEST" ] || fail "deploy.sh deberia recibir la imagen por digest"
 LOGOUT_LINE="$(grep -n '^docker logout' "$FAKE_LOG" | head -1 | cut -d: -f1)"
 PULL_LINE="$(grep -n '^docker pull' "$FAKE_LOG" | head -1 | cut -d: -f1)"
-[ -n "$LOGOUT_LINE" ] && [ "$LOGOUT_LINE" -gt "$PULL_LINE" ] || fail "debe cerrar la sesion del registro justo despues de descargar"
+before "$PULL_LINE" "$LOGOUT_LINE" || fail "debe cerrar la sesion del registro justo despues de descargar"
 [ -f "$MYMONEY_BASE/release/deploy.sh" ] || fail "los ficheros de despliegue deberian salir de la imagen"
 pass "valida: token por stdin (nunca en argumentos), imagen por digest, sesion cerrada y despliegue lanzado"
 
@@ -269,8 +271,8 @@ grep -q "API_IMAGE=$GOOD_REF" "$MYMONEY_BASE/state/image.env" || fail "deberia f
 L_DB="$(grep -n 'up -d --wait --wait-timeout 90 db' "$FAKE_LOG" | head -1 | cut -d: -f1)"
 L_MIG="$(grep -n 'prisma migrate deploy' "$FAKE_LOG" | head -1 | cut -d: -f1)"
 L_API="$(grep -n -- '--no-deps --wait --wait-timeout 90 api' "$FAKE_LOG" | head -1 | cut -d: -f1)"
-[ -n "$L_DB" ] && [ -n "$L_MIG" ] && [ -n "$L_API" ] && [ "$L_DB" -lt "$L_MIG" ] && [ "$L_MIG" -lt "$L_API" ] \
-  || fail "el orden debe ser base de datos -> migraciones -> API"
+before "$L_DB" "$L_MIG" || fail "la base de datos debe levantarse antes de migrar"
+before "$L_MIG" "$L_API" || fail "las migraciones deben aplicarse antes de arrancar la API nueva"
 ! grep -q "pg_dump" "$FAKE_LOG" || fail "el primer despliegue no tiene base que copiar"
 grep -q "nginx -s reload" "$FAKE_LOG" || fail "deberia aplicar nginx"
 pass "primer despliegue: base de datos, migraciones y API en ese orden, y nginx"
@@ -281,7 +283,7 @@ export FAKE_DB_UP=1
 deploy "$GOOD_REF" || { cat "$CASE/out.txt" >&2; fail "deberia salir con 0"; }
 L_BAK="$(grep -n 'exec -T db' "$FAKE_LOG" | head -1 | cut -d: -f1)"
 L_MIG="$(grep -n 'prisma migrate deploy' "$FAKE_LOG" | head -1 | cut -d: -f1)"
-[ -n "$L_BAK" ] && [ "$L_BAK" -lt "$L_MIG" ] || fail "el backup debe hacerse antes de migrar"
+before "$L_BAK" "$L_MIG" || fail "el backup debe hacerse antes de migrar"
 [ "$(find "$MYMONEY_BASE/backups/production/daily" -type f | wc -l | tr -d ' ')" = "1" ] || fail "deberia haber un backup diario"
 pass "con la base en marcha hace backup antes de migrar"
 
