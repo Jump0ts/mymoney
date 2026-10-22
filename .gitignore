@@ -3,10 +3,13 @@ node_modules/
 .pnp
 .pnp.js
 
-# Env files
+# Env files y secretos: nunca al repo (solo se versionan los *.example)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.*.example
+*.pem
+*.key
+*.sql.gz
 
 # Build outputs
 dist/

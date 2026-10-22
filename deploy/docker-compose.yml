@@ -1,0 +1,37 @@
+# Uso: docker compose --env-file .env.pre -p mymoney-pre up -d
+# (cambia el --env-file y el -p por .env.staging/mymoney-staging o .env.production/mymoney-prod)
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      # Solo en loopback: la base de datos nunca debe quedar accesible desde la red.
+      - "127.0.0.1:${DB_PORT}:5432"
+
+  api:
+    build:
+      # Raiz del repo: el Dockerfile usa el package-lock.json de los workspaces.
+      context: ..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: ${NODE_ENV}
+      PORT: 4000
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    ports:
+      # Nginx del servidor llega por loopback; la API no se expone directamente.
+      - "127.0.0.1:${API_PORT}:4000"
+
+volumes:
+  db_data:
