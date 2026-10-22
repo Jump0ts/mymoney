@@ -1,0 +1,98 @@
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import { Dimensions } from 'react-native';
+import { FadeInLeft, FadeInRight } from 'react-native-reanimated';
+import { MonthYearPicker } from './MonthYearPicker';
+import { getCurrentYearMonth } from '@/utils/date';
+
+describe('MonthYearPicker', () => {
+  it('muestra el mes y el año formateados', () => {
+    render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+
+    expect(screen.getByText('Junio de 2026')).toBeTruthy();
+  });
+
+  it('llama a onChange con el mes anterior al pulsar la flecha izquierda', () => {
+    const onChange = jest.fn();
+    render(<MonthYearPicker year={2026} month={6} onChange={onChange} />);
+
+    fireEvent.press(screen.getByTestId('month-picker-prev'));
+
+    expect(onChange).toHaveBeenCalledWith(2026, 5);
+  });
+
+  it('retrocede de año al pulsar atras estando en enero', () => {
+    const onChange = jest.fn();
+    render(<MonthYearPicker year={2026} month={1} onChange={onChange} />);
+
+    fireEvent.press(screen.getByTestId('month-picker-prev'));
+
+    expect(onChange).toHaveBeenCalledWith(2025, 12);
+  });
+
+  it('avanza de año al pulsar siguiente estando en diciembre', () => {
+    const past = getCurrentYearMonth();
+    const onChange = jest.fn();
+    // Nos situamos en diciembre de un año ya pasado para que "siguiente" no este deshabilitado.
+    render(<MonthYearPicker year={past.year - 1} month={12} onChange={onChange} />);
+
+    fireEvent.press(screen.getByTestId('month-picker-next'));
+
+    expect(onChange).toHaveBeenCalledWith(past.year, 1);
+  });
+
+  it('deshabilita la flecha de siguiente mes al llegar al mes actual', () => {
+    const current = getCurrentYearMonth();
+    const onChange = jest.fn();
+    render(<MonthYearPicker year={current.year} month={current.month} onChange={onChange} />);
+
+    fireEvent.press(screen.getByTestId('month-picker-next'));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('adapta la altura de la etiqueta al tamano de letra del sistema, con tope', () => {
+    const original = Dimensions.get('window');
+    const heightAt = (fontScale: number) => {
+      Dimensions.set({ window: { ...original, fontScale } });
+      const { unmount } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+      const wrap = screen.getByTestId('month-year-label-wrap');
+      const height = Object.assign({}, ...[wrap.props.style].flat().filter(Boolean)).height;
+      unmount();
+      return height;
+    };
+
+    try {
+      expect(heightAt(1)).toBe(20);
+      expect(heightAt(1.15)).toBe(23);
+      // Por encima del tope (1.3) la etiqueta deja de crecer.
+      expect(heightAt(2)).toBe(26);
+    } finally {
+      Dimensions.set({ window: original });
+    }
+  });
+
+  it('tiene accessibilityLabel en las flechas para lectores de pantalla', () => {
+    render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+
+    expect(screen.getByLabelText('Mes anterior')).toBeTruthy();
+    expect(screen.getByLabelText('Mes siguiente')).toBeTruthy();
+  });
+
+  it('anima el label desde la derecha al avanzar de mes', () => {
+    const { rerender } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+
+    rerender(<MonthYearPicker year={2026} month={7} onChange={jest.fn()} />);
+
+    const label = screen.getByTestId('month-year-label');
+    expect(label.props.entering.constructor).toBe(FadeInRight.duration(200).constructor);
+  });
+
+  it('anima el label desde la izquierda al retroceder de mes', () => {
+    const { rerender } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+
+    rerender(<MonthYearPicker year={2026} month={5} onChange={jest.fn()} />);
+
+    const label = screen.getByTestId('month-year-label');
+    expect(label.props.entering.constructor).toBe(FadeInLeft.duration(200).constructor);
+  });
+});

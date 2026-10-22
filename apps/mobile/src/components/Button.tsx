@@ -1,15 +1,16 @@
-import { ActivityIndicator, Pressable, type PressableProps } from 'react-native';
+import { ActivityIndicator, type PressableProps } from 'react-native';
+import { AnimatedPressable } from './AnimatedPressable';
 import { ThemedText } from './themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { styles } from './Button.styles';
 
-interface ButtonProps extends Omit<PressableProps, 'children'> {
+interface ButtonProps extends Omit<PressableProps, 'children' | 'style'> {
   label: string;
   variant?: 'primary' | 'secondary' | 'danger';
   loading?: boolean;
 }
 
-export const Button = ({ label, variant = 'primary', loading, disabled, style, ...props }: ButtonProps) => {
+export const Button = ({ label, variant = 'primary', loading, disabled, ...props }: ButtonProps) => {
   const theme = useTheme();
 
   const backgroundColor =
@@ -17,14 +18,12 @@ export const Button = ({ label, variant = 'primary', loading, disabled, style, .
   const textColor = variant === 'secondary' ? theme.text : theme.primaryText;
 
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       disabled={disabled || loading}
-      style={(state) => [
-        styles.base,
-        { backgroundColor, opacity: state.pressed || disabled ? 0.7 : 1 },
-        typeof style === 'function' ? style(state) : style,
-      ]}
+      style={[styles.base, { backgroundColor, opacity: disabled || loading ? 0.7 : 1 }]}
       {...props}>
       {loading ? (
         <ActivityIndicator color={textColor} />
@@ -33,6 +32,6 @@ export const Button = ({ label, variant = 'primary', loading, disabled, style, .
           {label}
         </ThemedText>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 };

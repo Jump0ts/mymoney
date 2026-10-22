@@ -1,5 +1,8 @@
 # Despliegue en el servidor doméstico
 
+> **Producción** no va aquí sino en el VPS de DigitalOcean: ver [vps/README.md](./vps/README.md). Esta guía queda para los
+> entornos `pre` y `staging` del servidor de casa.
+
 Requiere: Docker + Docker Compose, Nginx, Certbot, un dominio propio con DNS gestionado en Cloudflare.
 
 ## 1. Preparar variables de entorno
@@ -35,3 +38,7 @@ Instala `ddclient` apuntando al proveedor DNS de Cloudflare, actualizando el reg
 ## 6. Router
 
 Abre el puerto 443 (y 80 temporalmente para la validación de Certbot) hacia la IP local de este servidor.
+
+## 7. Backups
+
+Copias diarias de la base de datos con copia en otro equipo y restauración probada: ver [BACKUP.md](./BACKUP.md).

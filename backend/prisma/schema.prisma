@@ -13,13 +13,17 @@ enum TransactionType {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  name         String
-  email        String        @unique
-  passwordHash String
-  createdAt    DateTime      @default(now())
-  categories   Category[]
-  transactions Transaction[]
+  id            String        @id @default(cuid())
+  name          String
+  email         String        @unique
+  passwordHash  String
+  createdAt     DateTime      @default(now())
+  categories    Category[]
+  transactions  Transaction[]
+  budgetGroups  BudgetGroup[]
+  budgetItems   BudgetItem[]
+  budgetMonths  BudgetMonth[]
+  budgetEntries BudgetEntry[]
 }
 
 model Category {
@@ -54,4 +58,77 @@ model Transaction {
   @@index([userId, occurredAt])
   @@index([userId, categoryId])
   @@index([userId, type])
+}
+
+// Grupo de lineas de presupuesto (Hogar, Alquiler, Deseos...). Es global del
+// usuario: no se copia cada mes, solo sus lineas. `limit` es un tope opcional
+// para la suma de lo previsto en sus lineas (p. ej. "Gastos fijos": 600).
+model BudgetGroup {
+  id          String        @id @default(cuid())
+  user        User          @relation(fields: [userId], references: [id])
+  userId      String
+  name        String
+  color       String        @default("#6C5CE7")
+  limit       Decimal?      @db.Decimal(12, 2)
+  // Grupo que recibe lo que sobra del sueldo tras repartir el resto (como mucho uno por usuario).
+  isRemainder Boolean       @default(false)
+  position    Int           @default(0)
+  createdAt   DateTime      @default(now())
+  items       BudgetItem[]
+  entries     BudgetEntry[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+// Linea de la plantilla recurrente: de aqui salen las lineas de cada mes nuevo.
+// Un importe negativo es un reembolso (resta).
+model BudgetItem {
+  id        String        @id @default(cuid())
+  user      User          @relation(fields: [userId], references: [id])
+  userId    String
+  group     BudgetGroup   @relation(fields: [groupId], references: [id])
+  groupId   String
+  name      String
+  amount    Decimal       @db.Decimal(12, 2)
+  position  Int           @default(0)
+  createdAt DateTime      @default(now())
+  entries   BudgetEntry[]
+
+  @@index([userId])
+  @@index([groupId])
+}
+
+// Presupuesto de un mes concreto: el sueldo previsto de ese mes.
+model BudgetMonth {
+  id     String  @id @default(cuid())
+  user   User    @relation(fields: [userId], references: [id])
+  userId String
+  year   Int
+  month  Int
+  income Decimal @default(0) @db.Decimal(12, 2)
+
+  @@unique([userId, year, month])
+}
+
+// Linea de un mes. itemId es null en las lineas puntuales (solo ese mes) y se
+// pone a null si se borra el item de la plantilla, para no tocar meses ya hechos.
+model BudgetEntry {
+  id        String      @id @default(cuid())
+  user      User        @relation(fields: [userId], references: [id])
+  userId    String
+  year      Int
+  month     Int
+  group     BudgetGroup @relation(fields: [groupId], references: [id])
+  groupId   String
+  item      BudgetItem? @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  itemId    String?
+  name      String
+  amount    Decimal     @db.Decimal(12, 2)
+  paid      Boolean     @default(false)
+  position  Int         @default(0)
+  createdAt DateTime    @default(now())
+
+  @@unique([userId, year, month, itemId])
+  @@index([userId, year, month])
 }

@@ -5,13 +5,14 @@ import { KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
+import { FieldError } from '@/components/FieldError';
 import { Input } from '@/components/Input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useRegister } from '@/features/auth/useAuthApi';
 import { registerSchema, type RegisterFormValues } from '@/features/auth/auth.schema';
 import { ApiError } from '@/lib/api';
-import { styles } from './register.styles';
+import { styles } from '@/screens/register.styles';
 
 const RegisterScreen = () => {
   const register = useRegister();
@@ -38,7 +39,7 @@ const RegisterScreen = () => {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.form}>
-          <ThemedText type="title" style={styles.title}>
+          <ThemedText type="title" accessibilityRole="header" style={styles.title}>
             Crea tu cuenta
           </ThemedText>
           <ThemedText type="default" themeColor="textSecondary" style={styles.subtitle}>
@@ -49,14 +50,17 @@ const RegisterScreen = () => {
             control={control}
             name="name"
             render={({ field }) => (
-              <Input placeholder="Tu nombre" value={field.value} onChangeText={field.onChange} onBlur={field.onBlur} />
+              <Input
+                placeholder="Tu nombre"
+                textContentType="name"
+                autoComplete="name"
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+              />
             )}
           />
-          {errors.name && (
-            <ThemedText themeColor="danger" type="small">
-              {errors.name.message}
-            </ThemedText>
-          )}
+          <FieldError message={errors.name?.message} />
 
           <Controller
             control={control}
@@ -66,17 +70,15 @@ const RegisterScreen = () => {
                 placeholder="Email"
                 autoCapitalize="none"
                 keyboardType="email-address"
+                textContentType="username"
+                autoComplete="email"
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}
               />
             )}
           />
-          {errors.email && (
-            <ThemedText themeColor="danger" type="small">
-              {errors.email.message}
-            </ThemedText>
-          )}
+          <FieldError message={errors.email?.message} />
 
           <Controller
             control={control}
@@ -85,23 +87,17 @@ const RegisterScreen = () => {
               <Input
                 placeholder="Contraseña"
                 secureTextEntry
+                textContentType="newPassword"
+                autoComplete="password-new"
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}
               />
             )}
           />
-          {errors.password && (
-            <ThemedText themeColor="danger" type="small">
-              {errors.password.message}
-            </ThemedText>
-          )}
+          <FieldError message={errors.password?.message} />
 
-          {errorMessage && (
-            <ThemedText themeColor="danger" type="small">
-              {errorMessage}
-            </ThemedText>
-          )}
+          <FieldError message={errorMessage} />
 
           <Button label="Crear cuenta" loading={register.isPending} onPress={handleSubmit(onSubmit)} />
 

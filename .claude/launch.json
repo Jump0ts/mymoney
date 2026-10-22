@@ -6,6 +6,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "web", "--workspace=apps/mobile"],
       "port": 8081
+    },
+    {
+      "name": "mymoney-backend-local",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=backend"],
+      "port": 4000
+    },
+    {
+      "name": "mymoney-mobile-web-local",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set EXPO_PUBLIC_API_URL=http://localhost:4000&& npm run web --workspace=apps/mobile"],
+      "port": 8081
     }
   ]
 }

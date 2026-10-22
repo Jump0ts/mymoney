@@ -1,0 +1,326 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
+import type { BudgetEntry, BudgetGroup } from './budgets.types';
+import { BudgetGroupCard } from './BudgetGroupCard';
+
+const mockUpdateEntry = jest.fn().mockResolvedValue(undefined);
+const mockDeleteEntry = jest.fn().mockResolvedValue(undefined);
+const mockCreateEntry = jest.fn().mockResolvedValue(undefined);
+const mockUpdateGroup = jest.fn().mockResolvedValue(undefined);
+const mockDeleteGroup = jest.fn().mockResolvedValue(undefined);
+
+jest.mock('./useBudgets', () => ({
+  useUpdateEntry: () => ({ mutateAsync: mockUpdateEntry }),
+  useDeleteEntry: () => ({ mutateAsync: mockDeleteEntry }),
+  useCreateEntry: () => ({ mutateAsync: mockCreateEntry }),
+  useUpdateGroup: () => ({ mutateAsync: mockUpdateGroup }),
+  useDeleteGroup: () => ({ mutateAsync: mockDeleteGroup }),
+}));
+jest.mock('@/utils/alert', () => ({ confirmAsync: jest.fn().mockResolvedValue(true), notify: jest.fn() }));
+
+const target = { year: 2026, month: 10 };
+
+const entry = (overrides: Partial<BudgetEntry> = {}): BudgetEntry => ({
+  id: 'e1',
+  groupId: 'g1',
+  itemId: 'i1',
+  name: 'Netflix',
+  amount: '21.99',
+  paid: false,
+  position: 0,
+  ...overrides,
+});
+
+const group = (entries: BudgetEntry[] = [entry()]): BudgetGroup => ({
+  id: 'g1',
+  name: 'Hogar',
+  color: '#4F5DFF',
+  limit: null,
+  isRemainder: false,
+  position: 0,
+  entries,
+});
+
+const renderCard = (editMode: boolean, entries?: BudgetEntry[], limit: string | null = null) =>
+  render(
+    <BudgetGroupCard
+      group={{ ...group(entries), limit }}
+      onTogglePaid={jest.fn()}
+      editMode={editMode}
+      target={target}
+    />,
+  );
+
+describe('BudgetGroupCard en modo edicion', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('fuera del modo edicion no hay controles de edicion', () => {
+    renderCard(false);
+
+    expect(screen.queryByTestId('budget-group-edit-g1')).toBeNull();
+    expect(screen.queryByTestId('budget-add-line-g1')).toBeNull();
+    expect(screen.getByTestId('budget-entry-e1').props.accessibilityRole).toBe('checkbox');
+  });
+
+  it('en modo edicion las filas pasan a ser botones de editar y aparecen los controles', () => {
+    renderCard(true);
+
+    expect(screen.getByTestId('budget-group-edit-g1')).toBeTruthy();
+    expect(screen.getByTestId('budget-add-line-g1')).toBeTruthy();
+    expect(screen.getByTestId('budget-entry-e1').props.accessibilityRole).toBe('button');
+    expect(screen.getByLabelText('Editar Netflix')).toBeTruthy();
+  });
+
+  it('un grupo sin lineas muestra el boton de anadir en vez del aviso', () => {
+    renderCard(true, []);
+
+    expect(screen.queryByText('Sin líneas este mes.')).toBeNull();
+    expect(screen.getByTestId('budget-add-line-g1')).toBeTruthy();
+  });
+
+  it('editar una linea precarga el formulario y guarda solo en este mes por defecto', async () => {
+    renderCard(true);
+
+    fireEvent.press(screen.getByTestId('budget-entry-e1'));
+    expect(screen.getByDisplayValue('Netflix')).toBeTruthy();
+    expect(screen.getByDisplayValue('21,99')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByTestId('budget-line-amount'), '25');
+    fireEvent.press(screen.getByTestId('budget-line-submit'));
+
+    await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalledTimes(1));
+    expect(mockUpdateEntry).toHaveBeenCalledWith({
+      entry: expect.objectContaining({ id: 'e1' }),
+      line: { name: 'Netflix', amount: 25 },
+      scope: 'month',
+    });
+    await waitFor(() => expect(screen.queryByTestId('budget-line-name')).toBeNull());
+  });
+
+  it('una linea puntual (sin item) no ofrece el alcance', () => {
+    renderCard(true, [entry({ itemId: null })]);
+
+    fireEvent.press(screen.getByTestId('budget-entry-e1'));
+
+    expect(screen.queryByText('Se aplica a')).toBeNull();
+  });
+
+  it('borra la linea desde el formulario', async () => {
+    renderCard(true);
+
+    fireEvent.press(screen.getByTestId('budget-entry-e1'));
+    fireEvent.press(screen.getByTestId('budget-line-delete'));
+
+    await waitFor(() => expect(mockDeleteEntry).toHaveBeenCalledWith({ entry: expect.objectContaining({ id: 'e1' }), scope: 'month' }));
+  });
+
+  it('anade una linea recurrente al grupo', async () => {
+    renderCard(true);
+
+    fireEvent.press(screen.getByTestId('budget-add-line-g1'));
+    fireEvent.changeText(screen.getByTestId('budget-line-name'), 'Gimnasio');
+    fireEvent.changeText(screen.getByTestId('budget-line-amount'), '60');
+    fireEvent.press(screen.getByTestId('budget-line-submit'));
+
+    await waitFor(() => expect(mockCreateEntry).toHaveBeenCalledTimes(1));
+    expect(mockCreateEntry).toHaveBeenCalledWith({
+      groupId: 'g1',
+      line: { name: 'Gimnasio', amount: 60 },
+      scope: 'template',
+    });
+  });
+
+  it('edita el grupo desde la cabecera', async () => {
+    renderCard(true);
+
+    fireEvent.press(screen.getByTestId('budget-group-edit-g1'));
+    fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Casa');
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+    await waitFor(() =>
+      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Casa', color: '#4F5DFF', limit: null, isRemainder: false }),
+    );
+  });
+
+  it('en el grupo del sobrante una linea nueva es solo de este mes por defecto', async () => {
+    render(
+      <BudgetGroupCard
+        group={{ ...group([]), isRemainder: true }}
+        onTogglePaid={jest.fn()}
+        editMode
+        remainderAvailable={300}
+        target={target}
+      />,
+    );
+
+    fireEvent.press(screen.getByTestId('budget-add-line-g1'));
+    fireEvent.changeText(screen.getByTestId('budget-line-name'), 'Cena con amigos');
+    fireEvent.changeText(screen.getByTestId('budget-line-amount'), '35');
+    fireEvent.press(screen.getByTestId('budget-line-submit'));
+
+    await waitFor(() => expect(mockCreateEntry).toHaveBeenCalledTimes(1));
+    expect(mockCreateEntry).toHaveBeenCalledWith({
+      groupId: 'g1',
+      line: { name: 'Cena con amigos', amount: 35 },
+      scope: 'month',
+    });
+  });
+
+  it('el formulario del grupo precarga su limite y permite cambiarlo', async () => {
+    renderCard(true, undefined, '600.00');
+
+    fireEvent.press(screen.getByTestId('budget-group-edit-g1'));
+    expect(screen.getByDisplayValue('600')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByTestId('budget-group-limit'), '750,5');
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+    await waitFor(() =>
+      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Hogar', color: '#4F5DFF', limit: 750.5, isRemainder: false }),
+    );
+  });
+
+  it('vaciar el campo del limite lo quita', async () => {
+    renderCard(true, undefined, '600.00');
+
+    fireEvent.press(screen.getByTestId('budget-group-edit-g1'));
+    fireEvent.changeText(screen.getByTestId('budget-group-limit'), '');
+    fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+    await waitFor(() =>
+      expect(mockUpdateGroup).toHaveBeenCalledWith({ id: 'g1', name: 'Hogar', color: '#4F5DFF', limit: null, isRemainder: false }),
+    );
+  });
+
+  it('en modo edicion la barra de limite sigue visible, y se oculta mientras se edita el grupo', () => {
+    renderCard(true, undefined, '600.00');
+    expect(screen.getByTestId('budget-limit-g1')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('budget-group-edit-g1'));
+
+    expect(screen.queryByTestId('budget-limit-g1')).toBeNull();
+  });
+
+  it('solo hay un formulario abierto a la vez', () => {
+    renderCard(true);
+
+    fireEvent.press(screen.getByTestId('budget-entry-e1'));
+    fireEvent.press(screen.getByTestId('budget-group-edit-g1'));
+
+    expect(screen.queryByTestId('budget-line-name')).toBeNull();
+    expect(screen.getByTestId('budget-group-name')).toBeTruthy();
+  });
+
+  it('al cambiar de mes se cierran los formularios abiertos (no guardarian en el mes nuevo)', () => {
+    const { rerender } = renderCard(true);
+    fireEvent.press(screen.getByTestId('budget-entry-e1'));
+    expect(screen.getByTestId('budget-line-name')).toBeTruthy();
+
+    rerender(
+      <BudgetGroupCard
+        group={group()}
+        onTogglePaid={jest.fn()}
+        editMode
+        target={{ year: 2026, month: 9 }}
+      />,
+    );
+
+    expect(screen.queryByTestId('budget-line-name')).toBeNull();
+  });
+
+  it('al salir del modo edicion se cierran los formularios abiertos', () => {
+    const { rerender } = renderCard(true);
+    fireEvent.press(screen.getByTestId('budget-entry-e1'));
+    expect(screen.getByTestId('budget-line-name')).toBeTruthy();
+
+    rerender(<BudgetGroupCard group={group()} onTogglePaid={jest.fn()} editMode={false} target={target} />);
+
+    expect(screen.queryByTestId('budget-line-name')).toBeNull();
+    expect(screen.getByTestId('budget-entry-e1').props.accessibilityRole).toBe('checkbox');
+  });
+
+  describe('ordenar', () => {
+    const twoEntries = [entry({ id: 'e1', name: 'Netflix' }), entry({ id: 'e2', name: 'Spotify' })];
+
+    const renderMovable = (props: Partial<React.ComponentProps<typeof BudgetGroupCard>> = {}) => {
+      const onMoveGroup = jest.fn();
+      const onMoveEntry = jest.fn();
+      render(
+        <BudgetGroupCard
+          group={group(twoEntries)}
+          onTogglePaid={jest.fn()}
+          editMode
+          target={target}
+          onMoveGroup={onMoveGroup}
+          onMoveEntry={onMoveEntry}
+          {...props}
+        />,
+      );
+      return { onMoveGroup, onMoveEntry };
+    };
+
+    it('las flechas del grupo llaman a onMoveGroup con el grupo', () => {
+      const { onMoveGroup } = renderMovable();
+
+      fireEvent.press(screen.getByLabelText('Subir grupo Hogar'));
+      fireEvent.press(screen.getByLabelText('Bajar grupo Hogar'));
+
+      expect(onMoveGroup).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: 'g1' }), -1);
+      expect(onMoveGroup).toHaveBeenNthCalledWith(2, expect.objectContaining({ id: 'g1' }), 1);
+    });
+
+    it('el primer grupo no sube y el ultimo no baja', () => {
+      renderMovable({ isFirst: true, isLast: true });
+
+      expect(screen.getByLabelText('Subir grupo Hogar').props.accessibilityState).toMatchObject({ disabled: true });
+      expect(screen.getByLabelText('Bajar grupo Hogar').props.accessibilityState).toMatchObject({ disabled: true });
+    });
+
+    it('las flechas de una linea llaman a onMoveEntry con el grupo y la linea', () => {
+      const { onMoveEntry } = renderMovable();
+
+      fireEvent.press(screen.getByLabelText('Bajar Netflix'));
+
+      expect(onMoveEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'g1' }),
+        expect.objectContaining({ id: 'e1' }),
+        1,
+      );
+    });
+
+    it('la primera linea no sube y la ultima no baja', () => {
+      renderMovable();
+
+      expect(screen.getByLabelText('Subir Netflix').props.accessibilityState).toMatchObject({ disabled: true });
+      expect(screen.getByLabelText('Bajar Netflix').props.accessibilityState).toMatchObject({ disabled: false });
+      expect(screen.getByLabelText('Bajar Spotify').props.accessibilityState).toMatchObject({ disabled: true });
+      expect(screen.getByLabelText('Subir Spotify').props.accessibilityState).toMatchObject({ disabled: false });
+    });
+
+    it('fuera del modo edicion no hay flechas', () => {
+      renderMovable({ editMode: false });
+
+      expect(screen.queryByLabelText('Subir grupo Hogar')).toBeNull();
+      expect(screen.queryByLabelText('Subir Spotify')).toBeNull();
+    });
+
+    it('sin manejadores no se muestran flechas', () => {
+      renderMovable({ onMoveGroup: undefined, onMoveEntry: undefined });
+
+      expect(screen.queryByLabelText('Subir grupo Hogar')).toBeNull();
+      expect(screen.queryByLabelText('Subir Spotify')).toBeNull();
+    });
+
+    it('anuncia la nueva posicion de la linea y del grupo al moverlos', () => {
+      const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+      renderMovable({ groupPosition: 1, groupCount: 3 });
+
+      fireEvent.press(screen.getByLabelText('Bajar Netflix'));
+      fireEvent.press(screen.getByLabelText('Subir grupo Hogar'));
+
+      expect(announce).toHaveBeenCalledWith('Netflix movido a la posición 2 de 2');
+      expect(announce).toHaveBeenCalledWith('grupo Hogar movido a la posición 1 de 3');
+      announce.mockRestore();
+    });
+  });
+});

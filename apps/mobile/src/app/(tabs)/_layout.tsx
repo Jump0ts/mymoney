@@ -29,6 +29,13 @@ const TabsLayout = () => {
         }}
       />
       <Tabs.Screen
+        name="budgets"
+        options={{
+          title: 'Presupuesto',
+          tabBarIcon: ({ color, size }) => <Feather name="clipboard" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="categories"
         options={{
           title: 'Categorías',

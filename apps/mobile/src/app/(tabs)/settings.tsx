@@ -6,7 +6,7 @@ import { Card } from '@/components/Card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuthStore } from '@/features/auth/auth.store';
-import { styles } from './settings.styles';
+import { styles } from '@/screens/tabs/settings.styles';
 
 const SettingsScreen = () => {
   const user = useAuthStore((s) => s.user);
@@ -16,12 +16,14 @@ const SettingsScreen = () => {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.content}>
-          <ThemedText type="title" style={styles.title}>
+          <ThemedText type="title" accessibilityRole="header" style={styles.title}>
             Ajustes
           </ThemedText>
 
           <Card style={styles.card}>
-            <ThemedText type="smallBold">Tu cuenta</ThemedText>
+            <ThemedText type="smallBold" accessibilityRole="header">
+              Tu cuenta
+            </ThemedText>
             <ThemedText>{user?.name}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {user?.email}

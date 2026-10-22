@@ -35,6 +35,10 @@ const RootLayout = () => {
               name="add-transaction"
               options={{ presentation: 'modal', headerShown: true, title: 'Nuevo movimiento' }}
             />
+            <Stack.Screen
+              name="edit-transaction/[id]"
+              options={{ presentation: 'modal', headerShown: true, title: 'Editar movimiento' }}
+            />
           </Stack.Protected>
           <Stack.Protected guard={!token}>
             <Stack.Screen name="login" />

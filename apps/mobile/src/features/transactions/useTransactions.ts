@@ -30,6 +30,19 @@ export const useSummary = (range?: { from?: string; to?: string }) =>
     queryFn: () => apiRequest<Summary>('/api/transactions/summary', { query: range }),
   });
 
+// No hay endpoint de detalle por id: se busca en cualquier pagina de
+// /api/transactions que siga en cache (la lista de Movimientos, casi
+// siempre), en vez de pasar el movimiento entero por la URL al editar.
+export const useCachedTransaction = (id: string | undefined): Transaction | undefined => {
+  const queryClient = useQueryClient();
+  if (!id) return undefined;
+
+  return queryClient
+    .getQueriesData<TransactionsPage>({ queryKey: ['transactions'] })
+    .flatMap(([, data]) => data?.transactions ?? [])
+    .find((t) => t.id === id);
+};
+
 export interface TransactionInput {
   categoryId: string;
   type: TransactionType;
