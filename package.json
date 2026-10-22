@@ -18,6 +18,6 @@
     "unrs-resolver@1.12.2": true
   },
   "dependencies": {
-    "expo": "^57.0.24"
+    "expo": "^57.0.30"
   }
 }
