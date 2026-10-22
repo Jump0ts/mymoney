@@ -10,6 +10,7 @@ const authedUser = async () => {
 const as = (token: string) => ({
   get: (url: string) => request(app).get(url).set("Authorization", `Bearer ${token}`),
   post: (url: string, body: object) => request(app).post(url).set("Authorization", `Bearer ${token}`).send(body),
+  put: (url: string, body: object) => request(app).put(url).set("Authorization", `Bearer ${token}`).send(body),
   patch: (url: string, body: object) => request(app).patch(url).set("Authorization", `Bearer ${token}`).send(body),
   del: (url: string) => request(app).delete(url).set("Authorization", `Bearer ${token}`),
 });
@@ -77,6 +78,230 @@ describe("grupos de presupuesto", () => {
     expect((await as(token).del(`/api/budgets/groups/${used.id}`)).status).toBe(400);
     expect((await as(token).del(`/api/budgets/groups/${empty.id}`)).status).toBe(204);
   });
+
+  it("un grupo puede tener un limite opcional, que se puede cambiar y quitar", async () => {
+    const { token } = await authedUser();
+
+    const created = await as(token).post("/api/budgets/groups", { name: "Gastos fijos", limit: 600 });
+    const withoutLimit = await as(token).post("/api/budgets/groups", { name: "Deseos" });
+    const changed = await as(token).patch(`/api/budgets/groups/${created.body.group.id}`, { limit: 750.5 });
+    const removed = await as(token).patch(`/api/budgets/groups/${created.body.group.id}`, { limit: null });
+
+    expect(Number(created.body.group.limit)).toBe(600);
+    expect(withoutLimit.body.group.limit).toBeNull();
+    expect(Number(changed.body.group.limit)).toBe(750.5);
+    expect(removed.body.group.limit).toBeNull();
+  });
+
+  it("un grupo puede marcarse como el que recibe lo que sobra, y desmarcarse", async () => {
+    const { token } = await authedUser();
+
+    const created = await as(token).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+    const normal = await as(token).post("/api/budgets/groups", { name: "Hogar" });
+    const unmarked = await as(token).patch(`/api/budgets/groups/${created.body.group.id}`, { isRemainder: false });
+
+    expect(created.status).toBe(201);
+    expect(created.body.group.isRemainder).toBe(true);
+    expect(normal.body.group.isRemainder).toBe(false);
+    expect(unmarked.body.group.isRemainder).toBe(false);
+  });
+
+  it("solo puede haber un grupo que reciba lo que sobra por usuario", async () => {
+    const { token } = await authedUser();
+    const first = await as(token).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+    const second = await as(token).post("/api/budgets/groups", { name: "Imprevistos" });
+
+    const duplicate = await as(token).post("/api/budgets/groups", { name: "Otro", isRemainder: true });
+    const moved = await as(token).patch(`/api/budgets/groups/${second.body.group.id}`, { isRemainder: true });
+    const again = await as(token).patch(`/api/budgets/groups/${first.body.group.id}`, { isRemainder: true });
+
+    expect(duplicate.status).toBe(400);
+    expect(moved.status).toBe(400);
+    expect(again.status).toBe(200);
+  });
+
+  it("otro usuario puede tener su propio grupo del sobrante", async () => {
+    const { token: tokenA } = await authedUser();
+    const { token: tokenB } = await authedUser();
+    await as(tokenA).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+
+    const res = await as(tokenB).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("el grupo del sobrante no admite limite, y al marcarlo se quita el que tuviera", async () => {
+    const { token } = await authedUser();
+    const withLimit = await as(token).post("/api/budgets/groups", { name: "Hogar", limit: 600 });
+    const remainder = await as(token).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+
+    const createWithLimit = await as(token).post("/api/budgets/groups", { name: "X", isRemainder: true, limit: 50 });
+    const setLimit = await as(token).patch(`/api/budgets/groups/${remainder.body.group.id}`, { limit: 100 });
+    const markRemainder = await as(token).patch(`/api/budgets/groups/${withLimit.body.group.id}`, {
+      isRemainder: true,
+    });
+    await as(token).patch(`/api/budgets/groups/${remainder.body.group.id}`, { isRemainder: false });
+    const retry = await as(token).patch(`/api/budgets/groups/${withLimit.body.group.id}`, { isRemainder: true });
+
+    expect(createWithLimit.status).toBe(400);
+    expect(setLimit.status).toBe(400);
+    expect(markRemainder.status).toBe(400);
+    expect(retry.status).toBe(200);
+    expect(retry.body.group.limit).toBeNull();
+  });
+
+  it("devuelve la marca del sobrante junto a cada grupo del mes", async () => {
+    const { token } = await authedUser();
+    await as(token).post("/api/budgets/groups", { name: "Caprichos", isRemainder: true });
+    await createGroup(token, "Hogar");
+
+    const res = await as(token).get("/api/budgets/months/2026/9");
+
+    expect(res.body.groups.map((g: { isRemainder: boolean }) => g.isRemainder)).toEqual([true, false]);
+  });
+
+  it("editar otros campos del grupo no toca su limite", async () => {
+    const { token } = await authedUser();
+    const group = await as(token).post("/api/budgets/groups", { name: "Gastos fijos", limit: 600 });
+
+    const res = await as(token).patch(`/api/budgets/groups/${group.body.group.id}`, { name: "Fijos" });
+
+    expect(Number(res.body.group.limit)).toBe(600);
+  });
+
+  it("rechaza un limite de 0, negativo o desorbitado", async () => {
+    const { token } = await authedUser();
+    const post = (limit: number) => as(token).post("/api/budgets/groups", { name: `G${limit}`, limit });
+
+    expect((await post(0)).status).toBe(400);
+    expect((await post(-10)).status).toBe(400);
+    expect((await post(2_000_000)).status).toBe(400);
+  });
+});
+
+describe("orden de los grupos", () => {
+  it("guarda el nuevo orden de los grupos", async () => {
+    const { token } = await authedUser();
+    const a = await createGroup(token, "A");
+    const b = await createGroup(token, "B");
+    const c = await createGroup(token, "C");
+
+    const res = await as(token).put("/api/budgets/groups/order", { ids: [c.id, a.id, b.id] });
+    const list = await as(token).get("/api/budgets/groups");
+    const month = await as(token).get("/api/budgets/months/2026/9");
+
+    expect(res.status).toBe(204);
+    expect(list.body.groups.map((g: { name: string }) => g.name)).toEqual(["C", "A", "B"]);
+    expect(month.body.groups.map((g: { name: string }) => g.name)).toEqual(["C", "A", "B"]);
+  });
+
+  it("rechaza un orden incompleto, con repetidos o con grupos ajenos", async () => {
+    const { token: tokenA } = await authedUser();
+    const { token: tokenB } = await authedUser();
+    const a = await createGroup(tokenA, "A");
+    const b = await createGroup(tokenA, "B");
+    const foreign = await createGroup(tokenB, "X");
+
+    expect((await as(tokenA).put("/api/budgets/groups/order", { ids: [a.id] })).status).toBe(400);
+    expect((await as(tokenA).put("/api/budgets/groups/order", { ids: [a.id, a.id] })).status).toBe(400);
+    expect((await as(tokenA).put("/api/budgets/groups/order", { ids: [a.id, foreign.id] })).status).toBe(400);
+    expect((await as(tokenA).put("/api/budgets/groups/order", { ids: [] })).status).toBe(400);
+    expect((await as(tokenA).get("/api/budgets/groups")).body.groups.map((g: { id: string }) => g.id)).toEqual([
+      a.id,
+      b.id,
+    ]);
+  });
+});
+
+describe("orden de las lineas", () => {
+  const monthOrder = async (token: string, month = 9) => {
+    const res = await as(token).get(`/api/budgets/months/2026/${month}`);
+    return res.body.groups[0].entries.map((e: { name: string }) => e.name);
+  };
+
+  it("guarda el orden de las lineas de un grupo en ese mes", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token);
+    await createItem(token, group.id, { name: "Netflix" });
+    await createItem(token, group.id, { name: "Spotify" });
+    await createItem(token, group.id, { name: "Gimnasio" });
+    const month = await as(token).get("/api/budgets/months/2026/9");
+    const [netflix, spotify, gym] = month.body.groups[0].entries.map((e: { id: string }) => e.id);
+
+    const res = await as(token).put(`/api/budgets/months/2026/9/groups/${group.id}/entries/order`, {
+      ids: [gym, netflix, spotify],
+    });
+
+    expect(res.status).toBe(204);
+    expect(await monthOrder(token)).toEqual(["Gimnasio", "Netflix", "Spotify"]);
+  });
+
+  it("los meses que se generen despues heredan el orden y los anteriores no cambian", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token);
+    await createItem(token, group.id, { name: "Netflix" });
+    await createItem(token, group.id, { name: "Spotify" });
+    const september = await as(token).get("/api/budgets/months/2026/9");
+    const [netflix, spotify] = september.body.groups[0].entries.map((e: { id: string }) => e.id);
+    await as(token).get("/api/budgets/months/2026/10");
+
+    await as(token).put(`/api/budgets/months/2026/9/groups/${group.id}/entries/order`, { ids: [spotify, netflix] });
+
+    expect(await monthOrder(token, 10)).toEqual(["Netflix", "Spotify"]);
+    expect(await monthOrder(token, 11)).toEqual(["Spotify", "Netflix"]);
+  });
+
+  it("una linea puntual se reordena solo en su mes", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token);
+    await createItem(token, group.id, { name: "Netflix" });
+    const september = await as(token).get("/api/budgets/months/2026/9");
+    const netflix = september.body.groups[0].entries[0].id;
+    const gift = await as(token).post("/api/budgets/months/2026/9/entries", {
+      groupId: group.id,
+      name: "Regalo",
+      amount: 10,
+    });
+
+    await as(token).put(`/api/budgets/months/2026/9/groups/${group.id}/entries/order`, {
+      ids: [gift.body.entry.id, netflix],
+    });
+
+    expect(await monthOrder(token)).toEqual(["Regalo", "Netflix"]);
+    expect(await monthOrder(token, 10)).toEqual(["Netflix"]);
+  });
+
+  it("rechaza un orden incompleto o con lineas de otro grupo", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token, "A");
+    const other = await createGroup(token, "B");
+    await createItem(token, group.id, { name: "Netflix" });
+    await createItem(token, group.id, { name: "Spotify" });
+    await createItem(token, other.id, { name: "Luz" });
+    const month = await as(token).get("/api/budgets/months/2026/9");
+    const [netflix, spotify] = month.body.groups[0].entries.map((e: { id: string }) => e.id);
+    const luz = month.body.groups[1].entries[0].id;
+    const url = `/api/budgets/months/2026/9/groups/${group.id}/entries/order`;
+
+    expect((await as(token).put(url, { ids: [netflix] })).status).toBe(400);
+    expect((await as(token).put(url, { ids: [netflix, luz] })).status).toBe(400);
+    expect((await as(token).put(url, { ids: [netflix, spotify, spotify] })).status).toBe(400);
+    expect(await monthOrder(token)).toEqual(["Netflix", "Spotify"]);
+  });
+
+  it("no deja reordenar el grupo de otro usuario", async () => {
+    const { token: tokenA } = await authedUser();
+    const { token: tokenB } = await authedUser();
+    const group = await createGroup(tokenA);
+    await createItem(tokenA, group.id);
+    const month = await as(tokenA).get("/api/budgets/months/2026/9");
+
+    const res = await as(tokenB).put(`/api/budgets/months/2026/9/groups/${group.id}/entries/order`, {
+      ids: [month.body.groups[0].entries[0].id],
+    });
+
+    expect(res.status).toBe(404);
+  });
 });
 
 describe("plantilla recurrente (items)", () => {
@@ -87,54 +312,26 @@ describe("plantilla recurrente (items)", () => {
     const res = await as(token).post("/api/budgets/items", { groupId: group.id, name: "Luz Ivan", amount: -50 });
 
     expect(res.status).toBe(201);
-    expect(res.body.item.kind).toBe("FIXED");
     expect(Number(res.body.item.amount)).toBe(-50);
   });
 
-  it("rechaza importe 0, limite sin categoria y limite negativo", async () => {
+  it("rechaza un importe 0", async () => {
     const { token } = await authedUser();
     const group = await createGroup(token);
-    const category = await firstExpenseCategory(token);
-    const post = (body: object) => as(token).post("/api/budgets/items", { groupId: group.id, name: "X", ...body });
 
-    expect((await post({ amount: 0 })).status).toBe(400);
-    expect((await post({ amount: 100, kind: "CATEGORY_LIMIT" })).status).toBe(400);
-    expect((await post({ amount: -100, kind: "CATEGORY_LIMIT", categoryId: category.id })).status).toBe(400);
+    const res = await as(token).post("/api/budgets/items", { groupId: group.id, name: "X", amount: 0 });
+
+    expect(res.status).toBe(400);
   });
 
-  it("no acepta un grupo ni una categoria de otro usuario", async () => {
+  it("no acepta un grupo de otro usuario", async () => {
     const { token: tokenA } = await authedUser();
     const { token: tokenB } = await authedUser();
     const groupA = await createGroup(tokenA);
-    const groupB = await createGroup(tokenB);
-    const categoryA = await firstExpenseCategory(tokenA);
 
-    const foreignGroup = await as(tokenB).post("/api/budgets/items", { groupId: groupA.id, name: "X", amount: 5 });
-    const foreignCategory = await as(tokenB).post("/api/budgets/items", {
-      groupId: groupB.id,
-      name: "X",
-      amount: 5,
-      kind: "CATEGORY_LIMIT",
-      categoryId: categoryA.id,
-    });
+    const res = await as(tokenB).post("/api/budgets/items", { groupId: groupA.id, name: "X", amount: 5 });
 
-    expect(foreignGroup.status).toBe(404);
-    expect(foreignCategory.status).toBe(404);
-  });
-
-  it("una linea fija ignora la categoria que se le pase", async () => {
-    const { token } = await authedUser();
-    const group = await createGroup(token);
-    const category = await firstExpenseCategory(token);
-
-    const res = await as(token).post("/api/budgets/items", {
-      groupId: group.id,
-      name: "Netflix",
-      amount: 10,
-      categoryId: category.id,
-    });
-
-    expect(res.body.item.categoryId).toBeNull();
+    expect(res.status).toBe(404);
   });
 
   it("edita el importe de una linea", async () => {
@@ -232,37 +429,17 @@ describe("presupuesto de un mes", () => {
     expect((await as(token).get("/api/budgets/months/abc/1")).status).toBe(400);
   });
 
-  it("calcula lo gastado en una linea con limite desde los movimientos de ese mes y categoria", async () => {
+  it("devuelve el limite de cada grupo junto a sus lineas", async () => {
     const { token } = await authedUser();
-    const group = await createGroup(token, "Comida casa");
-    const category = await firstExpenseCategory(token);
-    const otherCategory = (await as(token).get("/api/categories")).body.categories.filter(
-      (c: { type: string }) => c.type === "EXPENSE",
-    )[1] as { id: string };
-    await createItem(token, group.id, { name: "Comida", amount: 180, kind: "CATEGORY_LIMIT", categoryId: category.id });
-
-    const spend = (categoryId: string, amount: number, occurredAt: string) =>
-      as(token).post("/api/transactions", { categoryId, type: "EXPENSE", amount, occurredAt });
-    await spend(category.id, 40, "2026-09-05T10:00:00.000Z");
-    await spend(category.id, 12.5, "2026-09-20T10:00:00.000Z");
-    await spend(category.id, 99, "2026-10-02T10:00:00.000Z");
-    await spend(otherCategory.id, 70, "2026-09-10T10:00:00.000Z");
-
-    const res = await as(token).get("/api/budgets/months/2026/9");
-    const entry = res.body.groups[0].entries[0];
-
-    expect(entry.spent).toBe(52.5);
-    expect(Number(entry.amount)).toBe(180);
-  });
-
-  it("las lineas fijas no llevan 'spent'", async () => {
-    const { token } = await authedUser();
-    const group = await createGroup(token);
-    await createItem(token, group.id);
+    const limited = await createGroup(token, "Gastos fijos");
+    await createGroup(token, "Deseos");
+    await as(token).patch(`/api/budgets/groups/${limited.id}`, { limit: 600 });
+    await createItem(token, limited.id);
 
     const res = await as(token).get("/api/budgets/months/2026/9");
 
-    expect(res.body.groups[0].entries[0].spent).toBeNull();
+    expect(Number(res.body.groups[0].limit)).toBe(600);
+    expect(res.body.groups[1].limit).toBeNull();
   });
 
   it("otro usuario no ve nada del presupuesto de este", async () => {
@@ -354,14 +531,14 @@ describe("lineas del mes (entries)", () => {
     expect((await as(tokenB).del(`/api/budgets/entries/${entryId}`)).status).toBe(404);
   });
 
-  it("no permite borrar una categoria usada en el presupuesto", async () => {
+  it("el presupuesto no depende de las categorias: se pueden borrar sin tocarlo", async () => {
     const { token } = await authedUser();
     const group = await createGroup(token);
+    await createItem(token, group.id);
     const category = await firstExpenseCategory(token);
-    await createItem(token, group.id, { kind: "CATEGORY_LIMIT", amount: 180, categoryId: category.id });
 
     const res = await as(token).del(`/api/categories/${category.id}`);
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(204);
   });
 });

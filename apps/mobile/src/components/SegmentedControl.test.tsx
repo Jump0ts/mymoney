@@ -36,6 +36,12 @@ describe('SegmentedControl', () => {
     expect(inactive.props.accessibilityState).toMatchObject({ selected: false });
   });
 
+  it('nombra el grupo de opciones cuando se le da una etiqueta', () => {
+    render(<SegmentedControl options={options} value="A" onChange={jest.fn()} accessibilityLabel="Tipo" />);
+
+    expect(screen.getByLabelText('Tipo').props.accessibilityRole).toBe('radiogroup');
+  });
+
   it('no revienta al medir el layout de cada segmento y reposicionar la pastilla', () => {
     render(<SegmentedControl options={options} value="A" onChange={jest.fn()} />);
 

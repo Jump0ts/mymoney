@@ -68,13 +68,6 @@ categoriesRouter.delete(
       throw badRequest("No se puede borrar una categoría con movimientos asociados");
     }
 
-    const budgetUsage =
-      (await prisma.budgetItem.count({ where: { categoryId: category.id } })) +
-      (await prisma.budgetEntry.count({ where: { categoryId: category.id } }));
-    if (budgetUsage > 0) {
-      throw badRequest("No se puede borrar una categoría usada en el presupuesto");
-    }
-
     await prisma.category.delete({ where: { id: category.id } });
     res.status(204).send();
   }),

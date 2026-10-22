@@ -2,8 +2,6 @@ import { z } from "zod";
 
 const colorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Color debe ser un hex tipo #RRGGBB");
 
-export const budgetLineKindSchema = z.enum(["FIXED", "CATEGORY_LIMIT"]);
-
 // Negativo permitido: reembolsos de otras personas dentro de un grupo (p. ej. "Luz Ivan").
 const amountSchema = z
   .number()
@@ -16,29 +14,41 @@ export const monthParamsSchema = z.object({
   month: z.coerce.number().int().min(1).max(12),
 });
 
+// Tope opcional de la suma de lo previsto en las lineas del grupo; null lo quita.
+const groupLimitSchema = z.number().positive("El límite debe ser mayor que 0").max(1_000_000).nullable();
+
 export const createGroupSchema = z.object({
   name: z.string().trim().min(1).max(40),
   color: colorSchema.default("#6C5CE7"),
+  limit: groupLimitSchema.optional(),
+  isRemainder: z.boolean().optional(),
 });
 
 export const updateGroupSchema = createGroupSchema.partial().extend({
   position: z.number().int().min(0).optional(),
 });
 
+// Orden completo de una lista (grupos o lineas de un grupo): ids sin repetir, de primero a ultimo.
+export const reorderSchema = z.object({
+  ids: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(500)
+    .refine((ids) => new Set(ids).size === ids.length, "No puede haber ids repetidos"),
+});
+
+export const entriesOrderParamsSchema = monthParamsSchema.extend({ groupId: z.string().min(1) });
+
 export const createItemSchema = z.object({
   groupId: z.string().min(1),
   name: z.string().trim().min(1).max(60),
   amount: amountSchema,
-  kind: budgetLineKindSchema.default("FIXED"),
-  categoryId: z.string().min(1).nullish(),
 });
 
-// El tipo de linea no se cambia despues de crearla: se borra y se crea otra.
 export const updateItemSchema = z.object({
   groupId: z.string().min(1).optional(),
   name: z.string().trim().min(1).max(60).optional(),
   amount: amountSchema.optional(),
-  categoryId: z.string().min(1).nullish(),
   position: z.number().int().min(0).optional(),
 });
 
@@ -52,7 +62,6 @@ export const updateEntrySchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   amount: amountSchema.optional(),
   paid: z.boolean().optional(),
-  categoryId: z.string().min(1).nullish(),
   position: z.number().int().min(0).optional(),
 });
 

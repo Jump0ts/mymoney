@@ -8,13 +8,15 @@ import {
   createEntrySchema,
   createGroupSchema,
   createItemSchema,
+  entriesOrderParamsSchema,
   monthParamsSchema,
+  reorderSchema,
   updateEntrySchema,
   updateGroupSchema,
   updateItemSchema,
   updateMonthSchema,
 } from "./budgets.schema.js";
-import { compareYearMonth, getMonthBoundsUtc, normalizeLine } from "./budgets.utils.js";
+import { compareYearMonth } from "./budgets.utils.js";
 import type { YearMonth } from "./budgets.types.js";
 
 export const budgetsRouter = Router();
@@ -26,13 +28,9 @@ const findOwnedGroup = async (userId: string, groupId: string) => {
   return group;
 };
 
-const assertOwnedCategory = async (userId: string, categoryId: string | null) => {
-  if (!categoryId) return;
-  const category = await prisma.category.findFirst({ where: { id: categoryId, userId } });
-  if (!category) throw notFound("Categoría no encontrada");
-};
+const sameIds = (a: string[], b: string[]) => a.length === b.length && new Set([...a, ...b]).size === a.length;
 
-const nextItemPosition = async (userId: string, groupId: string) => {
+const nextItemPosition =async (userId: string, groupId: string) => {
   const max = await prisma.budgetItem.aggregate({ where: { userId, groupId }, _max: { position: true } });
   return (max._max.position ?? -1) + 1;
 };
@@ -43,6 +41,27 @@ const nextEntryPosition = async (userId: string, target: YearMonth, groupId: str
     _max: { position: true },
   });
   return (max._max.position ?? -1) + 1;
+};
+
+// El grupo que recibe lo que sobra no tiene limite propio (su disponible se calcula) y
+// solo puede haber uno por usuario. Devuelve los datos a guardar, con el limite quitado
+// si el grupo pasa a ser el del sobrante.
+const checkRemainder = async <T extends { limit?: number | null; isRemainder?: boolean }>(
+  userId: string,
+  body: T,
+  current?: { id: string; isRemainder: boolean },
+): Promise<T> => {
+  const willBeRemainder = body.isRemainder ?? current?.isRemainder ?? false;
+  if (!willBeRemainder) return body;
+
+  if (body.limit != null) throw badRequest("El grupo que recibe lo que sobra no puede tener límite");
+  if (body.isRemainder) {
+    const other = await prisma.budgetGroup.findFirst({
+      where: { userId, isRemainder: true, ...(current && { id: { not: current.id } }) },
+    });
+    if (other) throw badRequest(`Ya existe un grupo que recibe lo que sobra: ${other.name}`);
+  }
+  return { ...body, limit: null };
 };
 
 // Abre el presupuesto de un mes: la primera vez lo genera copiando la plantilla
@@ -84,8 +103,6 @@ const openMonth = async (userId: string, target: YearMonth): Promise<boolean> =>
           itemId: item.id,
           name: item.name,
           amount: item.amount,
-          kind: item.kind,
-          categoryId: item.categoryId,
           position: item.position,
         })),
         skipDuplicates: true,
@@ -110,30 +127,11 @@ const buildMonthResponse = async (userId: string, target: YearMonth) => {
     }),
   ]);
 
-  // Lo gastado en cada categoria con limite se calcula desde Movimientos, no se guarda.
-  const limitCategoryIds = [
-    ...new Set(entries.filter((e) => e.kind === "CATEGORY_LIMIT" && e.categoryId).map((e) => e.categoryId!)),
-  ];
-  const bounds = getMonthBoundsUtc(target);
-  const spentRows = limitCategoryIds.length
-    ? await prisma.transaction.groupBy({
-        by: ["categoryId"],
-        where: { userId, categoryId: { in: limitCategoryIds }, occurredAt: { gte: bounds.from, lte: bounds.to } },
-        _sum: { amount: true },
-      })
-    : [];
-  const spentByCategory = new Map(spentRows.map((row) => [row.categoryId, Number(row._sum.amount ?? 0)]));
-
   return {
     month: month ? { ...target, income: month.income } : null,
     groups: groups.map((group) => ({
       ...group,
-      entries: entries
-        .filter((entry) => entry.groupId === group.id)
-        .map((entry) => ({
-          ...entry,
-          spent: entry.kind === "CATEGORY_LIMIT" ? (spentByCategory.get(entry.categoryId!) ?? 0) : null,
-        })),
+      entries: entries.filter((entry) => entry.groupId === group.id),
     })),
   };
 };
@@ -160,11 +158,31 @@ budgetsRouter.post(
     const duplicate = await prisma.budgetGroup.findUnique({ where: { userId_name: { userId, name: body.name } } });
     if (duplicate) throw badRequest("Ya existe un grupo con ese nombre");
 
+    const data = await checkRemainder(userId, body);
     const max = await prisma.budgetGroup.aggregate({ where: { userId }, _max: { position: true } });
     const group = await prisma.budgetGroup.create({
-      data: { ...body, userId, position: (max._max.position ?? -1) + 1 },
+      data: { ...data, userId, position: (max._max.position ?? -1) + 1 },
     });
     res.status(201).json({ group });
+  }),
+);
+
+// Guarda el orden de todos los grupos. Hay que mandarlos todos: asi nunca quedan posiciones repetidas.
+budgetsRouter.put(
+  "/groups/order",
+  asyncHandler(async (req, res) => {
+    const { ids } = reorderSchema.parse(req.body);
+    const userId = req.auth!.userId;
+
+    const groups = await prisma.budgetGroup.findMany({ where: { userId }, select: { id: true } });
+    if (!sameIds(ids, groups.map((group) => group.id))) {
+      throw badRequest("El orden debe incluir exactamente todos tus grupos");
+    }
+
+    await prisma.$transaction(
+      ids.map((id, position) => prisma.budgetGroup.update({ where: { id }, data: { position } })),
+    );
+    res.status(204).send();
   }),
 );
 
@@ -180,7 +198,8 @@ budgetsRouter.patch(
       if (duplicate) throw badRequest("Ya existe un grupo con ese nombre");
     }
 
-    const updated = await prisma.budgetGroup.update({ where: { id: group.id }, data: body });
+    const data = await checkRemainder(userId, body, group);
+    const updated = await prisma.budgetGroup.update({ where: { id: group.id }, data });
     res.json({ group: updated });
   }),
 );
@@ -222,8 +241,6 @@ budgetsRouter.post(
     const body = createItemSchema.parse(req.body);
     const userId = req.auth!.userId;
     await findOwnedGroup(userId, body.groupId);
-    const { categoryId } = normalizeLine(body);
-    await assertOwnedCategory(userId, categoryId);
 
     const item = await prisma.budgetItem.create({
       data: {
@@ -231,8 +248,6 @@ budgetsRouter.post(
         groupId: body.groupId,
         name: body.name,
         amount: body.amount,
-        kind: body.kind,
-        categoryId,
         position: await nextItemPosition(userId, body.groupId),
       },
     });
@@ -249,17 +264,8 @@ budgetsRouter.patch(
     if (!item) throw notFound("Línea no encontrada");
 
     if (body.groupId) await findOwnedGroup(userId, body.groupId);
-    const { categoryId } = normalizeLine({
-      kind: item.kind,
-      amount: body.amount ?? Number(item.amount),
-      categoryId: body.categoryId === undefined ? item.categoryId : body.categoryId,
-    });
-    await assertOwnedCategory(userId, categoryId);
 
-    const updated = await prisma.budgetItem.update({
-      where: { id: item.id },
-      data: { ...body, categoryId },
-    });
+    const updated = await prisma.budgetItem.update({ where: { id: item.id }, data: body });
     res.json({ item: updated });
   }),
 );
@@ -314,8 +320,6 @@ budgetsRouter.post(
     const body = createEntrySchema.parse(req.body);
     const userId = req.auth!.userId;
     await findOwnedGroup(userId, body.groupId);
-    const { categoryId } = normalizeLine(body);
-    await assertOwnedCategory(userId, categoryId);
 
     // Si el mes es anterior al primer presupuesto no se genera con la plantilla,
     // pero editarlo a mano si lo deja existir (solo con sus propias lineas).
@@ -331,8 +335,6 @@ budgetsRouter.post(
               groupId: body.groupId,
               name: body.name,
               amount: body.amount,
-              kind: body.kind,
-              categoryId,
               position: await nextItemPosition(userId, body.groupId),
             },
           })
@@ -347,12 +349,37 @@ budgetsRouter.post(
         itemId,
         name: body.name,
         amount: body.amount,
-        kind: body.kind,
-        categoryId,
         position: await nextEntryPosition(userId, target, body.groupId),
       },
     });
     res.status(201).json({ entry });
+  }),
+);
+
+// Guarda el orden de las lineas de un grupo en un mes. Las que vienen de la plantilla tambien
+// reordenan su item, para que los meses que se generen despues salgan en el mismo orden.
+budgetsRouter.put(
+  "/months/:year/:month/groups/:groupId/entries/order",
+  asyncHandler(async (req, res) => {
+    const { groupId, ...target } = entriesOrderParamsSchema.parse(req.params);
+    const { ids } = reorderSchema.parse(req.body);
+    const userId = req.auth!.userId;
+    await findOwnedGroup(userId, groupId);
+
+    const entries = await prisma.budgetEntry.findMany({ where: { userId, ...target, groupId } });
+    if (!sameIds(ids, entries.map((entry) => entry.id))) {
+      throw badRequest("El orden debe incluir exactamente las líneas del grupo en este mes");
+    }
+
+    const itemIdOf = new Map(entries.map((entry) => [entry.id, entry.itemId]));
+    await prisma.$transaction([
+      ...ids.map((id, position) => prisma.budgetEntry.update({ where: { id }, data: { position } })),
+      ...ids.flatMap((id, position) => {
+        const itemId = itemIdOf.get(id);
+        return itemId ? [prisma.budgetItem.update({ where: { id: itemId }, data: { position } })] : [];
+      }),
+    ]);
+    res.status(204).send();
   }),
 );
 
@@ -365,17 +392,8 @@ budgetsRouter.patch(
     if (!entry) throw notFound("Línea no encontrada");
 
     if (body.groupId) await findOwnedGroup(userId, body.groupId);
-    const { categoryId } = normalizeLine({
-      kind: entry.kind,
-      amount: body.amount ?? Number(entry.amount),
-      categoryId: body.categoryId === undefined ? entry.categoryId : body.categoryId,
-    });
-    await assertOwnedCategory(userId, categoryId);
 
-    const updated = await prisma.budgetEntry.update({
-      where: { id: entry.id },
-      data: { ...body, categoryId },
-    });
+    const updated = await prisma.budgetEntry.update({ where: { id: entry.id }, data: body });
     res.json({ entry: updated });
   }),
 );
