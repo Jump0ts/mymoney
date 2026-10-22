@@ -4,24 +4,17 @@ name: Deploy API
 # Seguridad (ver deploy/vps/README.md):
 #  - Las acciones de terceros van fijadas por commit SHA, no por etiqueta.
 #  - Se despliega por digest y solo si la procedencia (attestation) de la imagen se verifica.
-#  - El job de despliegue usa el entorno `production`: configura ahi "Required reviewers" para que cada
-#    despliegue exija tu aprobacion manual.
+#  - El despliegue es SOLO MANUAL (workflow_dispatch, lo lanza el propietario del repo) y SOLO desde master:
+#    lanzarlo es la aprobacion. El plan de GitHub no ofrece "Required reviewers" en repos privados; si algun
+#    dia lo tiene, anadelos al entorno `production` como segunda llave. Ademas el entorno solo admite master.
 #  - La clave SSH de este flujo solo puede ejecutar `deploy <digest> <usuario>` en el servidor.
 #  - Los secretos solo pasan por variables de entorno (nunca interpolados en los scripts) y no se imprimen.
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - "backend/**"
-      - "deploy/vps/**"
-      - "deploy/backup/**"
-      - "package-lock.json"
-      - ".github/workflows/deploy-api.yml"
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Etiqueta a desplegar (sha-1a2b3c4), p. ej. para volver a una version anterior. Vacio = construir y desplegar este commit."
+        description: "Etiqueta a desplegar (sha-1a2b3c4), p. ej. para volver a una version anterior. Vacio = construir y desplegar este commit de master."
         required: false
         default: ""
 
@@ -39,7 +32,7 @@ jobs:
   build:
     name: Construir y publicar la imagen
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || inputs.image_tag == ''
+    if: github.ref == 'refs/heads/master' && inputs.image_tag == ''
     permissions:
       contents: read
       packages: write
@@ -89,8 +82,8 @@ jobs:
     needs: build
     if: >-
       always() &&
-      (needs.build.result == 'success' ||
-      (github.event_name == 'workflow_dispatch' && inputs.image_tag != ''))
+      github.ref == 'refs/heads/master' &&
+      (needs.build.result == 'success' || inputs.image_tag != '')
     runs-on: ubuntu-latest
     environment:
       name: production

@@ -32,7 +32,7 @@ de la sección 3 marcados con 🔴 cambian infraestructura real y se hacen junto
 | Contenedores | API sin root, sistema de ficheros de solo lectura, sin capabilities, `no-new-privileges`, 200 MB. Imagen construida desde el `package-lock.json`. |
 | Cadena de suministro | Acciones de GitHub fijadas por commit SHA; imagen por **digest** con *attestation* verificada antes de desplegar; GHCR privado. |
 | Clave SSH de CI | Clave propia, con `restrict` y un **comando forzado**: solo puede pedir `deploy <digest> <usuario>` (el token de GHCR viaja por stdin y se cierra la sesión del registro nada más descargar). No da shell, túneles ni scp. El repositorio de imágenes está fijado en el servidor. |
-| Aprobación | El job de despliegue usa el entorno `production`: con *Required reviewers* nada se despliega sin tu aprobación. |
+| Aprobación | El despliegue es **solo manual** (`workflow_dispatch`) y **solo desde `master`**: lanzarlo es tu aprobación, nunca se despliega solo al hacer push. El entorno `production` además solo admite la rama `master`. (El plan de GitHub no ofrece *Required reviewers* en repos privados; si lo tuviera, añádelos como segunda llave.) |
 | Web | Cabeceras de Cloudflare Pages generadas en el build: CSP sin `unsafe-inline`/`unsafe-eval` en scripts (hash por script), solo puede conectar con la API, HSTS, sin iframes, sin referrer. |
 | Datos | Backups con permisos 600/700, hechos antes de cada migración, descargados a tu PC con verificación SHA-256. |
 
@@ -96,7 +96,7 @@ echo 'restrict,command="/home/deploy/mymoney/bin/ssh-entry.sh" <contenido de mym
 ```
 Comprueba que la clave **no** da shell: `ssh -i ~/.ssh/mymoney_deploy_ci deploy@139.59.143.82 id` debe responder `ssh-entry: orden no permitida`.
 
-**3.5 GitHub.** *Settings → Environments → New → `production`*: activa **Required reviewers** (tú) y limita las ramas a `master`.
+**3.5 GitHub.** *Settings → Environments → New → `production`*, con *Deployment branches* limitado a `master`.
 En ese entorno:
 
 | Tipo | Nombre | Valor |
@@ -107,8 +107,8 @@ En ese entorno:
 | Variable | `DEPLOY_KNOWN_HOSTS` | salida de `ssh-keyscan -t ed25519 139.59.143.82`, **tras comprobar la huella** `SHA256:Comn+KcaSl0+Rby9Kl1xqAVR4fB8DaBamWeXPaTjbFE` (en el servidor: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`) |
 | Variable | `API_DOMAIN` | `mymoney-api.josanfersal.dev` |
 
-**3.6 🔴 Primer despliegue y certificado.** Ejecuta *Actions → Deploy API → Run workflow* (o mergea a `master`) y aprueba el
-despliegue. La primera vez termina en rojo en la comprobación final (aún no hay HTTPS): es lo esperado. Entonces:
+**3.6 🔴 Primer despliegue y certificado.** El workflow solo existe para GitHub cuando está en `master`, así que antes hay que llevar
+estos cambios a `master` (PR de release). Entonces ejecuta *Actions → Deploy API → Run workflow* sobre `master`. La primera vez termina en rojo en la comprobación final (aún no hay HTTPS): es lo esperado. Entonces:
 
 ```bash
 cd ~/mymoney/release && DOMAIN=mymoney-api.josanfersal.dev ./bootstrap-cert.sh
@@ -173,7 +173,7 @@ ya cubre el droplet: si salta de forma repetida, sube a 2 GB.
 docker ps --filter name=mymoney-prod --format 'table {{.Names}}\t{{.Status}}'
 docker logs --tail 50 mymoney-prod-api-1
 
-# Volver a la versión anterior: Actions → Deploy API → Run workflow → image_tag = sha-xxxxxxx (aprobación manual incluida)
+# Volver a la versión anterior: Actions → Deploy API → Run workflow → image_tag = sha-xxxxxxx (es manual por diseño)
 # Aplicar cambios del .env.production sin cambiar de imagen:
 cd ~/mymoney/release && ./deploy.sh "$(cat ../state/current)"
 # Rotar JWT_SECRET (cierra todas las sesiones): editar el fichero y repetir la línea anterior.
