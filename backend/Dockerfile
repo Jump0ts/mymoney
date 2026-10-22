@@ -5,7 +5,7 @@
 #   docker build -f backend/Dockerfile -t mymoney-api .
 
 # ---- build: dependencias completas, cliente de Prisma y TypeScript compilado ----
-FROM node:24-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 RUN apk add --no-cache openssl
 COPY package.json package-lock.json ./
@@ -18,7 +18,7 @@ WORKDIR /app/backend
 RUN npx prisma generate && npm run build
 
 # ---- runtime: solo dependencias de produccion (incluye la CLI de Prisma para migrate deploy) ----
-FROM node:24-alpine AS runtime
+FROM node:25-alpine AS runtime
 WORKDIR /app
 RUN apk add --no-cache openssl
 ENV NODE_ENV=production
