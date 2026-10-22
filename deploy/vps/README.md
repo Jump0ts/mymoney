@@ -32,7 +32,7 @@ time, each with explicit confirmation.
 | Containers | API runs as non-root with a read-only filesystem, no capabilities, `no-new-privileges` and a 200 MB limit. Image built from `package-lock.json`. |
 | Supply chain | GitHub Actions pinned by commit SHA; image deployed by **digest** with its *attestation* verified before deploying; private GHCR package. |
 | CI SSH key | A dedicated key with `restrict` and a **forced command**: it can only request `deploy <digest> <user>` (the GHCR token travels over stdin and the registry session is closed right after the pull). No shell, no tunnels, no scp. The image repository is pinned on the server. |
-| Approval | Deployment is **manual only** (`workflow_dispatch`) and **only from `master`**: launching it is the approval, nothing is deployed on push. The `production` environment also admits only the `master` branch. (GitHub's plan does not offer *Required reviewers* on private repositories; if it did, add them as a second key.) |
+| Approval | Deployment is **automatic but gated by a human**: every push to `master` that changes what is deployed builds the image, and the deploy job then **waits for approval** from the required reviewer of the protected `production` environment (administrators cannot bypass it). The environment admits only the `master` branch, and `master` itself only accepts pull requests with passing CI. A deployment can also be launched by hand (`workflow_dispatch`) to roll back. |
 | Web | Cloudflare Pages headers generated at build time: CSP without `unsafe-inline`/`unsafe-eval` for scripts (one hash per script), it can only connect to the API, HSTS, no framing, no referrer. |
 | Data | Backups with 600/700 permissions, taken before every migration, downloaded to your PC with SHA-256 verification. |
 
@@ -109,7 +109,7 @@ In that environment:
 | Variable | `API_DOMAIN` | `mymoney-api.josanfersal.dev` |
 
 **3.6 🔴 First deployment and certificate.** GitHub only knows the workflow once it is on `master`, so these changes must reach `master`
-first (release PR). Then run *Actions → Deploy API → Run workflow* on `master`. The first run ends red at the final check (there is no
+first (release PR). That merge triggers the first deployment: approve it in *Actions → Deploy API* when it asks for review. The first run ends red at the final check (there is no
 HTTPS yet): that is expected. Then:
 
 ```bash
@@ -175,7 +175,7 @@ already covers the droplet: if it fires repeatedly, upgrade to 2 GB.
 docker ps --filter name=mymoney-prod --format 'table {{.Names}}\t{{.Status}}'
 docker logs --tail 50 mymoney-prod-api-1
 
-# Roll back to the previous version: Actions → Deploy API → Run workflow → image_tag = sha-xxxxxxx (manual by design)
+# Roll back to the previous version: Actions → Deploy API → Run workflow → image_tag = sha-xxxxxxx (also needs the approval)
 # Apply .env.production changes without changing the image:
 cd ~/mymoney/release && ./deploy.sh "$(cat ../state/current)"
 # Rotate JWT_SECRET (signs everyone out): edit the file and repeat the line above.
