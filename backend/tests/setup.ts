@@ -1,5 +1,9 @@
 import { beforeEach, afterAll } from "vitest";
 import { prisma } from "../src/prisma.js";
+import { assertTestDatabase } from "./dbGuard.js";
+
+// Antes de borrar nada: solo se permite una base de datos de pruebas (ver tests/dbGuard.ts).
+assertTestDatabase(process.env.DATABASE_URL);
 
 beforeEach(async () => {
   await prisma.budgetEntry.deleteMany();
