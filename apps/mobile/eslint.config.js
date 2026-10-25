@@ -23,12 +23,12 @@ module.exports = [
     ignores: ['dist/*', '.expo/*'],
   },
   {
-    // Scripts de build (CommonJS que corre en Node, no en la app).
-    files: ['scripts/**/*.js'],
+    // Scripts de build y pruebas de ficheros estaticos (CommonJS que corre en Node, no en la app).
+    files: ['scripts/**/*.js', 'src/web/**/*.test.js'],
     languageOptions: { sourceType: 'commonjs', globals: nodeGlobals },
   },
   {
-    files: ['scripts/**/*.test.js'],
+    files: ['scripts/**/*.test.js', 'src/web/**/*.test.js'],
     languageOptions: { globals: { ...nodeGlobals, ...jestGlobals } },
   },
 ];
