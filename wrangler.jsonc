@@ -1,0 +1,16 @@
+{
+  // Static hosting of the web build on Cloudflare (Workers static assets).
+  // Build output comes from `npm run build:web --workspace=apps/mobile`,
+  // which also writes dist/_headers (CSP and other security headers).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mymoney",
+  "compatibility_date": "2026-10-23",
+  "assets": {
+    "directory": "./apps/mobile/dist",
+    // Unknown paths get index.html (Expo Router client-side routes).
+    "not_found_handling": "single-page-application"
+  },
+  // Only the custom domain serves the app: no workers.dev or per-version URLs.
+  "workers_dev": false,
+  "preview_urls": false
+}
