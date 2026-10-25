@@ -6,8 +6,8 @@ author as a personal tool, and interfaces and data models may still change.
 
 ## [0.1.0] — 2026-10-22 — Beta
 
-> **First public beta.** The core product is feature-complete and covered by automated tests; the production rollout (VPS deployment,
-> web hosting) is being finished alongside this release. It is a personal tool, so there is no support commitment.
+> **First public beta.** The core product is feature-complete and covered by automated tests. Production went live right after the
+> tag: the API on a VPS (2026-10-22) and the web app on Cloudflare (2026-10-23). It is a personal tool, so there is no support commitment.
 
 ### Added
 
@@ -37,7 +37,7 @@ author as a personal tool, and interfaces and data models may still change.
 - Deployment setup for a shared DigitalOcean VPS (rolled out with this release): non-root, read-only API container, database without published ports, nginx with rate limiting
   and strict routing, Let's Encrypt, and a forced-command SSH key for CI that can only request a deployment.
 - Deployment by image digest with the build's provenance attestation verified, gated by a human approval in a protected environment.
-- Strict Content Security Policy for the web build; backups taken before every migration, copied off the server with SHA-256 verification and restore-tested.
+- Strict Content Security Policy for the web build; backups taken before every migration, plus a script that pulls SHA-256-verified copies off the server (restore-tested).
 - Secrets never live in the repository (`.gitignore` hardening); secret scanning, push protection and Dependabot enabled; `master` protected.
 
 ### Quality and tooling

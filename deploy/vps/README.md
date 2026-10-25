@@ -1,11 +1,11 @@
 # MyMoney on the DigitalOcean VPS
 
-Production backend + database on the droplet that already hosts `travel_agency`; the web app on Cloudflare Pages.
+Production backend + database on the droplet that already hosts `travel_agency`; the web app on Cloudflare (Workers static assets).
 This folder contains everything needed to deploy. Steps marked 🔴 in section 3 change real infrastructure, so they are done one at a
 time, each with explicit confirmation.
 
 ```
- Mobile / Web (Cloudflare Pages)
+ Mobile / Web (Cloudflare)
         │ HTTPS
         ▼
  DNS (Cloudflare) ──► VPS 139.59.143.82 ── DO firewall: only 22, 80, 443
@@ -33,7 +33,7 @@ time, each with explicit confirmation.
 | Supply chain | GitHub Actions pinned by commit SHA; image deployed by **digest** with its *attestation* verified before deploying; private GHCR package. |
 | CI SSH key | A dedicated key with `restrict` and a **forced command**: it can only request `deploy <digest> <user>` (the GHCR token travels over stdin and the registry session is closed right after the pull). No shell, no tunnels, no scp. The image repository is pinned on the server. |
 | Approval | Deployment is **automatic but gated by a human**: every push to `master` that changes what is deployed builds the image, and the deploy job then **waits for approval** from the required reviewer of the protected `production` environment (administrators cannot bypass it). The environment admits only the `master` branch, and `master` itself only accepts pull requests with passing CI. A deployment can also be launched by hand (`workflow_dispatch`) to roll back. |
-| Web | Cloudflare Pages headers generated at build time: CSP without `unsafe-inline`/`unsafe-eval` for scripts (one hash per script), it can only connect to the API, HSTS, no framing, no referrer. |
+| Web | Cloudflare headers (`_headers`) generated at build time: CSP without `unsafe-inline`/`unsafe-eval` for scripts (one hash per script), it can only connect to the API, HSTS, no framing, no referrer. |
 | Data | Backups with 600/700 permissions, taken before every migration, downloaded to your PC with SHA-256 verification. |
 
 ## 2. What lives where (server, user `deploy`)
@@ -128,20 +128,30 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://mymoney-api.josanfersal
   -H 'Content-Type: application/json' -d '{}'     # 403
 ```
 
-**3.8 Web app on Cloudflare Pages** (no tokens in GitHub: it is connected from the Cloudflare dashboard).
-*Workers & Pages → Create → Pages → Connect to Git* → this repository:
+**3.8 Web app on Cloudflare** (Workers static assets; no tokens in GitHub: it is connected from the Cloudflare dashboard).
+*Workers & Pages → Create application → Import a repository* → this repository. What gets published is described in
+[`wrangler.jsonc`](../../wrangler.jsonc) (`apps/mobile/dist`, unknown paths answer `index.html` for Expo Router, and neither
+`workers.dev` nor per-version URLs are exposed). In the dashboard:
 
 | Setting | Value |
 |---|---|
-| Production branch | `master` |
+| Project name | `mymoney` (must match `name` in `wrangler.jsonc`) |
+| Production branch | `master` (the repository's default branch) |
 | Build command | `npm ci && npm run build:web --workspace=apps/mobile` |
-| Build output directory | `apps/mobile/dist` |
-| Variables (Production) | `NODE_VERSION=24`, `EXPO_PUBLIC_API_URL=https://mymoney-api.josanfersal.dev`, `EXPO_PUBLIC_APP_ENV=production` |
-| Preview deployments | **Disabled** (there is no API for them and they would expose unreviewed builds) |
-| Custom domain | `mymoney.josanfersal.dev` (must match `CORS_ORIGINS`) |
+| Deploy command | `npx wrangler deploy` (default) |
+| Build variables | `NODE_VERSION=24`, `EXPO_PUBLIC_API_URL=https://mymoney-api.josanfersal.dev`, `EXPO_PUBLIC_APP_ENV=production` |
+| Preview builds | **Disabled** (there is no API for them and they would expose unreviewed builds) |
+| Custom domain | `mymoney.josanfersal.dev` (must match `CORS_ORIGINS`), added under *Settings → Domains & Routes → Add → **Custom domain*** |
 
-The build writes `dist/_headers` with the computed CSP (`apps/mobile/scripts/web-headers.js`). If you change the API's domain,
-only `EXPO_PUBLIC_API_URL` needs to change.
+Gotchas found while setting it up:
+
+- Add a **Custom domain**, not a *Route*: a route only attaches the Worker to a hostname that must already exist in DNS, so the name
+  keeps returning `NXDOMAIN`. A custom domain creates the DNS record and the certificate itself.
+- Delete any leftover `A`/`AAAA` records for that name first (for example ones pointing at the VPS).
+- The build writes `dist/_headers` with the computed CSP (`apps/mobile/scripts/web-headers.js`). If you change the API's domain,
+  only `EXPO_PUBLIC_API_URL` needs to change.
+- **Known limitation:** Cloudflare's shared IP addresses are blocked by Spanish ISPs while some football matches are broadcast, so the
+  web can be unreachable from Spain at those times. The API (on the VPS) and the native apps are not affected.
 
 **3.9 🔴 Backups.** On the server (the `deploy` user's cron):
 
