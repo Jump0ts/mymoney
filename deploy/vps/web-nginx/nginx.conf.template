@@ -1,0 +1,88 @@
+# Servidor estatico de la web de MyMoney, dentro del contenedor `web` (ver docker-compose.yml).
+# El build lo convierte en nginx.conf (apps/mobile/scripts/web-nginx.js): el marcador de la cabecera
+# Content-Security-Policy se sustituye por la politica con el hash de cada script en linea. No es un fichero
+# que se edite en el servidor.
+#
+# Corre SIN root (usuario 101), con el sistema de ficheros en solo lectura: todo lo temporal va a /tmp.
+# El TLS, el limite de peticiones y la redireccion HTTP->HTTPS los hace el nginx compartido de travel_agency;
+# aqui solo se sirven ficheros y se ponen las cabeceras de seguridad (UNA vez cada una: el proxy no anade ninguna).
+worker_processes 1;
+pid /tmp/nginx.pid;
+error_log /dev/stderr warn;
+
+events {
+    worker_connections 256;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    server_tokens off;
+    # El nginx compartido ya registra los accesos.
+    access_log off;
+    sendfile on;
+    keepalive_timeout 30s;
+
+    client_body_temp_path /tmp/client_temp;
+    proxy_temp_path       /tmp/proxy_temp;
+    fastcgi_temp_path     /tmp/fastcgi_temp;
+    uwsgi_temp_path       /tmp/uwsgi_temp;
+    scgi_temp_path        /tmp/scgi_temp;
+
+    gzip on;
+    gzip_comp_level 5;
+    gzip_min_length 512;
+    gzip_vary on;
+    gzip_types text/css text/plain text/xml text/javascript application/javascript application/json
+               application/manifest+json image/svg+xml;
+
+    # Los ficheros con hash en el nombre no cambian nunca; el HTML se revalida siempre (para ver una version nueva).
+    map $uri $web_cache_control {
+        default "public, max-age=0, must-revalidate";
+        ~^/_expo/static/ "public, max-age=31536000, immutable";
+    }
+
+    server {
+        listen 8080 default_server;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+        # Detras de un proxy, una redireccion con el host y el puerto internos no serviria de nada.
+        absolute_redirect off;
+
+        if ($request_method !~ ^(GET|HEAD)$) {
+            return 405;
+        }
+
+        add_header Content-Security-Policy "__CSP__" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" always;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header Cache-Control $web_cache_control always;
+
+        # Comprobacion de salud del contenedor.
+        location = /healthz {
+            default_type text/plain;
+            return 200 "ok\n";
+        }
+
+        # Nada de ficheros ocultos.
+        location ~ /\. {
+            return 404;
+        }
+
+        # Un fichero estatico que no existe es un 404 de verdad (no la pagina de la app).
+        location ~* \.(?:js|css|map|json|png|jpe?g|gif|webp|svg|ico|ttf|otf|woff2?)$ {
+            try_files $uri =404;
+        }
+
+        # Rutas de la app: /budgets -> budgets.html; las dinamicas (/edit-transaction/abc) -> index.html,
+        # que arranca el router del cliente.
+        location / {
+            try_files $uri $uri.html /index.html;
+        }
+    }
+}
