@@ -1,0 +1,193 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mymoney
+          POSTGRES_PASSWORD: mymoney
+          POSTGRES_DB: mymoney_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mymoney"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://mymoney:mymoney@localhost:5432/mymoney_test
+      JWT_SECRET: ci-test-secret-please-change-me
+      NODE_ENV: test
+      CORS_ORIGINS: http://localhost:8081
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - run: npm ci
+        working-directory: .
+
+      - run: npx prisma generate
+
+      - run: npx prisma migrate deploy
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm run build
+
+      - run: npm run test
+
+      - name: Coverage summary
+        if: always()
+        run: cat coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/coverage
+
+  mobile:
+    name: App móvil (Expo)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - run: npm ci
+        working-directory: .
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm run test
+
+      - run: npx expo export --platform web
+
+      - name: Cabeceras de seguridad de la web (CSP con hashes)
+        env:
+          EXPO_PUBLIC_API_URL: https://api.example.dev
+        run: |
+          node scripts/web-headers.js
+          grep -q "script-src 'self' 'sha256-" dist/_headers
+          ! grep -q "unsafe-eval" dist/_headers
+          grep -q "connect-src 'self' https://api.example.dev;" dist/_headers
+
+      - name: Coverage summary
+        if: always()
+        run: cat coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-coverage
+          path: apps/mobile/coverage
+
+  scripts:
+    name: Scripts de despliegue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: shellcheck deploy/backup/*.sh deploy/vps/*.sh deploy/vps/bin/*.sh
+
+      - name: Pruebas de los backups
+        run: bash deploy/backup/backup.test.sh
+
+      - name: Pruebas del despliegue en el VPS
+        run: bash deploy/vps/vps.test.sh
+
+  docker:
+    name: Imagen del backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mymoney
+          POSTGRES_PASSWORD: mymoney
+          POSTGRES_DB: mymoney_smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mymoney"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://mymoney:mymoney@localhost:5432/mymoney_smoke
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir la imagen
+        run: docker build -f backend/Dockerfile -t mymoney-api:ci .
+
+      - name: No lleva secretos ni ficheros sobrantes
+        run: |
+          docker run --rm --entrypoint sh mymoney-api:ci -c '
+            test -x /opt/deploy/deploy.sh
+            test -f /opt/deploy/backup/backup.sh
+            ! ls -A /opt/deploy | grep -E "^\.env\.production$"
+            ! find /app -name ".env" -o -name "*.pem" -o -name "*.key" | grep .
+          '
+
+      - name: Migraciones con la CLI de la imagen (sin red)
+        run: |
+          docker run --rm --network host -e DATABASE_URL \
+            mymoney-api:ci npx --no-install prisma migrate deploy
+
+      - name: Arrancar con las mismas restricciones que en produccion
+        run: |
+          docker run -d --name api --network host \
+            --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true \
+            -e NODE_ENV=production -e PORT=4000 -e DATABASE_URL \
+            -e JWT_SECRET=ci-jwt-secret-que-no-es-secreto-0123456789 \
+            -e CORS_ORIGINS=https://mymoney.example.dev \
+            -e REGISTRATION_ENABLED=false \
+            mymoney-api:ci
+          for i in $(seq 1 30); do
+            STATUS=$(docker inspect -f '{{.State.Health.Status}}' api)
+            [ "$STATUS" = healthy ] && break
+            sleep 2
+          done
+          echo "estado: $STATUS"
+          [ "$STATUS" = healthy ] || { docker logs api; exit 1; }
+
+      - name: Comprobaciones de seguridad
+        run: |
+          curl -fsS http://localhost:4000/health | grep -q '"status":"ok"'
+          [ "$(docker exec api id -u)" != "0" ] || { echo "el contenedor corre como root"; exit 1; }
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:4000/api/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"Ana","email":"ana@example.dev","password":"password123"}')
+          [ "$CODE" = "403" ] || { echo "el registro deberia estar cerrado (403) y dio $CODE"; exit 1; }
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4000/api/budgets/groups)
+          [ "$CODE" = "401" ] || { echo "sin token deberia ser 401 y dio $CODE"; exit 1; }
+
+      - name: Logs si algo falla
+        if: failure()
+        run: docker logs api || true

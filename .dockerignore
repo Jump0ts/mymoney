@@ -1,0 +1,31 @@
+# El contexto de construccion de la imagen del backend es la raiz del repo: solo debe entrar lo necesario,
+# y nunca secretos, historial de git ni dependencias locales.
+.git
+.github
+**/node_modules
+**/coverage
+**/dist
+
+# Secretos y datos
+**/.env
+**/.env.*
+!**/.env.*.example
+**/*.pem
+**/*.key
+**/*.sql.gz
+
+# La app movil solo aporta su package.json para que npm ci resuelva el workspace
+apps/mobile/*
+!apps/mobile/package.json
+
+# Tests y herramientas del backend que no van en la imagen
+backend/tests
+backend/vitest.config.ts
+backend/eslint.config.js
+
+# Despliegue: solo lo que se copia a la imagen (deploy/vps y deploy/backup)
+deploy/*
+!deploy/vps
+!deploy/backup
+deploy/backup/*.ps1
+deploy/backup/*.Tests.ps1

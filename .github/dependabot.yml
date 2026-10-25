@@ -1,0 +1,57 @@
+# Dependabot: security alerts and security updates are enabled in the repository settings; this file adds
+# regular version updates. Dependabot reads it from the default branch (master).
+version: 2
+updates:
+  # JavaScript dependencies of the monorepo (backend + app share the root package-lock.json)
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Major jumps of the Expo/React Native stack are done by hand together with the Expo SDK.
+      - dependency-name: "expo*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-native*"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions (also keeps the commit-SHA pins in the deploy workflow up to date)
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Base image of the API
+  - package-ecosystem: docker
+    directory: "/backend"
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(docker)"
+
+  # Postgres image used by the compose files
+  - package-ecosystem: docker-compose
+    directories: ["/deploy", "/deploy/vps"]
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(docker)"
