@@ -36,7 +36,11 @@ case "$ARGS" in
       *"--no-deps --wait --wait-timeout 90 api"*)
         # La imagen "mala" lleva el digest eeee...: en esa la API nunca queda sana.
         if grep -q 'sha256:eeeeeeee' "$FAKE_STATE/image.env" 2>/dev/null; then exit 1; fi ;;
-      *"exec -T nginx test -f"*) [ -n "${FAKE_CERT:-}" ] || exit 1 ;;
+      *"--no-deps --force-recreate --wait --wait-timeout 60 web"*) [ -z "${FAKE_WEB_FAIL:-}" ] || exit 1 ;;
+      # FAKE_CERT: todos los dominios tienen certificado; FAKE_CERT_ONLY=<dominio>: solo ese.
+      *"exec -T nginx test -f"*)
+        [ -n "${FAKE_CERT:-}" ] || exit 1
+        [ -z "${FAKE_CERT_ONLY:-}" ] || [[ "$ARGS" == *"/live/$FAKE_CERT_ONLY/"* ]] || exit 1 ;;
       *"exec -T nginx nginx -t"*) [ -z "${FAKE_NGINX_T_FAIL:-}" ] || { echo "nginx: [emerg] fallo" >&2; exit 1; } ;;
       *"exec -T db"*) printf -- '--\n-- PostgreSQL database dump\n--\nCREATE TABLE "User" (id text);\n' ;;
       *" logs "*) echo "linea de log" ;;
@@ -60,7 +64,7 @@ new_case() { # <nombre>
   CASE="$WORK/$1"
   export MYMONEY_BASE="$CASE/mymoney" TRAVEL_DIR="$CASE/travel" FAKE_DIR="$CASE" FAKE_STATE="$CASE/mymoney/state"
   export FAKE_LOG="$CASE/docker.log" FAKE_BUNDLE="$CASE/bundle"
-  unset FAKE_PULL_FAIL FAKE_NO_NETWORK FAKE_DB_UP FAKE_MIGRATE_FAIL FAKE_CERT FAKE_NGINX_T_FAIL FAKE_STAT_MODE
+  unset FAKE_PULL_FAIL FAKE_NO_NETWORK FAKE_DB_UP FAKE_MIGRATE_FAIL FAKE_CERT FAKE_CERT_ONLY FAKE_NGINX_T_FAIL FAKE_STAT_MODE FAKE_WEB_FAIL
   mkdir -p "$MYMONEY_BASE" "$TRAVEL_DIR/nginx/conf.d" "$FAKE_BUNDLE"
   : >"$FAKE_LOG"
   : >"$TRAVEL_DIR/docker-compose.yml"
@@ -71,6 +75,11 @@ installed_release() { # copia los ficheros reales como quedarian dentro de /opt/
   rm -rf "$MYMONEY_BASE/release/bin" "$MYMONEY_BASE/release/vps.test.sh"
   mkdir -p "$MYMONEY_BASE/release/backup"
   cp "$BACKUP_SRC/backup.sh" "$MYMONEY_BASE/release/backup/"
+}
+with_web() { # la web y la config de su nginx, como las dejaria extraer la imagen
+  mkdir -p "$MYMONEY_BASE/release/web" "$MYMONEY_BASE/release/web-nginx"
+  echo "<html></html>" >"$MYMONEY_BASE/release/web/index.html"
+  echo "# nginx de la web" >"$MYMONEY_BASE/release/web-nginx/nginx.conf"
 }
 docker_calls() { grep -c "^docker $1" "$FAKE_LOG" || true; }
 
@@ -147,7 +156,9 @@ pass "si la descarga falla cierra la sesion y no despliega"
 # ============================== nginx-apply.sh ==============================
 
 APPLY="$HERE/nginx-apply.sh"
-apply() { (cd "$HERE" && DOMAIN="${1-mymoney-api.ejemplo.dev}" bash "$APPLY") >"$CASE/out.txt" 2>&1; }
+apply() { (cd "$HERE" && DOMAIN="${1-mymoney-api.ejemplo.dev}" WEB_DOMAIN="${2-}" bash "$APPLY") >"$CASE/out.txt" 2>&1; }
+API_CONF() { echo "$TRAVEL_DIR/nginx/conf.d/zz-mymoney-api.conf"; }
+WEB_CONF() { echo "$TRAVEL_DIR/nginx/conf.d/zz-mymoney-web.conf"; }
 
 # N1. Sin certificado: solo desafio ACME, sin ssl
 new_case n1
@@ -177,7 +188,8 @@ for HEADER in Strict-Transport-Security X-Content-Type-Options X-Frame-Options C
 done
 # nginx carga conf.d por orden alfabetico: debe ir despues de site.conf para no quitarle a travel el "servidor por defecto".
 [[ "$(basename "$CONF")" > "site.conf" ]] || fail "el vhost de MyMoney se cargaria antes que el de travel_agency"
-pass "con certificado instala el vhost HTTPS con limites, HSTS y 404 por defecto"
+[ ! -e "$(WEB_CONF)" ] && [ ! -e "$TRAVEL_DIR/nginx/conf.d/mymoney-web-proxy.inc" ] || fail "sin WEB_DOMAIN no debe instalarse nada de la web"
+pass "con certificado instala el vhost HTTPS con limites, HSTS y 404 por defecto (y sin WEB_DOMAIN, nada de la web)"
 
 # N3. Idempotente: segunda ejecucion sin cambios no recarga
 : >"$FAKE_LOG"
@@ -209,6 +221,71 @@ for DOM in 'a;b.dev' '../etc' 'x y.dev' 'UPPER.dev' 'sin-punto' '$(id).dev' 'a/b
 done
 [ -z "$(ls -A "$TRAVEL_DIR/nginx/conf.d")" ] || fail "no deberia escribir nada con un dominio invalido"
 pass "rechaza dominios con caracteres peligrosos antes de escribir nada"
+
+# N6. Con WEB_DOMAIN y sin certificados: los dos vhosts en fase HTTP (solo el desafio de Let's Encrypt)
+new_case n6
+apply "mymoney-api.ejemplo.dev" "mymoney.ejemplo.dev" || { cat "$CASE/out.txt" >&2; fail "deberia salir con 0"; }
+for F in "$(API_CONF)" "$(WEB_CONF)"; do
+  grep -q "acme-challenge" "$F" || fail "falta el desafio ACME en $(basename "$F")"
+  ! grep -q "ssl_certificate" "$F" || fail "sin certificado no debe pedir ssl_certificate ($(basename "$F"))"
+  ! grep -q "__DOMAIN__" "$F" || fail "quedo un __DOMAIN__ sin sustituir en $(basename "$F")"
+done
+grep -q "server_name mymoney.ejemplo.dev;" "$(WEB_CONF)" || fail "el vhost de la web debe llevar el dominio de la web"
+grep -q "server_name mymoney-api.ejemplo.dev;" "$(API_CONF)" || fail "el vhost de la API debe llevar el dominio de la API"
+[ "$(grep -c "nginx -s reload" "$FAKE_LOG")" = "1" ] || fail "debe recargar nginx una sola vez para los dos vhosts"
+pass "con WEB_DOMAIN y sin certificados instala los dos vhosts en fase HTTP y recarga una vez"
+
+# N7. Con certificados: la web va por proxy al contenedor `web`, con limites y SIN anadir cabeceras (salen del servidor de la web)
+new_case n7
+export FAKE_CERT=1
+apply "mymoney-api.ejemplo.dev" "mymoney.ejemplo.dev" || { cat "$CASE/out.txt" >&2; fail "deberia salir con 0"; }
+WEB="$(WEB_CONF)"
+grep -q "live/mymoney.ejemplo.dev/fullchain.pem" "$WEB" || fail "la web debe usar su propio certificado"
+grep -q "http://mymoney-web:8080" "$WEB" || fail "la web debe ir por proxy a mymoney-web:8080"
+grep -q "limit_req zone=mymoney_web" "$WEB" || fail "falta el limite de peticiones de la web"
+grep -q 'GET|HEAD' "$WEB" || fail "la web solo debe admitir GET y HEAD"
+grep -q "limit_req_zone .*zone=mymoney_web:" "$WEB" || fail "falta la zona del limite"
+! grep -q "add_header" "$WEB" || fail "el vhost de la web no debe anadir cabeceras (saldrian duplicadas con las del servidor de la web)"
+! grep -q "proxy_hide_header" "$TRAVEL_DIR/nginx/conf.d/mymoney-web-proxy.inc" || fail "el proxy de la web no debe descartar las cabeceras de seguridad del servidor de la web"
+grep -q "^proxy_hide_header Content-Security-Policy;" "$TRAVEL_DIR/nginx/conf.d/mymoney-proxy.inc" || fail "el proxy de la API debe seguir descartando las suyas"
+# nginx rechaza una directiva global repetida entre ficheros: limit_req_status solo puede ir una vez a nivel http.
+[ "$(cat "$(API_CONF)" | grep -c '^limit_req_status')" = "1" ] || fail "limit_req_status debe declararse solo en el vhost de la API"
+! grep -q '^limit_req_status' "$WEB" || fail "el vhost de la web no puede repetir limit_req_status a nivel http"
+[ "$(cat "$(API_CONF)" "$WEB" | grep -c '^limit_req_zone')" = "3" ] || fail "debe haber exactamente 3 zonas de limite (auth, api y web)"
+[[ "$(basename "$WEB")" > "site.conf" ]] || fail "el vhost de la web se cargaria antes que el de travel_agency"
+pass "con certificados la web va por proxy al contenedor, con limites y sin duplicar cabeceras"
+
+# N8. Solo la web tiene certificado: cada vhost va en la fase que le corresponde
+new_case n8
+export FAKE_CERT=1 FAKE_CERT_ONLY="mymoney.ejemplo.dev"
+apply "mymoney-api.ejemplo.dev" "mymoney.ejemplo.dev" || fail "deberia salir con 0"
+grep -q "ssl_certificate" "$(WEB_CONF)" || fail "la web tiene certificado: debe ir en HTTPS"
+! grep -q "ssl_certificate" "$(API_CONF)" || fail "la API no tiene certificado: debe seguir en fase HTTP"
+pass "cada dominio se instala en su fase segun tenga o no certificado"
+
+# N9. Si nginx -t rechaza la configuracion, se restauran (o quitan) los DOS vhosts y no se recarga
+new_case n9
+export FAKE_CERT=1
+echo "# api anterior" >"$(API_CONF)"
+echo "# web anterior" >"$(WEB_CONF)"
+export FAKE_NGINX_T_FAIL=1
+if apply "mymoney-api.ejemplo.dev" "mymoney.ejemplo.dev"; then fail "con nginx -t fallando deberia salir con error"; fi
+{ [ "$(cat "$(API_CONF)")" = "# api anterior" ] && [ "$(cat "$(WEB_CONF)")" = "# web anterior" ]; } || fail "no restauro los dos vhosts anteriores"
+! grep -q "nginx -s reload" "$FAKE_LOG" || fail "no debe recargar una configuracion rechazada"
+new_case n9b
+export FAKE_CERT=1 FAKE_NGINX_T_FAIL=1
+if apply "mymoney-api.ejemplo.dev" "mymoney.ejemplo.dev"; then fail "deberia fallar"; fi
+[ -z "$(ls -A "$TRAVEL_DIR/nginx/conf.d")" ] || fail "si no habia vhosts antes, no debe quedar ninguno roto ni ficheros temporales"
+pass "si nginx rechaza la configuracion, los dos vhosts vuelven a como estaban y travel_agency queda intacto"
+
+# N10. WEB_DOMAIN invalido o igual que el de la API: se rechaza antes de escribir nada
+new_case n10
+# shellcheck disable=SC2016  # '$(id).dev' es una cadena de prueba: no debe expandirse
+for WDOM in 'a;b.dev' 'UPPER.dev' 'sin-punto' '$(id).dev' 'mymoney-api.ejemplo.dev'; do
+  if apply "mymoney-api.ejemplo.dev" "$WDOM"; then fail "WEB_DOMAIN no valido aceptado: $WDOM"; fi
+done
+[ -z "$(ls -A "$TRAVEL_DIR/nginx/conf.d")" ] || fail "no deberia escribir nada con un WEB_DOMAIN invalido"
+pass "rechaza un WEB_DOMAIN peligroso o repetido antes de escribir nada"
 
 # ================================ deploy.sh ================================
 
@@ -329,5 +406,73 @@ pass "ningun secreto sale en la salida ni en los argumentos de docker"
 ! grep -qE '^\s+ports:' "$HERE/docker-compose.yml" || fail "el compose del VPS no debe publicar puertos"
 ! grep -qiE 'password: [^$]|jwt_secret: [^$]' "$HERE/docker-compose.yml" || fail "el compose no debe llevar secretos escritos"
 pass "el compose del VPS no publica puertos ni lleva secretos"
+
+# D11. Con WEB_DOMAIN: tras la API sana se recrea la web y despues se aplica nginx con los dos dominios
+setup_deploy d11
+write_env "WEB_DOMAIN=mymoney.ejemplo.dev"
+with_web
+deploy "$GOOD_REF" || { cat "$CASE/out.txt" >&2; fail "un despliegue con web deberia salir con 0"; }
+L_API="$(grep -n -- '--no-deps --wait --wait-timeout 90 api' "$FAKE_LOG" | head -1 | cut -d: -f1)"
+L_WEB="$(grep -n -- '--no-deps --force-recreate --wait --wait-timeout 60 web' "$FAKE_LOG" | head -1 | cut -d: -f1)"
+L_NGX="$(grep -n 'nginx -s reload' "$FAKE_LOG" | head -1 | cut -d: -f1)"
+before "$L_API" "$L_WEB" || fail "la web debe recrearse despues de que la API quede sana"
+before "$L_WEB" "$L_NGX" || fail "nginx debe configurarse despues de levantar la web"
+{ [ -f "$(WEB_CONF)" ] && [ -f "$(API_CONF)" ]; } || fail "deberia instalar los vhosts de la API y de la web"
+pass "con WEB_DOMAIN: API sana, luego la web recreada y luego nginx con los dos dominios"
+
+# D12. Sin WEB_DOMAIN la web no se toca (el comportamiento de antes no cambia)
+setup_deploy d12
+deploy "$GOOD_REF" || fail "deberia salir con 0"
+! grep -q -- '--force-recreate' "$FAKE_LOG" || fail "sin WEB_DOMAIN no debe levantar el contenedor de la web"
+[ ! -e "$(WEB_CONF)" ] || fail "sin WEB_DOMAIN no debe instalar el vhost de la web"
+pass "sin WEB_DOMAIN no se despliega la web"
+
+# D13. WEB_DOMAIN mal configurado: no se toca nada
+for BAD in "WEB_DOMAIN=no es dominio" "WEB_DOMAIN=mymoney-api.ejemplo.dev" "WEB_DOMAIN=otra-web.ejemplo.dev"; do
+  setup_deploy d13
+  write_env "$BAD"
+  with_web
+  if deploy "$GOOD_REF"; then fail "WEB_DOMAIN mal configurado aceptado: $BAD"; fi
+  [ "$(docker_calls "compose")" = "0" ] || fail "con '$BAD' no deberia tocar compose"
+done
+grep -q "CORS_ORIGINS debe incluir https://otra-web.ejemplo.dev" "$CASE/out.txt" || fail "deberia explicar que el CORS no incluye el origen de la web"
+# Varios origenes: basta con que este el de la web.
+setup_deploy d13b
+write_env "WEB_DOMAIN=mymoney.ejemplo.dev" "CORS_ORIGINS=https://otra.dev,https://mymoney.ejemplo.dev"
+with_web
+deploy "$GOOD_REF" || { cat "$CASE/out.txt" >&2; fail "con varios origenes de CORS, incluyendo el de la web, deberia ir bien"; }
+pass "WEB_DOMAIN debe ser un dominio valido, distinto de la API y estar en CORS_ORIGINS"
+
+# D14. Si la imagen no trae la web no se despliega a medias
+setup_deploy d14
+write_env "WEB_DOMAIN=mymoney.ejemplo.dev"
+if deploy "$GOOD_REF"; then fail "sin web en la imagen deberia fallar"; fi
+grep -q "la imagen no lleva la web" "$CASE/out.txt" || fail "deberia explicar que falta la web"
+[ "$(docker_calls "compose")" = "0" ] || fail "sin web en la imagen no deberia tocar compose"
+pass "si la imagen no lleva la web, no despliega nada"
+
+# D15. La web no queda sana: falla el despliegue, pero la API (ya sana) sigue siendo la actual
+setup_deploy d15
+write_env "WEB_DOMAIN=mymoney.ejemplo.dev"
+with_web
+export FAKE_WEB_FAIL=1
+if deploy "$GOOD_REF"; then fail "una web que no queda sana deberia hacer fallar el despliegue"; fi
+grep -q "la web no quedo sana" "$CASE/out.txt" || fail "deberia decir que la web no quedo sana"
+[ "$(cat "$MYMONEY_BASE/state/current")" = "$GOOD_REF" ] || fail "la API ya estaba sana: debe quedar como actual"
+! grep -q "nginx -s reload" "$FAKE_LOG" || fail "no debe tocar nginx si la web no esta sana"
+pass "si la web no queda sana el despliegue falla sin deshacer la API y sin tocar nginx"
+
+# D16. El servicio de la web en el compose esta endurecido
+WEB_BLOCK="$(awk '/^  web:/{f=1;next} f && /^[^ ]/{exit} f && /^  [a-z]/{exit} f' "$HERE/docker-compose.yml")"
+[ -n "$WEB_BLOCK" ] || fail "no encuentro el servicio web en el compose"
+grep -q 'read_only: true' <<<"$WEB_BLOCK" || fail "la web debe tener el sistema de ficheros en solo lectura"
+grep -q 'cap_drop: \[ALL\]' <<<"$WEB_BLOCK" || fail "la web debe quitar todas las capabilities"
+grep -q 'no-new-privileges:true' <<<"$WEB_BLOCK" || fail "la web debe llevar no-new-privileges"
+grep -q 'user: "101:101"' <<<"$WEB_BLOCK" || fail "la web no debe correr como root"
+! grep -q 'ports:' <<<"$WEB_BLOCK" || fail "la web no debe publicar puertos"
+grep -q './web:/usr/share/nginx/html:ro' <<<"$WEB_BLOCK" || fail "los ficheros de la web deben montarse de solo lectura"
+grep -q './web-nginx/nginx.conf:/etc/nginx/nginx.conf:ro' <<<"$WEB_BLOCK" || fail "la config de nginx debe montarse de solo lectura"
+grep -q 'mem_limit' <<<"$WEB_BLOCK" || fail "la web debe tener limite de memoria"
+pass "el servicio de la web va sin root, en solo lectura, sin capabilities ni puertos y con limite de memoria"
 
 echo "$PASSED pruebas correctas"

@@ -143,8 +143,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Construir la imagen
-        run: docker build -f backend/Dockerfile -t mymoney-api:ci .
+      - name: Construir la imagen (API + web)
+        run: docker build -f backend/Dockerfile --build-arg WEB_API_URL=https://mymoney-api.example.dev -t mymoney-api:ci .
 
       - name: No lleva secretos ni ficheros sobrantes
         run: |
@@ -154,6 +154,50 @@ jobs:
             ! ls -A /opt/deploy | grep -E "^\.env\.production$"
             ! find /app -name ".env" -o -name "*.pem" -o -name "*.key" | grep .
           '
+
+      - name: La web viaja en la imagen y su servidor arranca con las restricciones de produccion
+        run: |
+          CID=$(docker create mymoney-api:ci)
+          docker cp "$CID:/opt/deploy/." "$RUNNER_TEMP/bundle"
+          docker rm "$CID"
+          cd "$RUNNER_TEMP/bundle"
+
+          # Ficheros: la web, la config generada (sin marcador), la CSP con el origen de la API, y nada de _headers.
+          test -f web/index.html
+          test -f web-nginx/nginx.conf
+          ! grep -q '__CSP__' web-nginx/nginx.conf
+          grep -q "connect-src 'self' https://mymoney-api.example.dev;" web-nginx/nginx.conf
+          [ ! -e web/_headers ]
+
+          # La config es valida y el servidor arranca sin root, en solo lectura y sin capabilities.
+          RUN_WEB="--user 101:101 --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true"
+          MOUNTS="-v $PWD/web-nginx/nginx.conf:/etc/nginx/nginx.conf:ro -v $PWD/web:/usr/share/nginx/html:ro"
+          # shellcheck disable=SC2086
+          docker run --rm $RUN_WEB $MOUNTS nginx:1.31-alpine nginx -t
+          # shellcheck disable=SC2086
+          docker run -d --name web -p 8081:8080 $RUN_WEB $MOUNTS nginx:1.31-alpine
+          for i in $(seq 1 15); do curl -fsS http://localhost:8081/healthz >/dev/null && break; sleep 1; done
+
+          code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+          [ "$(code http://localhost:8081/healthz)" = 200 ]
+          [ "$(code http://localhost:8081/)" = 200 ]
+          [ "$(code http://localhost:8081/login)" = 200 ]
+          [ "$(code http://localhost:8081/edit-transaction/abc123)" = 200 ]   # ruta dinamica -> index.html
+          [ "$(code http://localhost:8081/no/existe)" = 200 ]
+          [ "$(code http://localhost:8081/_expo/static/js/web/no-existe.js)" = 404 ]   # fichero estatico inexistente
+          [ "$(code http://localhost:8081/.env)" = 404 ]
+          [ "$(code -X POST http://localhost:8081/login)" = 405 ]
+          [ "$(docker exec web id -u)" != "0" ] || { echo "la web corre como root"; exit 1; }
+
+          # Cada cabecera de seguridad sale UNA vez.
+          HEADERS=$(curl -sI http://localhost:8081/login | tr -d '\r')
+          for H in content-security-policy x-content-type-options x-frame-options referrer-policy cross-origin-opener-policy \
+                   permissions-policy strict-transport-security cache-control; do
+            [ "$(grep -ic "^$H:" <<<"$HEADERS")" = "1" ] || { echo "cabecera $H ausente o duplicada"; echo "$HEADERS"; exit 1; }
+          done
+          grep -qi '^content-type: text/html' <<<"$HEADERS"
+          JS=$(cd web && find _expo/static/js/web -name '*.js' | head -1)
+          curl -sI "http://localhost:8081/$JS" | grep -qi '^cache-control:.*immutable'
 
       - name: Migraciones con la CLI de la imagen (sin red)
         run: |
@@ -190,4 +234,6 @@ jobs:
 
       - name: Logs si algo falla
         if: failure()
-        run: docker logs api || true
+        run: |
+          docker logs api || true
+          docker logs web || true
