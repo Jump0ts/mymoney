@@ -1,10 +1,12 @@
 # Dependabot: security alerts and security updates are enabled in the repository settings; this file adds
-# regular version updates. Dependabot reads it from the default branch (master).
+# regular version updates. Dependabot reads it from the default branch (master), but its pull requests
+# target `pre`, following the branch flow (feature -> pre -> release -> master).
 version: 2
 updates:
   # JavaScript dependencies of the monorepo (backend + app share the root package-lock.json)
   - package-ecosystem: npm
     directory: "/"
+    target-branch: pre
     schedule:
       interval: weekly
       day: monday
@@ -15,19 +17,21 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
-      # Major jumps of the Expo/React Native stack are done by hand together with the Expo SDK.
-      - dependency-name: "expo*"
-        update-types: ["version-update:semver-major"]
+      # The Expo/React Native stack is pinned by the Expo SDK (peer ranges such as reanimated <-> worklets
+      # break `npm ci` when one package moves alone), so it is upgraded by hand with `npx expo install --fix`.
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
       - dependency-name: "react"
-        update-types: ["version-update:semver-major"]
       - dependency-name: "react-dom"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "react-native*"
-        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native/*"
 
   # GitHub Actions (also keeps the commit-SHA pins in the deploy workflow up to date)
   - package-ecosystem: github-actions
     directory: "/"
+    target-branch: pre
     schedule:
       interval: weekly
       day: monday
@@ -41,17 +45,27 @@ updates:
   # Base image of the API
   - package-ecosystem: docker
     directory: "/backend"
+    target-branch: pre
     schedule:
       interval: weekly
       day: monday
     commit-message:
       prefix: "chore(docker)"
+    ignore:
+      # Node moves between LTS lines by hand (.nvmrc and CI stay in sync); odd-numbered releases are not LTS.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   # Postgres image used by the compose files
   - package-ecosystem: docker-compose
     directories: ["/deploy", "/deploy/vps"]
+    target-branch: pre
     schedule:
       interval: weekly
       day: monday
     commit-message:
       prefix: "chore(docker)"
+    ignore:
+      # A major Postgres upgrade needs a dump/restore of the data volume, never an automatic image bump.
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]

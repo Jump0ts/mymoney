@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Genera dist/_headers (cabeceras de seguridad de Cloudflare Pages) para la web exportada con
+ * Genera dist/_headers (cabeceras de seguridad de Cloudflare) para la web exportada con
  * `expo export --platform web`.
  *
  * La politica de contenido (CSP) no permite scripts en linea salvo los que la propia exportacion
@@ -41,8 +41,9 @@ const apiOrigin = (apiUrl) => {
   return url.origin;
 };
 
-const buildHeaders = ({ apiUrl, scriptHashes }) => {
-  const csp = [
+/** Politica de contenido (CSP) de la web: la misma para Cloudflare (`_headers`) y para el nginx del VPS. */
+const contentSecurityPolicy = ({ apiUrl, scriptHashes }) =>
+  [
     "default-src 'self'",
     `script-src 'self' ${scriptHashes.join(' ')}`.trim(),
     // React Native Web inserta hojas de estilo en tiempo de ejecucion: es el unico uso de 'unsafe-inline'.
@@ -56,6 +57,9 @@ const buildHeaders = ({ apiUrl, scriptHashes }) => {
     "frame-ancestors 'none'",
     'upgrade-insecure-requests',
   ].join('; ');
+
+const buildHeaders = ({ apiUrl, scriptHashes }) => {
+  const csp = contentSecurityPolicy({ apiUrl, scriptHashes });
 
   return `/*
   Content-Security-Policy: ${csp}
@@ -99,4 +103,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { apiOrigin, buildHeaders, inlineScriptHashes, sha256 };
+module.exports = { apiOrigin, buildHeaders, contentSecurityPolicy, htmlFilesIn, inlineScriptHashes, sha256 };

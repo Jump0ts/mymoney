@@ -3,9 +3,9 @@
 [![CI](https://github.com/Jump0ts/mymoney/actions/workflows/ci.yml/badge.svg)](https://github.com/Jump0ts/mymoney/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Status: beta](https://img.shields.io/badge/status-beta-orange)
-![Version: 0.1.0 beta](https://img.shields.io/badge/version-0.1.0--beta-orange)
+![Version: 0.2.0 beta](https://img.shields.io/badge/version-0.2.0--beta-orange)
 
-> **Release 0.1.0 is a public beta.** The core product is feature-complete and covered by automated tests, and it is built and run by one developer as a personal tool. It is not a 1.0: expect rough edges, and the production rollout is being finished alongside this release. See the [changelog](./CHANGELOG.md) for what is in and what is not.
+> **Release 0.2.0 is a public beta.** The core product is feature-complete and covered by automated tests, and it is built and run by one developer as a personal tool. It is not a 1.0: expect rough edges, and it is already running in production. See the [changelog](./CHANGELOG.md) for what is in and what is not.
 
 A **personal-finance app** for iOS, Android and the web, built end to end as a solo project: expense and income tracking, categories, filters, charts and an **Excel-style monthly budget**. One TypeScript codebase for every client (React Native + Expo), a Node/Express/PostgreSQL API, automated tests, a CI pipeline and a hardened production deployment.
 
@@ -45,7 +45,7 @@ It is a personal tool, not a product: every account is **individual and private*
 | API | Node.js, Express, Prisma ORM, PostgreSQL, Zod, JWT, Helmet |
 | Testing | Jest + React Native Testing Library, Vitest + supertest (real PostgreSQL), shell tests with a mocked `docker` |
 | CI/CD | GitHub Actions, Docker, GHCR |
-| Deployment target | DigitalOcean (API + PostgreSQL behind nginx/Let's Encrypt), Cloudflare Pages (web), Cloudflare DNS |
+| Deployment target | DigitalOcean (API + PostgreSQL behind nginx/Let's Encrypt), Cloudflare (web as static assets), Cloudflare DNS |
 
 ## Architecture
 
@@ -53,7 +53,7 @@ It is a personal tool, not a product: every account is **individual and private*
 flowchart LR
   subgraph Clients
     A["iOS / Android app"]
-    W["Web app - Cloudflare Pages"]
+    W["Web app - Cloudflare"]
   end
   A -->|"HTTPS + JWT"| N["nginx + Let's Encrypt"]
   W -->|"HTTPS + JWT"| N
@@ -90,7 +90,7 @@ The production setup is designed, documented and covered by automated tests (it 
 - nginx changes are validated with `nginx -t` and rolled back on failure, so a bad config cannot take down the other site sharing the server.
 - Brute-force protection on the auth endpoints, strict CORS, and public registration switched off in production.
 - The web build ships a strict Content Security Policy (no inline or `eval` scripts; it can only talk to its own API).
-- Backups are private (`umask 077`), taken before every migration, copied off the server with SHA-256 verification, and exercised by a restore test.
+- Backups are private (`umask 077`), taken before every migration, with a script that pulls SHA-256-verified copies off the server, and exercised by a restore test.
 
 ## Run it locally
 
@@ -119,7 +119,7 @@ npm run lint --workspace=backend && npm run lint --workspace=apps/mobile
 
 ## Status and roadmap
 
-**Beta (v0.1.0).** The core features are complete and tested; the [changelog](./CHANGELOG.md) lists what each release contains. Not built yet: automatic payment detection (Android), multiple accounts/wallets, and recurring expenses outside the budget.
+**Beta (v0.2.0).** The core features are complete and tested; the [changelog](./CHANGELOG.md) lists what each release contains. Not built yet: automatic payment detection (Android), multiple accounts/wallets, and recurring expenses outside the budget.
 
 ## Documentation
 
