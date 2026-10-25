@@ -3,9 +3,9 @@
 [![CI](https://github.com/Jump0ts/mymoney/actions/workflows/ci.yml/badge.svg)](https://github.com/Jump0ts/mymoney/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Status: beta](https://img.shields.io/badge/status-beta-orange)
-![Version: 0.1.0 beta](https://img.shields.io/badge/version-0.1.0--beta-orange)
+![Version: 0.2.0 beta](https://img.shields.io/badge/version-0.2.0--beta-orange)
 
-> **Release 0.1.0 is a public beta.** The core product is feature-complete and covered by automated tests, and it is built and run by one developer as a personal tool. It is not a 1.0: expect rough edges, and the production rollout is being finished alongside this release. See the [changelog](./CHANGELOG.md) for what is in and what is not.
+> **Release 0.2.0 is a public beta.** The core product is feature-complete and covered by automated tests, and it is built and run by one developer as a personal tool. It is not a 1.0: expect rough edges, and it is already running in production. See the [changelog](./CHANGELOG.md) for what is in and what is not.
 
 A **personal-finance app** for iOS, Android and the web, built end to end as a solo project: expense and income tracking, categories, filters, charts and an **Excel-style monthly budget**. One TypeScript codebase for every client (React Native + Expo), a Node/Express/PostgreSQL API, automated tests, a CI pipeline and a hardened production deployment.
 
@@ -119,7 +119,7 @@ npm run lint --workspace=backend && npm run lint --workspace=apps/mobile
 
 ## Status and roadmap
 
-**Beta (v0.1.0).** The core features are complete and tested; the [changelog](./CHANGELOG.md) lists what each release contains. Not built yet: automatic payment detection (Android), multiple accounts/wallets, and recurring expenses outside the budget.
+**Beta (v0.2.0).** The core features are complete and tested; the [changelog](./CHANGELOG.md) lists what each release contains. Not built yet: automatic payment detection (Android), multiple accounts/wallets, and recurring expenses outside the budget.
 
 ## Documentation
 

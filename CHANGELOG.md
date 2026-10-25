@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
+## [0.2.0] — 2026-10-25 — Beta
+
+> Production-readiness release: the web app can now be served from the same VPS as the API, and the dependency and branch workflow was tightened.
+
+### Added
+- **Web served from the VPS (optional, `WEB_DOMAIN`).** The API image now also carries the compiled web and the generated config of its own
+  nginx container (non-root, read-only filesystem, no capabilities, no published ports, 48 MB limit). The shared nginx terminates TLS for the
+  web domain and proxies to it, so one image, one digest and one human approval deploy API and web together at the same version.
+  The CSP is computed at build time (one hash per inline script) and every security header is sent exactly once.
+  This keeps the web reachable when Spanish ISPs block shared CDN addresses during football matches.
+- `nginx-apply.sh` and `bootstrap-cert.sh` manage both domains (each in its HTTP or HTTPS phase depending on its certificate) with a single
+  `nginx -t` and a joint rollback; 14 new shell tests, and CI now builds the image with the web and starts its server under the production restrictions.
+
+### Changed
+- Dependency updates: `actions/checkout`, `setup-node` and `upload-artifact` v4 → v7, `bcryptjs` 2 → 3, `dotenv` 16 → 18, `shell-quote` and `source-map-js` patches.
+- Dependabot now opens its pull requests against `pre` and ignores the Expo/React Native stack (pinned by the Expo SDK) and major jumps of `node` and `postgres`.
+- `develop` and `pre` are protected like `master` (pull request, passing CI, no force-push or deletion, also for administrators).
+- Documentation: the web is described as Cloudflare static assets (the earlier host) or the VPS, with the gotchas found while setting it up,
+  and the 0.1.0 notes no longer claim that off-server backups are automatic (a verified-pull script is provided).
+
 ## [0.1.0] — 2026-10-22 — Beta
 
 > **First public beta.** The core product is feature-complete and covered by automated tests. Production went live right after the
@@ -50,4 +70,5 @@ author as a personal tool, and interfaces and data models may still change.
 - Automatic payment detection (Android only), multiple accounts/wallets, and recurring expenses outside the budget.
 - Screenshots and a public demo.
 
+[0.2.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.2.0-beta
 [0.1.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.1.0-beta
