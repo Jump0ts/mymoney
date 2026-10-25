@@ -188,7 +188,7 @@ for HEADER in Strict-Transport-Security X-Content-Type-Options X-Frame-Options C
 done
 # nginx carga conf.d por orden alfabetico: debe ir despues de site.conf para no quitarle a travel el "servidor por defecto".
 [[ "$(basename "$CONF")" > "site.conf" ]] || fail "el vhost de MyMoney se cargaria antes que el de travel_agency"
-[ ! -e "$(WEB_CONF)" ] && [ ! -e "$TRAVEL_DIR/nginx/conf.d/mymoney-web-proxy.inc" ] || fail "sin WEB_DOMAIN no debe instalarse nada de la web"
+{ [ ! -e "$(WEB_CONF)" ] && [ ! -e "$TRAVEL_DIR/nginx/conf.d/mymoney-web-proxy.inc" ]; } || fail "sin WEB_DOMAIN no debe instalarse nada de la web"
 pass "con certificado instala el vhost HTTPS con limites, HSTS y 404 por defecto (y sin WEB_DOMAIN, nada de la web)"
 
 # N3. Idempotente: segunda ejecucion sin cambios no recarga
@@ -249,7 +249,7 @@ grep -q "limit_req_zone .*zone=mymoney_web:" "$WEB" || fail "falta la zona del l
 ! grep -q "proxy_hide_header" "$TRAVEL_DIR/nginx/conf.d/mymoney-web-proxy.inc" || fail "el proxy de la web no debe descartar las cabeceras de seguridad del servidor de la web"
 grep -q "^proxy_hide_header Content-Security-Policy;" "$TRAVEL_DIR/nginx/conf.d/mymoney-proxy.inc" || fail "el proxy de la API debe seguir descartando las suyas"
 # nginx rechaza una directiva global repetida entre ficheros: limit_req_status solo puede ir una vez a nivel http.
-[ "$(cat "$(API_CONF)" | grep -c '^limit_req_status')" = "1" ] || fail "limit_req_status debe declararse solo en el vhost de la API"
+[ "$(grep -c '^limit_req_status' "$(API_CONF)")" = "1" ] || fail "limit_req_status debe declararse solo en el vhost de la API"
 ! grep -q '^limit_req_status' "$WEB" || fail "el vhost de la web no puede repetir limit_req_status a nivel http"
 [ "$(cat "$(API_CONF)" "$WEB" | grep -c '^limit_req_zone')" = "3" ] || fail "debe haber exactamente 3 zonas de limite (auth, api y web)"
 [[ "$(basename "$WEB")" > "site.conf" ]] || fail "el vhost de la web se cargaria antes que el de travel_agency"
