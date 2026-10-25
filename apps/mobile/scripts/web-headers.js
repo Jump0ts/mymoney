@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Genera dist/_headers (cabeceras de seguridad de Cloudflare Pages) para la web exportada con
+ * Genera dist/_headers (cabeceras de seguridad de Cloudflare) para la web exportada con
  * `expo export --platform web`.
  *
  * La politica de contenido (CSP) no permite scripts en linea salvo los que la propia exportacion

@@ -45,7 +45,7 @@ It is a personal tool, not a product: every account is **individual and private*
 | API | Node.js, Express, Prisma ORM, PostgreSQL, Zod, JWT, Helmet |
 | Testing | Jest + React Native Testing Library, Vitest + supertest (real PostgreSQL), shell tests with a mocked `docker` |
 | CI/CD | GitHub Actions, Docker, GHCR |
-| Deployment target | DigitalOcean (API + PostgreSQL behind nginx/Let's Encrypt), Cloudflare Pages (web), Cloudflare DNS |
+| Deployment target | DigitalOcean (API + PostgreSQL behind nginx/Let's Encrypt), Cloudflare (web as static assets), Cloudflare DNS |
 
 ## Architecture
 
@@ -53,7 +53,7 @@ It is a personal tool, not a product: every account is **individual and private*
 flowchart LR
   subgraph Clients
     A["iOS / Android app"]
-    W["Web app - Cloudflare Pages"]
+    W["Web app - Cloudflare"]
   end
   A -->|"HTTPS + JWT"| N["nginx + Let's Encrypt"]
   W -->|"HTTPS + JWT"| N
@@ -90,7 +90,7 @@ The production setup is designed, documented and covered by automated tests (it 
 - nginx changes are validated with `nginx -t` and rolled back on failure, so a bad config cannot take down the other site sharing the server.
 - Brute-force protection on the auth endpoints, strict CORS, and public registration switched off in production.
 - The web build ships a strict Content Security Policy (no inline or `eval` scripts; it can only talk to its own API).
-- Backups are private (`umask 077`), taken before every migration, copied off the server with SHA-256 verification, and exercised by a restore test.
+- Backups are private (`umask 077`), taken before every migration, with a script that pulls SHA-256-verified copies off the server, and exercised by a restore test.
 
 ## Run it locally
 
