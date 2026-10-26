@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
+## [Unreleased]
+
+### Added
+- The web build can be installed on a phone as an app (PWA): web manifest, home-screen icons (including a maskable one and the iOS touch icon), standalone display,
+  light/dark system-bar colours, safe-area support (`viewport-fit=cover`) and no pull-to-refresh bounce.
+
+### Fixed
+- The labels of the bottom tab bar no longer lose the descenders of "p", "g" and "j" (Presupuesto, Categorías, Ajustes) on iOS.
+
 ## [0.2.0] — 2026-10-25 — Beta
 
 > Production-readiness release: the web app can now be served from the same VPS as the API, and the dependency and branch workflow was tightened.

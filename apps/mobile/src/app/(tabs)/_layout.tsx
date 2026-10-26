@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
+import { tabBarLabelStyle } from '@/constants/tab-bar';
 import { useTheme } from '@/hooks/use-theme';
 
 const TabsLayout = () => {
@@ -13,6 +14,7 @@ const TabsLayout = () => {
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.textSecondary,
         tabBarStyle: { backgroundColor: theme.backgroundElement, borderTopColor: theme.border },
+        tabBarLabelStyle,
       }}>
       <Tabs.Screen
         name="index"
