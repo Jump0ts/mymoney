@@ -3,7 +3,7 @@
 #
 # Seguridad:
 #  - La base de datos solo esta en la red `internal` (sin salida a Internet) y NO publica ningun puerto.
-#  - La API tampoco publica puertos: solo la ve el nginx de travel_agency a traves de la red `edge`.
+#  - La API y la web tampoco publican puertos: solo las ve el nginx de travel_agency a traves de la red `edge`.
 #  - Los secretos salen de /opt/mymoney/.env.production (modo 600, fuera del repo) y jamas de este fichero.
 
 name: mymoney-prod
@@ -68,6 +68,35 @@ services:
     tmpfs: ["/tmp"]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Servidor estatico de la web (ficheros que salen de la misma imagen verificada que la API). Solo se levanta
+  # si WEB_DOMAIN esta definido en .env.production. deploy.sh lo recrea en cada despliegue para que lea la web nueva.
+  web:
+    image: nginx:1.31-alpine
+    restart: unless-stopped
+    # Sin root y con el sistema de ficheros en solo lectura: la config (web-nginx/nginx.conf) escucha en 8080 y
+    # solo escribe en /tmp.
+    user: "101:101"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+      - ./web-nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      edge:
+        aliases: [mymoney-web]
+    mem_limit: 48m
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
