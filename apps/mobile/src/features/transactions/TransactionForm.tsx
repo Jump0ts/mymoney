@@ -209,7 +209,17 @@ export const TransactionForm = ({
             <BudgetLinkPicker
               month={{ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 }}
               value={budgetEntryId ?? null}
-              onChange={(id) => setValue('budgetEntryId', id, { shouldDirty: true })}
+              onChange={(id, plannedAmount) => {
+                setValue('budgetEntryId', id, { shouldDirty: true });
+                // Enlazar con el importe vacio lo rellena con el previsto de la linea; uno ya escrito no se toca.
+                if (id && plannedAmount && amountText.trim() === '') {
+                  const planned = Number(plannedAmount);
+                  if (planned > 0) {
+                    setAmountText(String(planned).replace('.', ','));
+                    setValue('amount', planned, { shouldValidate: false });
+                  }
+                }
+              }}
               ownTransactionId={ownTransactionId}
               currentLabel={linkedBudgetLabel}
             />

@@ -14,7 +14,8 @@ interface BudgetLinkPickerProps {
   // Mes del gasto: solo se ofrecen las lineas de su presupuesto.
   month: YearMonth;
   value: string | null;
-  onChange: (budgetEntryId: string | null) => void;
+  // Segundo argumento: importe previsto de la linea elegida (para rellenar un importe vacio); nada si se quita.
+  onChange: (budgetEntryId: string | null, plannedAmount?: string) => void;
   // Gasto que se esta editando: su propia linea sigue disponible aunque ya este enlazada a el.
   ownTransactionId?: string;
   // Nombre de la linea ya enlazada ("Luz · Hogar"): se ve aunque el presupuesto aun no haya cargado.
@@ -53,8 +54,8 @@ export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, cur
     if (value && data && !isFetching && !selected) onChange(null);
   }, [value, data, isFetching, selected, onChange]);
 
-  const choose = (budgetEntryId: string | null) => {
-    onChange(budgetEntryId);
+  const choose = (budgetEntryId: string | null, plannedAmount?: string) => {
+    onChange(budgetEntryId, plannedAmount);
     setExpanded(false);
   };
 
@@ -128,7 +129,7 @@ export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, cur
                     accessibilityState={{ selected: active }}
                     testID={`budget-link-option-${entry.id}`}
                     hitSlop={0}
-                    onPress={() => choose(entry.id)}
+                    onPress={() => choose(entry.id, entry.amount)}
                     style={[styles.option, active && { backgroundColor: theme.backgroundSelected }]}>
                     <ThemedText style={styles.optionName}>{entry.name}</ThemedText>
                     <ThemedText type="smallBold" themeColor="textSecondary" style={styles.optionAmount}>

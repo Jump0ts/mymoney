@@ -333,6 +333,70 @@ describe('TransactionForm - enlace con el presupuesto', () => {
     expect(submittedValues(onSubmit).budgetEntryId).toBe('e-de-otro-mes');
   });
 
+  describe('importe al enlazar', () => {
+    // Sin valores por defecto: formulario de alta, con el importe vacio.
+    const emptyValues = undefined;
+
+    it('con el importe vacio, enlazar lo rellena con el previsto de la linea', async () => {
+      const { onSubmit } = renderForm({ defaultValues: emptyValues });
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('');
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-luz'));
+      fireEvent.press(screen.getByTestId('category-chip-cat-exp-1'));
+
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('60');
+      fireEvent.press(screen.getByTestId('transaction-submit'));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(submittedValues(onSubmit)).toMatchObject({ amount: 60, budgetEntryId: 'e-luz' });
+    });
+
+    it('usa la coma decimal del campo con importes con decimales', () => {
+      mockBudgetState.data = {
+        month: { year: 2026, month: 5, income: '0' },
+        groups: [
+          {
+            ...mockBudgetGroups[0],
+            entries: [
+              { id: 'e-cuota', groupId: 'g1', itemId: null, name: 'Cuota', amount: '21.99', paid: false, position: 0, transaction: null },
+            ],
+          },
+        ],
+      };
+      renderForm({ defaultValues: emptyValues });
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-cuota'));
+
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('21,99');
+    });
+
+    it('un importe ya escrito no se toca', async () => {
+      const { onSubmit } = renderForm({ defaultValues: emptyValues });
+      fireEvent.changeText(screen.getByTestId('transaction-amount-input'), '62,30');
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-luz'));
+      fireEvent.press(screen.getByTestId('category-chip-cat-exp-1'));
+
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('62,30');
+      fireEvent.press(screen.getByTestId('transaction-submit'));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(submittedValues(onSubmit).amount).toBe(62.3);
+    });
+
+    it('quitar el enlace no borra el importe que se habia rellenado', () => {
+      renderForm({ defaultValues: emptyValues });
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-luz'));
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-none'));
+
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('60');
+    });
+  });
+
   it('con una linea ya enlazada que aun no ha cargado no dice "Sin enlazar": muestra su nombre y la conserva', async () => {
     mockBudgetState.isLoading = true;
     mockBudgetState.data = undefined;
