@@ -36,7 +36,7 @@ RUN npm ci --workspace=apps/mobile
 COPY apps/mobile/ apps/mobile/
 COPY deploy/vps/web-nginx/ deploy/vps/web-nginx/
 WORKDIR /app/apps/mobile
-# build:web falla si la URL no es https. El _headers es de Cloudflare: aqui las cabeceras las pone nginx y
+# build:web falla si la URL no es https. El _headers es de hostings estaticos: aqui las cabeceras las pone nginx y
 # un fichero con ese nombre no debe quedar servido.
 RUN test -n "$EXPO_PUBLIC_API_URL" \
  && npm run build:web \
