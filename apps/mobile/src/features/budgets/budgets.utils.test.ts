@@ -227,7 +227,7 @@ describe('parseAmountInput', () => {
 
 describe('getLineType', () => {
   it('distingue fija y reembolso', () => {
-    expect(getLineType(fixed('a', '10.00', false))).toBe('FIXED');
+    expect(getLineType(fixed('a', '10.00', false))).toBe('EXPENSE');
     expect(getLineType(fixed('a', '-50.00', false))).toBe('REFUND');
   });
 });
@@ -242,7 +242,7 @@ describe('formatAmountForInput', () => {
 
 describe('toLinePayload', () => {
   it('una linea fija lleva importe positivo y el nombre sin espacios', () => {
-    expect(toLinePayload({ name: '  Netflix ', lineType: 'FIXED', amount: '21,99' })).toEqual({
+    expect(toLinePayload({ name: '  Netflix ', lineType: 'EXPENSE', amount: '21,99' })).toEqual({
       name: 'Netflix',
       amount: 21.99,
     });
@@ -256,7 +256,7 @@ describe('toLinePayload', () => {
   });
 
   it('entiende el punto de miles', () => {
-    expect(toLinePayload({ name: 'Hipoteca', lineType: 'FIXED', amount: '1.500' }).amount).toBe(1500);
+    expect(toLinePayload({ name: 'Hipoteca', lineType: 'EXPENSE', amount: '1.500' }).amount).toBe(1500);
   });
 });
 

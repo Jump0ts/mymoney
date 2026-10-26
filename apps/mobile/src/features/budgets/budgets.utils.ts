@@ -71,7 +71,7 @@ export const parseAmountInput = (text: string): number | null => {
   return /^\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : null;
 };
 
-export const getLineType = (entry: BudgetEntry): BudgetLineType => (Number(entry.amount) < 0 ? 'REFUND' : 'FIXED');
+export const getLineType = (entry: BudgetEntry): BudgetLineType => (Number(entry.amount) < 0 ? 'REFUND' : 'EXPENSE');
 
 // Importe sin signo para el campo de texto del formulario ("21,99").
 export const formatAmountForInput = (amount: string): string => String(Math.abs(Number(amount))).replace('.', ',');
