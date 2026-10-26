@@ -9,6 +9,8 @@ export const createTransactionSchema = z.object({
   currency: z.string().length(3).default("EUR"),
   description: z.string().trim().max(200).optional(),
   occurredAt: z.coerce.date(),
+  // Linea del presupuesto que cubre este gasto; null al editar quita el enlace.
+  budgetEntryId: z.string().min(1).nullable().optional(),
 });
 
 export const updateTransactionSchema = createTransactionSchema.partial();

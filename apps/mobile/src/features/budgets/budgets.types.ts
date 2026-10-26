@@ -6,6 +6,8 @@ export interface BudgetEntry {
   amount: string;
   paid: boolean;
   position: number;
+  // Gasto de Movimientos enlazado a la linea: su importe es el "real" y la linea cuenta como pagada.
+  transaction?: { id: string; amount: string; occurredAt: string } | null;
 }
 
 export interface BudgetGroup {

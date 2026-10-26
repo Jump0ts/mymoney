@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
-import { badRequest, notFound } from "../../utils/errors.js";
+import { badRequest, conflict, notFound } from "../../utils/errors.js";
 import {
   createEntrySchema,
   createGroupSchema,
@@ -123,6 +123,8 @@ const buildMonthResponse = async (userId: string, target: YearMonth) => {
     prisma.budgetGroup.findMany({ where: { userId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
     prisma.budgetEntry.findMany({
       where: { userId, ...target },
+      // El gasto enlazado (si lo hay) aporta el importe real de la linea.
+      include: { transaction: { select: { id: true, amount: true, occurredAt: true } } },
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     }),
   ]);
@@ -392,6 +394,20 @@ budgetsRouter.patch(
     if (!entry) throw notFound("Línea no encontrada");
 
     if (body.groupId) await findOwnedGroup(userId, body.groupId);
+
+    // Una linea enlazada a un gasto de Movimientos esta pagada por definicion: para cambiarlo se desenlaza el gasto.
+    if (body.paid === false || (body.amount !== undefined && body.amount <= 0)) {
+      const linked = await prisma.transaction.findFirst({
+        where: { budgetEntryId: entry.id, userId },
+        select: { id: true },
+      });
+      if (linked && body.paid === false) {
+        throw conflict(
+          "Esta línea está enlazada a un movimiento: desenlázalo desde Movimientos para marcarla como no pagada",
+        );
+      }
+      if (linked) throw badRequest("Una línea enlazada a un gasto no puede pasar a reembolso");
+    }
 
     const updated = await prisma.budgetEntry.update({ where: { id: entry.id }, data: body });
     res.json({ entry: updated });

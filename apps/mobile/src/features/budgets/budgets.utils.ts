@@ -13,8 +13,14 @@ import type {
 // Evita arrastrar errores de coma flotante (0.1 + 0.2) a lo que se muestra.
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
 
-// Lo "pagado" de una linea es su importe si esta marcada.
-export const getEntryActual = (entry: BudgetEntry): number => (entry.paid ? Number(entry.amount) : 0);
+// Una linea esta enlazada si tiene un gasto de Movimientos asociado.
+export const isEntryLinked = (entry: BudgetEntry): boolean => Boolean(entry.transaction);
+
+// Lo "pagado" de una linea es el importe real del gasto enlazado o, si se marco a mano, su importe previsto.
+export const getEntryActual = (entry: BudgetEntry): number => {
+  if (entry.transaction) return Number(entry.transaction.amount);
+  return entry.paid ? Number(entry.amount) : 0;
+};
 
 export const getGroupTotals = (entries: BudgetEntry[]): BudgetTotals => ({
   planned: roundMoney(entries.reduce((sum, entry) => sum + Number(entry.amount), 0)),

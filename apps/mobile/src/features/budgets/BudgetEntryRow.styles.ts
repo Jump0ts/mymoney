@@ -11,4 +11,9 @@ export const styles = StyleSheet.create({
   // flexShrink + minWidth 0: el nombre se parte en varias lineas antes que empujar el importe fuera.
   name: { flex: 1, flexShrink: 1, minWidth: 0 },
   amount: { flexShrink: 0 },
+  // Nombre (con el icono de enlace) y, debajo, el importe previsto cuando difiere del real.
+  nameBlock: { flex: 1, flexShrink: 1, minWidth: 0 },
+  nameLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  // Sin flex: 1, para que el icono de enlace quede pegado al nombre y no arrinconado junto al importe.
+  nameText: { flexShrink: 1, minWidth: 0 },
 });
