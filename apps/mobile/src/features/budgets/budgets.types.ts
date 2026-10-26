@@ -27,7 +27,7 @@ export interface BudgetMonthResponse {
 }
 
 // Lo que elige el usuario al crear una linea; un reembolso es una linea con importe negativo.
-export type BudgetLineType = 'FIXED' | 'REFUND';
+export type BudgetLineType = 'EXPENSE' | 'REFUND';
 
 // "month": solo el mes abierto; "template": tambien la plantilla (meses siguientes).
 export type BudgetScope = 'month' | 'template';

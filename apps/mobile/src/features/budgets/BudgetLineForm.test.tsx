@@ -9,7 +9,7 @@ jest.mock('@/utils/alert', () => ({ confirmAsync: jest.fn().mockResolvedValue(tr
 
 const emptyValues: BudgetLineFormValues = {
   name: '',
-  lineType: 'FIXED',
+  lineType: 'EXPENSE',
   amount: '',
   scope: 'template',
 };
@@ -40,6 +40,25 @@ const fill = (name: string, amount: string) => {
 };
 
 describe('BudgetLineForm', () => {
+  it('ofrece los tipos Gasto y Reembolso (no "Fijo", que no se entendia como opuesto de un reembolso)', () => {
+    renderForm();
+
+    expect(screen.getByText('Gasto')).toBeTruthy();
+    expect(screen.getByText('Reembolso')).toBeTruthy();
+    expect(screen.queryByText('Fijo')).toBeNull();
+  });
+
+  it('un gasto se envia con la linea de tipo gasto y un reembolso con el de reembolso', async () => {
+    const { onSubmit } = renderForm();
+
+    fill('Luz Ivan', '30');
+    fireEvent.press(screen.getByText('Reembolso'));
+    fireEvent.press(screen.getByTestId('budget-line-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ lineType: 'REFUND' });
+  });
+
   it('envia el nombre, el importe y el alcance elegidos', async () => {
     const { onSubmit } = renderForm();
 
@@ -49,7 +68,7 @@ describe('BudgetLineForm', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
       name: 'Netflix',
-      lineType: 'FIXED',
+      lineType: 'EXPENSE',
       amount: '21,99',
       scope: 'template',
     });
