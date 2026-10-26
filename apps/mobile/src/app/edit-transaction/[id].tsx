@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { TransactionForm } from '@/features/transactions/TransactionForm';
 import type { AddTransactionFormValues } from '@/features/transactions/transactions.schema';
+import { toUpdateInput } from '@/features/transactions/transactions.utils';
 import { useCachedTransaction, useUpdateTransaction } from '@/features/transactions/useTransactions';
 import { ApiError } from '@/lib/api';
 import { notify } from '@/utils/alert';
@@ -38,19 +39,13 @@ const EditTransactionScreen = () => {
     amount: Number(transaction.amount),
     description: transaction.description ?? '',
     occurredAt: new Date(transaction.occurredAt),
+    budgetEntryId: transaction.budgetEntry?.id ?? null,
   };
 
   const handleSubmit = (values: AddTransactionFormValues) => {
     setSubmitError(null);
     updateTransaction.mutate(
-      {
-        id,
-        categoryId: values.categoryId,
-        type: values.type,
-        amount: values.amount,
-        description: values.description || undefined,
-        occurredAt: values.occurredAt.toISOString(),
-      },
+      { id, ...toUpdateInput(values) },
       {
         onSuccess: () => router.back(),
         onError: (err) => setSubmitError(err instanceof ApiError ? err.message : 'Error inesperado'),
@@ -65,6 +60,10 @@ const EditTransactionScreen = () => {
       isSubmitting={updateTransaction.isPending}
       submitError={submitError}
       onSubmit={handleSubmit}
+      ownTransactionId={id}
+      linkedBudgetLabel={
+        transaction.budgetEntry ? `${transaction.budgetEntry.name} · ${transaction.budgetEntry.group.name}` : undefined
+      }
     />
   );
 };

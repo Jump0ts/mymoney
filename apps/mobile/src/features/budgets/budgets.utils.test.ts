@@ -2,6 +2,7 @@ import type { BudgetEntry, BudgetGroup, BudgetMonthResponse } from './budgets.ty
 import {
   formatAmountForInput,
   getEntryActual,
+  isEntryLinked,
   getGroupTotals,
   getLimitStatus,
   getLineType,
@@ -335,5 +336,33 @@ describe('setEntryPaid', () => {
 
     expect(updated.groups[0].entries.map((e) => e.paid)).toEqual([false, true]);
     expect(month.groups[0].entries[1].paid).toBe(false);
+  });
+});
+
+describe('lineas enlazadas a un gasto de Movimientos', () => {
+  const linked = (amount: string, real: string): BudgetEntry => ({
+    ...fixed('l', amount, true),
+    transaction: { id: 'tx', amount: real, occurredAt: '2026-10-12T10:00:00.000Z' },
+  });
+
+  it('lo real de una linea enlazada es el importe del gasto, no el previsto', () => {
+    expect(getEntryActual(linked('60.00', '62.30'))).toBe(62.3);
+  });
+
+  it('una linea sin enlazar sigue contando su importe previsto solo si esta marcada', () => {
+    expect(getEntryActual(fixed('a', '10.00', true))).toBe(10);
+    expect(getEntryActual(fixed('a', '10.00', false))).toBe(0);
+  });
+
+  it('isEntryLinked distingue las enlazadas', () => {
+    expect(isEntryLinked(linked('60.00', '62.30'))).toBe(true);
+    expect(isEntryLinked(fixed('a', '10.00', true))).toBe(false);
+    expect(isEntryLinked({ ...fixed('a', '10.00', false), transaction: null })).toBe(false);
+  });
+
+  it('los totales del grupo usan lo real en las enlazadas y lo previsto en el resto', () => {
+    const totals = getGroupTotals([linked('60.00', '62.30'), fixed('b', '20.00', true), fixed('c', '5.00', false)]);
+
+    expect(totals).toEqual({ planned: 85, paid: 82.3 });
   });
 });
