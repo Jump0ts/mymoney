@@ -45,7 +45,7 @@ It is a personal tool, not a product: every account is **individual and private*
 | API | Node.js, Express, Prisma ORM, PostgreSQL, Zod, JWT, Helmet |
 | Testing | Jest + React Native Testing Library, Vitest + supertest (real PostgreSQL), shell tests with a mocked `docker` |
 | CI/CD | GitHub Actions, Docker, GHCR |
-| Deployment target | DigitalOcean (API + PostgreSQL behind nginx/Let's Encrypt), Cloudflare (web as static assets), Cloudflare DNS |
+| Deployment target | DigitalOcean (API + PostgreSQL behind nginx/Let's Encrypt), the web app served from the same VPS, Cloudflare DNS |
 
 ## Architecture
 
@@ -53,7 +53,7 @@ It is a personal tool, not a product: every account is **individual and private*
 flowchart LR
   subgraph Clients
     A["iOS / Android app"]
-    W["Web app - Cloudflare"]
+    W["Web app (browser)"]
   end
   A -->|"HTTPS + JWT"| N["nginx + Let's Encrypt"]
   W -->|"HTTPS + JWT"| N
