@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
-import { notFound } from "../../utils/errors.js";
+import { badRequest, notFound } from "../../utils/errors.js";
 import {
   createTransactionSchema,
   listTransactionsQuerySchema,
@@ -11,6 +11,13 @@ import {
   updateTransactionSchema,
 } from "./transactions.schema.js";
 import type { MonthlyBreakdownRow } from "./transactions.types.js";
+import {
+  LINK_ONLY_EXPENSE,
+  assertLinkable,
+  setEntryPaid,
+  transactionInclude,
+  withLinkConflict,
+} from "./transactions.utils.js";
 
 export const transactionsRouter = Router();
 transactionsRouter.use(requireAuth);
@@ -39,7 +46,7 @@ transactionsRouter.get(
     const [transactions, total] = await Promise.all([
       prisma.transaction.findMany({
         where,
-        include: { category: true },
+        include: transactionInclude,
         orderBy: { occurredAt: "desc" },
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
@@ -134,18 +141,26 @@ transactionsRouter.get(
 transactionsRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    const body = createTransactionSchema.parse(req.body);
+    const { budgetEntryId, ...body } = createTransactionSchema.parse(req.body);
     const userId = req.auth!.userId;
 
     const category = await prisma.category.findFirst({
       where: { id: body.categoryId, userId },
     });
     if (!category) throw notFound("Categoría no encontrada");
+    if (budgetEntryId && body.type !== "EXPENSE") throw badRequest(LINK_ONLY_EXPENSE);
 
-    const transaction = await prisma.transaction.create({
-      data: { ...body, userId },
-      include: { category: true },
-    });
+    const transaction = await withLinkConflict(() =>
+      prisma.$transaction(async (db) => {
+        if (budgetEntryId) await assertLinkable(db, userId, budgetEntryId);
+        const created = await db.transaction.create({
+          data: { ...body, userId, budgetEntryId: budgetEntryId ?? null },
+          include: transactionInclude,
+        });
+        if (budgetEntryId) await setEntryPaid(db, budgetEntryId, true);
+        return created;
+      }),
+    );
     res.status(201).json({ transaction });
   }),
 );
@@ -153,13 +168,21 @@ transactionsRouter.post(
 transactionsRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
-    const body = updateTransactionSchema.parse(req.body);
+    const { budgetEntryId: requestedLink, ...body } = updateTransactionSchema.parse(req.body);
     const userId = req.auth!.userId;
 
     const existing = await prisma.transaction.findFirst({
       where: { id: req.params.id, userId },
     });
     if (!existing) throw notFound("Movimiento no encontrado");
+
+    // undefined = no tocar el enlace; null = quitarlo. Un ingreso no puede estar enlazado: si el gasto pasa
+    // a ingreso, pierde el enlace; pedir a la vez un enlace y un ingreso es un error.
+    let nextLink = requestedLink !== undefined ? requestedLink : existing.budgetEntryId;
+    if (nextLink && (body.type ?? existing.type) !== "EXPENSE") {
+      if (requestedLink) throw badRequest(LINK_ONLY_EXPENSE);
+      nextLink = null;
+    }
 
     if (body.categoryId) {
       const category = await prisma.category.findFirst({
@@ -168,11 +191,20 @@ transactionsRouter.patch(
       if (!category) throw notFound("Categoría no encontrada");
     }
 
-    const transaction = await prisma.transaction.update({
-      where: { id: existing.id },
-      data: body,
-      include: { category: true },
-    });
+    const linkChanged = nextLink !== existing.budgetEntryId;
+    const transaction = await withLinkConflict(() =>
+      prisma.$transaction(async (db) => {
+        if (nextLink && linkChanged) await assertLinkable(db, userId, nextLink, existing.id);
+        const updated = await db.transaction.update({
+          where: { id: existing.id },
+          data: { ...body, budgetEntryId: nextLink },
+          include: transactionInclude,
+        });
+        if (linkChanged && existing.budgetEntryId) await setEntryPaid(db, existing.budgetEntryId, false);
+        if (linkChanged && nextLink) await setEntryPaid(db, nextLink, true);
+        return updated;
+      }),
+    );
     res.json({ transaction });
   }),
 );
@@ -185,7 +217,11 @@ transactionsRouter.delete(
     });
     if (!existing) throw notFound("Movimiento no encontrado");
 
-    await prisma.transaction.delete({ where: { id: existing.id } });
+    await prisma.$transaction(async (db) => {
+      await db.transaction.delete({ where: { id: existing.id } });
+      // Sin el gasto, la linea del presupuesto vuelve a estar sin pagar.
+      if (existing.budgetEntryId) await setEntryPaid(db, existing.budgetEntryId, false);
+    });
     res.status(204).send();
   }),
 );
