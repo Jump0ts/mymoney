@@ -14,9 +14,16 @@
 **/*.key
 **/*.sql.gz
 
-# La app movil solo aporta su package.json para que npm ci resuelva el workspace
+# De la app movil solo entra lo que necesita `expo export` (web); nada de tests, cobertura ni configuracion local
 apps/mobile/*
 !apps/mobile/package.json
+!apps/mobile/app.config.ts
+!apps/mobile/tsconfig.json
+!apps/mobile/src
+!apps/mobile/assets
+!apps/mobile/public
+!apps/mobile/scripts
+**/*.test.*
 
 # Tests y herramientas del backend que no van en la imagen
 backend/tests

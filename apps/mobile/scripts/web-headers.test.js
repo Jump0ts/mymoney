@@ -1,4 +1,4 @@
-const { apiOrigin, buildHeaders, inlineScriptHashes, sha256 } = require('./web-headers');
+const { apiOrigin, buildHeaders, contentSecurityPolicy, inlineScriptHashes, sha256 } = require('./web-headers');
 
 describe('sha256', () => {
   it('da el hash en base64 con el formato de la CSP', () => {
@@ -79,5 +79,23 @@ describe('buildHeaders', () => {
 
   it('no se puede generar con una API que no sea https', () => {
     expect(() => buildHeaders({ apiUrl: 'http://api.ejemplo.dev', scriptHashes: [] })).toThrow('https');
+  });
+});
+
+describe('contentSecurityPolicy', () => {
+  const policy = contentSecurityPolicy({ apiUrl: 'https://api.ejemplo.dev/v1', scriptHashes: ["'sha256-abc='"] });
+
+  it('limita la conexion al propio origen y al de la API', () => {
+    expect(policy).toContain("connect-src 'self' https://api.ejemplo.dev;");
+  });
+
+  it('autoriza los scripts en linea solo por hash y nunca con unsafe-inline ni unsafe-eval', () => {
+    expect(policy).toContain("script-src 'self' 'sha256-abc='");
+    expect(policy).not.toMatch(/script-src[^;]*unsafe/);
+  });
+
+  it('es la misma que la del fichero _headers', () => {
+    const headers = buildHeaders({ apiUrl: 'https://api.ejemplo.dev/v1', scriptHashes: ["'sha256-abc='"] });
+    expect(headers).toContain(`Content-Security-Policy: ${policy}`);
   });
 });

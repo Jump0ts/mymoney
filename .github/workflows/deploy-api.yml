@@ -21,7 +21,16 @@ on:
       - "deploy/backup/**"
       - "package.json"
       - "package-lock.json"
+      - ".dockerignore"
       - ".github/workflows/deploy-api.yml"
+      # La web viaja en la misma imagen: solo lo que entra en su build (no tests ni documentacion).
+      - "apps/mobile/src/**"
+      - "apps/mobile/assets/**"
+      - "apps/mobile/public/**"
+      - "apps/mobile/scripts/**"
+      - "apps/mobile/app.config.ts"
+      - "apps/mobile/package.json"
+      - "apps/mobile/tsconfig.json"
   workflow_dispatch:
     inputs:
       image_tag:
@@ -38,6 +47,8 @@ permissions:
 
 env:
   IMAGE_REPO: ghcr.io/jump0ts/mymoney-api
+  # URL publica de la API, incrustada en la web que lleva la imagen (y en la CSP de la web). No es secreta.
+  WEB_API_URL: https://mymoney-api.josanfersal.dev
 
 jobs:
   build:
@@ -72,6 +83,8 @@ jobs:
         with:
           context: .
           file: backend/Dockerfile
+          build-args: |
+            WEB_API_URL=${{ env.WEB_API_URL }}
           push: true
           provenance: false
           sbom: false
