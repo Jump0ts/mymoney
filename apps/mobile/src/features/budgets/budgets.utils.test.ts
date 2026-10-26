@@ -6,6 +6,7 @@ import {
   getLimitStatus,
   getLineType,
   getMonthTotals,
+  getGroupReserved,
   getRemainderAvailable,
   moveId,
   setEntryOrder,
@@ -152,6 +153,61 @@ describe('grupo que recibe lo que sobra', () => {
     ];
 
     expect(getRemainderAvailable(groups, 1500)).toBe(799.5);
+  });
+
+  describe('con grupos que tienen limite', () => {
+    const limited = (id: string, limit: string, entries: BudgetEntry[]): BudgetGroup => ({ ...group(id, entries), limit });
+
+    it('el limite de un grupo se descuenta aunque aun no tenga lineas', () => {
+      expect(getRemainderAvailable([limited('a', '120.00', []), remainder([])], 300)).toBe(180);
+    });
+
+    it('descuenta el limite entero aunque las lineas sumen menos', () => {
+      expect(getRemainderAvailable([limited('a', '120.00', [fixed('a1', '50.00', false)])], 300)).toBe(180);
+    });
+
+    it('si las lineas superan el limite se descuenta lo que suman, que es lo comprometido de verdad', () => {
+      expect(getRemainderAvailable([limited('a', '100.00', [fixed('a1', '150.00', false)])], 300)).toBe(150);
+    });
+
+    it('un limite de 0 no reserva nada propio y cuenta lo que sumen sus lineas', () => {
+      expect(getRemainderAvailable([limited('a', '0.00', [fixed('a1', '40.00', false)])], 300)).toBe(260);
+    });
+
+    it('combina grupos con limite y grupos sin limite', () => {
+      const groups = [
+        limited('a', '120.00', [fixed('a1', '30.00', true)]),
+        group('b', [fixed('b1', '70.00', false)]),
+        remainder([fixed('r1', '10.00', false)]),
+      ];
+
+      expect(getRemainderAvailable(groups, 300)).toBe(110);
+    });
+
+    it('el limite del propio grupo del sobrante no se descuenta (no tiene limite propio, su tope es el disponible)', () => {
+      const groups = [{ ...remainder([]), limit: '999.00' }];
+
+      expect(getRemainderAvailable(groups, 300)).toBe(300);
+    });
+
+    it('un reembolso dentro de un grupo con limite no hace que reserve menos que su limite', () => {
+      const groups = [limited('a', '100.00', [fixed('a1', '120.00', false), fixed('a2', '-40.00', false)])];
+
+      expect(getRemainderAvailable(groups, 300)).toBe(200);
+    });
+  });
+
+  describe('getGroupReserved', () => {
+    it('sin limite reserva lo que suman sus lineas', () => {
+      expect(getGroupReserved(group('a', [fixed('a1', '30.00', false), fixed('a2', '12.50', true)]))).toBe(42.5);
+    });
+
+    it('con limite reserva el mayor entre el limite y lo previsto', () => {
+      const base = group('a', [fixed('a1', '30.00', false)]);
+
+      expect(getGroupReserved({ ...base, limit: '100.00' })).toBe(100);
+      expect(getGroupReserved({ ...base, limit: '20.00' })).toBe(30);
+    });
   });
 
   it('las lineas del propio grupo del sobrante no reducen su disponible', () => {

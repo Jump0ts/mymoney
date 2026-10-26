@@ -33,12 +33,17 @@ export const getMonthTotals = (groups: BudgetGroup[], income: number): BudgetMon
   };
 };
 
-// Lo que queda del sueldo tras repartir lo previsto en todos los grupos salvo el del sobrante.
+// Lo que un grupo aparta del sueldo: su limite, aunque aun no tenga lineas que lo llenen, o lo que suman sus
+// lineas si ya lo superan (el dinero de mas tambien esta comprometido). Sin limite, lo que suman sus lineas.
+export const getGroupReserved = (group: BudgetGroup): number => {
+  const planned = getGroupTotals(group.entries).planned;
+  return group.limit === null ? planned : Math.max(Number(group.limit), planned);
+};
+
+// Lo que queda del sueldo tras apartar el dinero de todos los grupos salvo el del sobrante: el limite de los que
+// lo tienen (ese dinero ya no es "sobrante" aunque aun no este gastado) y lo previsto en los que no.
 export const getRemainderAvailable = (groups: BudgetGroup[], income: number): number =>
-  roundMoney(
-    income -
-      groups.reduce((sum, group) => (group.isRemainder ? sum : sum + getGroupTotals(group.entries).planned), 0),
-  );
+  roundMoney(income - groups.reduce((sum, group) => (group.isRemainder ? sum : sum + getGroupReserved(group)), 0));
 
 // Cuanto del tope del grupo se lleva consumido con lo previsto en sus lineas. El tope es su limite,
 // o el disponible calculado si es el grupo del sobrante; null si no tiene ninguno.
