@@ -385,6 +385,75 @@ describe('TransactionForm - enlace con el presupuesto', () => {
       expect(submittedValues(onSubmit).amount).toBe(62.3);
     });
 
+    it('con la descripcion vacia, enlazar la rellena con el nombre de la linea y se envia', async () => {
+      const { onSubmit } = renderForm({ defaultValues: emptyValues });
+      expect(screen.getByPlaceholderText('Descripción (opcional)').props.value).toBe('');
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-luz'));
+      fireEvent.press(screen.getByTestId('category-chip-cat-exp-1'));
+
+      expect(screen.getByPlaceholderText('Descripción (opcional)').props.value).toBe('Luz');
+      fireEvent.press(screen.getByTestId('transaction-submit'));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(submittedValues(onSubmit)).toMatchObject({ description: 'Luz', amount: 60, budgetEntryId: 'e-luz' });
+    });
+
+    it('una descripcion ya escrita no se toca', () => {
+      renderForm({ defaultValues: emptyValues });
+      fireEvent.changeText(screen.getByPlaceholderText('Descripción (opcional)'), 'Recibo de octubre');
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-luz'));
+
+      expect(screen.getByPlaceholderText('Descripción (opcional)').props.value).toBe('Recibo de octubre');
+    });
+
+    it('una descripcion de solo espacios cuenta como vacia', () => {
+      renderForm({ defaultValues: emptyValues });
+      fireEvent.changeText(screen.getByPlaceholderText('Descripción (opcional)'), '   ');
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-luz'));
+
+      expect(screen.getByPlaceholderText('Descripción (opcional)').props.value).toBe('Luz');
+    });
+
+    it('importe y descripcion se rellenan de forma independiente: uno escrito no impide rellenar el otro', () => {
+      renderForm({ defaultValues: emptyValues });
+      fireEvent.changeText(screen.getByTestId('transaction-amount-input'), '62,30');
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-luz'));
+
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('62,30');
+      expect(screen.getByPlaceholderText('Descripción (opcional)').props.value).toBe('Luz');
+    });
+
+    it('al cambiar a otra linea no pisa la descripcion que ya se rellenó con la anterior', () => {
+      mockBudgetState.data = {
+        month: { year: 2026, month: 5, income: '0' },
+        groups: [
+          {
+            ...mockBudgetGroups[0],
+            entries: [
+              { id: 'e-luz', groupId: 'g1', itemId: null, name: 'Luz', amount: '60.00', paid: false, position: 0, transaction: null },
+              { id: 'e-gas', groupId: 'g1', itemId: null, name: 'Gas', amount: '30.00', paid: false, position: 1, transaction: null },
+            ],
+          },
+        ],
+      };
+      renderForm({ defaultValues: emptyValues });
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-luz'));
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-gas'));
+
+      expect(screen.getByPlaceholderText('Descripción (opcional)').props.value).toBe('Luz');
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('60');
+    });
+
     it('quitar el enlace no borra el importe que se habia rellenado', () => {
       renderForm({ defaultValues: emptyValues });
       fireEvent.press(screen.getByTestId('budget-link-toggle'));
@@ -394,6 +463,7 @@ describe('TransactionForm - enlace con el presupuesto', () => {
       fireEvent.press(screen.getByTestId('budget-link-none'));
 
       expect(screen.getByTestId('transaction-amount-input').props.value).toBe('60');
+      expect(screen.getByPlaceholderText('Descripción (opcional)').props.value).toBe('Luz');
     });
   });
 

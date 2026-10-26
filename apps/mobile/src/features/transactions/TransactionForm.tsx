@@ -58,6 +58,7 @@ export const TransactionForm = ({
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<AddTransactionFormValues>({
     resolver: yupResolver(addTransactionSchema),
@@ -209,15 +210,18 @@ export const TransactionForm = ({
             <BudgetLinkPicker
               month={{ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 }}
               value={budgetEntryId ?? null}
-              onChange={(id, plannedAmount) => {
+              onChange={(id, line) => {
                 setValue('budgetEntryId', id, { shouldDirty: true });
-                // Enlazar con el importe vacio lo rellena con el previsto de la linea; uno ya escrito no se toca.
-                if (id && plannedAmount && amountText.trim() === '') {
-                  const planned = Number(plannedAmount);
-                  if (planned > 0) {
-                    setAmountText(String(planned).replace('.', ','));
-                    setValue('amount', planned, { shouldValidate: false });
-                  }
+                if (!id || !line) return;
+                // Enlazar rellena lo que este vacio con lo de la linea del presupuesto (importe previsto y nombre
+                // como descripcion); lo que ya este escrito no se toca.
+                const planned = Number(line.plannedAmount);
+                if (amountText.trim() === '' && planned > 0) {
+                  setAmountText(String(planned).replace('.', ','));
+                  setValue('amount', planned, { shouldValidate: false });
+                }
+                if ((getValues('description') ?? '').trim() === '') {
+                  setValue('description', line.name, { shouldDirty: true });
                 }
               }}
               ownTransactionId={ownTransactionId}
