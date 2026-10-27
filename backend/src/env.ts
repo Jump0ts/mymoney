@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { z } from "zod";
+import { flattenError, z } from "zod";
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL es obligatorio"),
@@ -20,7 +20,7 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error("Variables de entorno inválidas:", parsed.error.flatten().fieldErrors);
+  console.error("Variables de entorno inválidas:", flattenError(parsed.error).fieldErrors);
   throw new Error("Configuración de entorno inválida");
 }
 
