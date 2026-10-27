@@ -49,11 +49,15 @@ export interface TransactionInput {
   amount: number;
   description?: string;
   occurredAt: string;
+  // Al crear, se omite si no hay enlace; al editar, null lo quita.
+  budgetEntryId?: string | null;
 }
 
 const invalidateAll = (queryClient: ReturnType<typeof useQueryClient>) => {
   queryClient.invalidateQueries({ queryKey: ['transactions'] });
   queryClient.invalidateQueries({ queryKey: ['summary'] });
+  // Enlazar o desenlazar cambia lo pagado en el presupuesto.
+  queryClient.invalidateQueries({ queryKey: ['budgets'] });
 };
 
 export const useCreateTransaction = () => {

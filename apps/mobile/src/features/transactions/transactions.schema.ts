@@ -10,6 +10,8 @@ export const addTransactionSchema = yup.object({
     .required('El importe es obligatorio'),
   description: yup.string().trim().max(200).optional(),
   occurredAt: yup.date().required(),
+  // Linea del presupuesto que cubre este gasto (opcional; solo para gastos).
+  budgetEntryId: yup.string().nullable().optional(),
 });
 
 export type AddTransactionFormValues = yup.InferType<typeof addTransactionSchema>;

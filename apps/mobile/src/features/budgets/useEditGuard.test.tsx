@@ -84,7 +84,7 @@ describe('formularios reales con la guarda', () => {
   it('el formulario de linea avisa en cuanto se escribe algo', async () => {
     const confirmDiscard = renderWithGuard(
       <BudgetLineForm
-        defaultValues={{ name: '', lineType: 'FIXED', amount: '', scope: 'month' }}
+        defaultValues={{ name: '', lineType: 'EXPENSE', amount: '', scope: 'month' }}
         scopeOptions={null}
         submitLabel="Guardar"
         onSubmit={jest.fn()}

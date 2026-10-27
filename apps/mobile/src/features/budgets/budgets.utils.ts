@@ -13,8 +13,14 @@ import type {
 // Evita arrastrar errores de coma flotante (0.1 + 0.2) a lo que se muestra.
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
 
-// Lo "pagado" de una linea es su importe si esta marcada.
-export const getEntryActual = (entry: BudgetEntry): number => (entry.paid ? Number(entry.amount) : 0);
+// Una linea esta enlazada si tiene un gasto de Movimientos asociado.
+export const isEntryLinked = (entry: BudgetEntry): boolean => Boolean(entry.transaction);
+
+// Lo "pagado" de una linea es el importe real del gasto enlazado o, si se marco a mano, su importe previsto.
+export const getEntryActual = (entry: BudgetEntry): number => {
+  if (entry.transaction) return Number(entry.transaction.amount);
+  return entry.paid ? Number(entry.amount) : 0;
+};
 
 export const getGroupTotals = (entries: BudgetEntry[]): BudgetTotals => ({
   planned: roundMoney(entries.reduce((sum, entry) => sum + Number(entry.amount), 0)),
@@ -33,12 +39,17 @@ export const getMonthTotals = (groups: BudgetGroup[], income: number): BudgetMon
   };
 };
 
-// Lo que queda del sueldo tras repartir lo previsto en todos los grupos salvo el del sobrante.
+// Lo que un grupo aparta del sueldo: su limite, aunque aun no tenga lineas que lo llenen, o lo que suman sus
+// lineas si ya lo superan (el dinero de mas tambien esta comprometido). Sin limite, lo que suman sus lineas.
+export const getGroupReserved = (group: BudgetGroup): number => {
+  const planned = getGroupTotals(group.entries).planned;
+  return group.limit === null ? planned : Math.max(Number(group.limit), planned);
+};
+
+// Lo que queda del sueldo tras apartar el dinero de todos los grupos salvo el del sobrante: el limite de los que
+// lo tienen (ese dinero ya no es "sobrante" aunque aun no este gastado) y lo previsto en los que no.
 export const getRemainderAvailable = (groups: BudgetGroup[], income: number): number =>
-  roundMoney(
-    income -
-      groups.reduce((sum, group) => (group.isRemainder ? sum : sum + getGroupTotals(group.entries).planned), 0),
-  );
+  roundMoney(income - groups.reduce((sum, group) => (group.isRemainder ? sum : sum + getGroupReserved(group)), 0));
 
 // Cuanto del tope del grupo se lleva consumido con lo previsto en sus lineas. El tope es su limite,
 // o el disponible calculado si es el grupo del sobrante; null si no tiene ninguno.
@@ -71,7 +82,7 @@ export const parseAmountInput = (text: string): number | null => {
   return /^\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : null;
 };
 
-export const getLineType = (entry: BudgetEntry): BudgetLineType => (Number(entry.amount) < 0 ? 'REFUND' : 'FIXED');
+export const getLineType = (entry: BudgetEntry): BudgetLineType => (Number(entry.amount) < 0 ? 'REFUND' : 'EXPENSE');
 
 // Importe sin signo para el campo de texto del formulario ("21,99").
 export const formatAmountForInput = (amount: string): string => String(Math.abs(Number(amount))).replace('.', ',');

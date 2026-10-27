@@ -16,6 +16,7 @@ import { useCategories } from '@/features/categories/useCategories';
 import { useTheme } from '@/hooks/use-theme';
 import { formatDateKey, type YearMonth } from '@/utils/date';
 import { formatDate } from '@/utils/format';
+import { BudgetLinkPicker } from './BudgetLinkPicker';
 import { addTransactionSchema, type AddTransactionFormValues } from './transactions.schema';
 import { styles } from './TransactionForm.styles';
 
@@ -25,6 +26,10 @@ interface TransactionFormProps {
   isSubmitting: boolean;
   submitError: string | null;
   onSubmit: (values: AddTransactionFormValues) => void;
+  // Movimiento que se esta editando: su propia linea del presupuesto sigue disponible para elegirla.
+  ownTransactionId?: string;
+  // Nombre ("Luz · Hogar") de la linea a la que ya esta enlazado el movimiento que se edita.
+  linkedBudgetLabel?: string;
 }
 
 export const TransactionForm = ({
@@ -33,6 +38,8 @@ export const TransactionForm = ({
   isSubmitting,
   submitError,
   onSubmit,
+  ownTransactionId,
+  linkedBudgetLabel,
 }: TransactionFormProps) => {
   const theme = useTheme();
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -51,6 +58,7 @@ export const TransactionForm = ({
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<AddTransactionFormValues>({
     resolver: yupResolver(addTransactionSchema),
@@ -60,12 +68,14 @@ export const TransactionForm = ({
       amount: undefined,
       description: '',
       occurredAt: new Date(),
+      budgetEntryId: null,
     },
   });
 
   const type = watch('type');
   const categoryId = watch('categoryId');
   const occurredAt = watch('occurredAt');
+  const budgetEntryId = watch('budgetEntryId');
 
   const visibleCategories = useMemo(
     () => categories?.filter((c) => c.type === type) ?? [],
@@ -93,6 +103,8 @@ export const TransactionForm = ({
                     onPress={() => {
                       field.onChange(option);
                       setValue('categoryId', '');
+                      // Un ingreso no cubre ninguna linea del presupuesto.
+                      if (option === 'INCOME') setValue('budgetEntryId', null);
                     }}
                     style={[
                       styles.segment,
@@ -189,6 +201,34 @@ export const TransactionForm = ({
             </View>
           )}
         </View>
+
+        {type === 'EXPENSE' && (
+          <View style={styles.field}>
+            <ThemedText type="small" themeColor="textSecondary">
+              Presupuesto
+            </ThemedText>
+            <BudgetLinkPicker
+              month={{ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 }}
+              value={budgetEntryId ?? null}
+              onChange={(id, line) => {
+                setValue('budgetEntryId', id, { shouldDirty: true });
+                if (!id || !line) return;
+                // Enlazar rellena lo que este vacio con lo de la linea del presupuesto (importe previsto y nombre
+                // como descripcion); lo que ya este escrito no se toca.
+                const planned = Number(line.plannedAmount);
+                if (amountText.trim() === '' && planned > 0) {
+                  setAmountText(String(planned).replace('.', ','));
+                  setValue('amount', planned, { shouldValidate: false });
+                }
+                if ((getValues('description') ?? '').trim() === '') {
+                  setValue('description', line.name, { shouldDirty: true });
+                }
+              }}
+              ownTransactionId={ownTransactionId}
+              currentLabel={linkedBudgetLabel}
+            />
+          </View>
+        )}
 
         <Controller
           control={control}
