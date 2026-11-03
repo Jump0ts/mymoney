@@ -4,13 +4,35 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
-## [Unreleased]
+## [0.3.0] — 2026-10-26 — Beta
+
+> Everyday-use release: link expenses with the budget, install the web as an app, and several budget fixes.
 
 ### Added
-- The web build can be installed on a phone as an app (PWA): web manifest, home-screen icons (including a maskable one and the iOS touch icon), standalone display,
+- **Link an expense with a budget line.** In the expense form, a new *Presupuesto* field lists the free expense lines of the budget of the
+  expense's month. Linking marks the line as paid with the **real amount** of the expense (the planned amount stays and is shown underneath when
+  it differs) and the transaction shows which line and group it covers. One expense per line. If the amount or the description is empty when
+  linking, they are filled with the planned amount and the name of the line; anything already typed is left alone.
+  - API: `Transaction.budgetEntryId` (unique, `ON DELETE SET NULL`), added by a migration that only adds a column and an index. Only expenses,
+    only expense lines of the same user, `409` for a second expense on the same line (the unique index also covers simultaneous requests).
+    Unlinking, deleting the expense or turning it into income leaves the line unpaid; deleting the line keeps the expense, only unlinked.
+    A linked line cannot be un-marked as paid or turned into a refund.
+- **Install the web as an app (PWA)**: web manifest, home-screen icons (including a maskable one and the iOS touch icon), standalone display,
   light/dark system-bar colours, safe-area support (`viewport-fit=cover`) and no pull-to-refresh bounce.
 
+### Changed
+- The type of a budget line is now **Expense / Refund** (it said "Fixed / Refund", which did not read as a pair).
+- Transactions refresh every time you come back to that tab: tabs stay mounted and the cache lasts 30 s, so a change made from another client
+  (the phone) could show in one filter (*Gastos*) and not in another (*Todo*).
+- Dependabot opens its pull requests against `pre`, and leaves out what is tied to the Expo SDK or to React (`eslint-config-expo`,
+  `react-test-renderer`) and the major jumps of `zod`, `@hookform/resolvers` and Prisma, which are done on purpose and tested by hand.
+- Dependency updates: `docker/login-action` 4.7, `body-parser` 1.20.9.
+- Documentation: the web is served from the VPS and the Cloudflare static hosting (and its `wrangler.jsonc`) is gone from the repository.
+
 ### Fixed
+- **The budget's "remainder" group now subtracts the limit of the other groups.** Its available amount was the salary minus the planned *lines*,
+  so a group limit subtracted nothing until it was filled with lines: with 300 € left and a group limited to 120 €, the remainder kept showing
+  300 €. Each group now sets aside the greater of its limit and the sum of its lines, and the remainder shows 180 €.
 - The labels of the bottom tab bar no longer lose the descenders of "p", "g" and "j" (Presupuesto, Categorías, Ajustes) on iOS.
 
 ## [0.2.0] — 2026-10-25 — Beta
@@ -79,5 +101,6 @@ author as a personal tool, and interfaces and data models may still change.
 - Automatic payment detection (Android only), multiple accounts/wallets, and recurring expenses outside the budget.
 - Screenshots and a public demo.
 
+[0.3.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.3.0-beta
 [0.2.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.2.0-beta
 [0.1.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.1.0-beta
