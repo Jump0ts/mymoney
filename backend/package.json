@@ -36,12 +36,12 @@
     "@types/node": "^22.10.5",
     "@types/supertest": "^6.0.2",
     "@eslint/js": "^9.18.0",
-    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^9.18.0",
     "supertest": "^7.0.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.19.1",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.12"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
