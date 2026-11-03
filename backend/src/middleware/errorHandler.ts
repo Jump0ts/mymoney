@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { ZodError } from "zod";
+import { ZodError, flattenError } from "zod";
 import { AppError } from "../utils/errors.js";
 
 export const errorHandler = (
@@ -9,7 +9,7 @@ export const errorHandler = (
   _next: NextFunction,
 ) => {
   if (err instanceof ZodError) {
-    res.status(400).json({ error: "Petición inválida", details: err.flatten() });
+    res.status(400).json({ error: "Petición inválida", details: flattenError(err) });
     return;
   }
 
