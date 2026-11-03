@@ -2,10 +2,12 @@ import type { BudgetEntry, BudgetGroup, BudgetMonthResponse } from './budgets.ty
 import {
   formatAmountForInput,
   getEntryActual,
+  isEntryLinked,
   getGroupTotals,
   getLimitStatus,
   getLineType,
   getMonthTotals,
+  getGroupReserved,
   getRemainderAvailable,
   moveId,
   setEntryOrder,
@@ -154,6 +156,61 @@ describe('grupo que recibe lo que sobra', () => {
     expect(getRemainderAvailable(groups, 1500)).toBe(799.5);
   });
 
+  describe('con grupos que tienen limite', () => {
+    const limited = (id: string, limit: string, entries: BudgetEntry[]): BudgetGroup => ({ ...group(id, entries), limit });
+
+    it('el limite de un grupo se descuenta aunque aun no tenga lineas', () => {
+      expect(getRemainderAvailable([limited('a', '120.00', []), remainder([])], 300)).toBe(180);
+    });
+
+    it('descuenta el limite entero aunque las lineas sumen menos', () => {
+      expect(getRemainderAvailable([limited('a', '120.00', [fixed('a1', '50.00', false)])], 300)).toBe(180);
+    });
+
+    it('si las lineas superan el limite se descuenta lo que suman, que es lo comprometido de verdad', () => {
+      expect(getRemainderAvailable([limited('a', '100.00', [fixed('a1', '150.00', false)])], 300)).toBe(150);
+    });
+
+    it('un limite de 0 no reserva nada propio y cuenta lo que sumen sus lineas', () => {
+      expect(getRemainderAvailable([limited('a', '0.00', [fixed('a1', '40.00', false)])], 300)).toBe(260);
+    });
+
+    it('combina grupos con limite y grupos sin limite', () => {
+      const groups = [
+        limited('a', '120.00', [fixed('a1', '30.00', true)]),
+        group('b', [fixed('b1', '70.00', false)]),
+        remainder([fixed('r1', '10.00', false)]),
+      ];
+
+      expect(getRemainderAvailable(groups, 300)).toBe(110);
+    });
+
+    it('el limite del propio grupo del sobrante no se descuenta (no tiene limite propio, su tope es el disponible)', () => {
+      const groups = [{ ...remainder([]), limit: '999.00' }];
+
+      expect(getRemainderAvailable(groups, 300)).toBe(300);
+    });
+
+    it('un reembolso dentro de un grupo con limite no hace que reserve menos que su limite', () => {
+      const groups = [limited('a', '100.00', [fixed('a1', '120.00', false), fixed('a2', '-40.00', false)])];
+
+      expect(getRemainderAvailable(groups, 300)).toBe(200);
+    });
+  });
+
+  describe('getGroupReserved', () => {
+    it('sin limite reserva lo que suman sus lineas', () => {
+      expect(getGroupReserved(group('a', [fixed('a1', '30.00', false), fixed('a2', '12.50', true)]))).toBe(42.5);
+    });
+
+    it('con limite reserva el mayor entre el limite y lo previsto', () => {
+      const base = group('a', [fixed('a1', '30.00', false)]);
+
+      expect(getGroupReserved({ ...base, limit: '100.00' })).toBe(100);
+      expect(getGroupReserved({ ...base, limit: '20.00' })).toBe(30);
+    });
+  });
+
   it('las lineas del propio grupo del sobrante no reducen su disponible', () => {
     expect(getRemainderAvailable([remainder([fixed('r1', '500.00', true)])], 1000)).toBe(1000);
   });
@@ -227,7 +284,7 @@ describe('parseAmountInput', () => {
 
 describe('getLineType', () => {
   it('distingue fija y reembolso', () => {
-    expect(getLineType(fixed('a', '10.00', false))).toBe('FIXED');
+    expect(getLineType(fixed('a', '10.00', false))).toBe('EXPENSE');
     expect(getLineType(fixed('a', '-50.00', false))).toBe('REFUND');
   });
 });
@@ -242,7 +299,7 @@ describe('formatAmountForInput', () => {
 
 describe('toLinePayload', () => {
   it('una linea fija lleva importe positivo y el nombre sin espacios', () => {
-    expect(toLinePayload({ name: '  Netflix ', lineType: 'FIXED', amount: '21,99' })).toEqual({
+    expect(toLinePayload({ name: '  Netflix ', lineType: 'EXPENSE', amount: '21,99' })).toEqual({
       name: 'Netflix',
       amount: 21.99,
     });
@@ -256,7 +313,7 @@ describe('toLinePayload', () => {
   });
 
   it('entiende el punto de miles', () => {
-    expect(toLinePayload({ name: 'Hipoteca', lineType: 'FIXED', amount: '1.500' }).amount).toBe(1500);
+    expect(toLinePayload({ name: 'Hipoteca', lineType: 'EXPENSE', amount: '1.500' }).amount).toBe(1500);
   });
 });
 
@@ -335,5 +392,33 @@ describe('setEntryPaid', () => {
 
     expect(updated.groups[0].entries.map((e) => e.paid)).toEqual([false, true]);
     expect(month.groups[0].entries[1].paid).toBe(false);
+  });
+});
+
+describe('lineas enlazadas a un gasto de Movimientos', () => {
+  const linked = (amount: string, real: string): BudgetEntry => ({
+    ...fixed('l', amount, true),
+    transaction: { id: 'tx', amount: real, occurredAt: '2026-10-12T10:00:00.000Z' },
+  });
+
+  it('lo real de una linea enlazada es el importe del gasto, no el previsto', () => {
+    expect(getEntryActual(linked('60.00', '62.30'))).toBe(62.3);
+  });
+
+  it('una linea sin enlazar sigue contando su importe previsto solo si esta marcada', () => {
+    expect(getEntryActual(fixed('a', '10.00', true))).toBe(10);
+    expect(getEntryActual(fixed('a', '10.00', false))).toBe(0);
+  });
+
+  it('isEntryLinked distingue las enlazadas', () => {
+    expect(isEntryLinked(linked('60.00', '62.30'))).toBe(true);
+    expect(isEntryLinked(fixed('a', '10.00', true))).toBe(false);
+    expect(isEntryLinked({ ...fixed('a', '10.00', false), transaction: null })).toBe(false);
+  });
+
+  it('los totales del grupo usan lo real en las enlazadas y lo previsto en el resto', () => {
+    const totals = getGroupTotals([linked('60.00', '62.30'), fixed('b', '20.00', true), fixed('c', '5.00', false)]);
+
+    expect(totals).toEqual({ planned: 85, paid: 82.3 });
   });
 });

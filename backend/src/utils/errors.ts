@@ -12,3 +12,4 @@ export const unauthorized = (message = "No autenticado") => new AppError(401, me
 export const forbidden = (message = "No autorizado") => new AppError(403, message);
 export const notFound = (message = "No encontrado") => new AppError(404, message);
 export const badRequest = (message = "Petición inválida") => new AppError(400, message);
+export const conflict = (message = "Conflicto con el estado actual") => new AppError(409, message);

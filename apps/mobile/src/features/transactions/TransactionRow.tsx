@@ -52,6 +52,18 @@ export const TransactionRow = memo(({ transaction, onEdit, onDelete, isDeleting 
               {formatDate(transaction.occurredAt)}
             </ThemedText>
           </View>
+          {transaction.budgetEntry && (
+            <View
+              testID="transaction-row-budget"
+              accessible
+              accessibilityLabel={`Cubre ${transaction.budgetEntry.name} del presupuesto, grupo ${transaction.budgetEntry.group.name}`}
+              style={styles.budgetMeta}>
+              <Feather name="link" size={12} color={theme.textSecondary} />
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.budgetText}>
+                {transaction.budgetEntry.name} · {transaction.budgetEntry.group.name}
+              </ThemedText>
+            </View>
+          )}
         </View>
         <ThemedText type="smallBold" themeColor={isExpense ? 'expense' : 'income'}>
           {isExpense ? '-' : '+'}

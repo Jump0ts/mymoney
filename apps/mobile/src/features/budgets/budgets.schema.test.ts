@@ -1,6 +1,6 @@
 import { budgetGroupSchema, budgetLineSchema } from './budgets.schema';
 
-const validLine = { name: 'Netflix', lineType: 'FIXED', amount: '21,99', scope: 'month' } as const;
+const validLine = { name: 'Netflix', lineType: 'EXPENSE', amount: '21,99', scope: 'month' } as const;
 
 const errorsOf = async (schema: typeof budgetLineSchema | typeof budgetGroupSchema, values: object) => {
   try {

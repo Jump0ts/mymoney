@@ -20,6 +20,7 @@ import { TransactionRow } from '@/features/transactions/TransactionRow';
 import { TransactionRowSkeleton } from '@/features/transactions/TransactionRowSkeleton';
 import { useDeleteTransaction, useTransactions } from '@/features/transactions/useTransactions';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { getCurrentYearMonth, getDayRange, getMonthRange } from '@/utils/date';
@@ -62,7 +63,9 @@ const TransactionsScreen = () => {
     }),
     [type, categoryId, debouncedSearch, page, selectedMonth, selectedDay],
   );
-  const { data, isLoading } = useTransactions(filters);
+  const { data, isLoading, refetch } = useTransactions(filters);
+  // Las pestañas siguen montadas: al volver a Movimientos se refresca la lista (ver useRefetchOnFocus).
+  useRefetchOnFocus(refetch);
   const pagination = data?.pagination;
 
   const visibleCategories = categories?.filter((c) => !type || c.type === type) ?? [];

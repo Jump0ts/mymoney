@@ -22,6 +22,16 @@ Run them from the repository root (workspace `apps/mobile`):
 | `EXPO_PUBLIC_API_URL` | API base URL (default `http://localhost:4000`). Baked into the web build. |
 | `EXPO_PUBLIC_APP_ENV` | `pre`, `staging` or `production`: changes the app name and bundle id so several builds can be installed side by side. |
 
+## Install the web build as an app (PWA)
+
+`public/` holds the web manifest and the home-screen icons (`manifest.json`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`,
+`apple-touch-icon.png`); `src/web/PwaHead.tsx` adds the matching `<head>` tags. There is no service worker, so the app needs a connection.
+
+- **iPhone (Safari):** Share → *Add to Home Screen*.
+- **Android (Chrome):** menu → *Install app*.
+
+The icons are generated from `assets/images/web-icon.svg` (for example with `npx sharp-cli`); the native icon in `assets/images/icon.png` is separate.
+
 ## Code organisation
 
 ```

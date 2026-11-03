@@ -27,6 +27,20 @@ updates:
       - dependency-name: "react-native"
       - dependency-name: "react-native-*"
       - dependency-name: "@react-native/*"
+      # Tambien van ligados al SDK de Expo / a la version de React: eslint-config-expo (la 58 es para el SDK 58) y
+      # react-test-renderer (debe ser exactamente la misma version que react).
+      - dependency-name: "eslint-config-expo"
+      - dependency-name: "react-test-renderer"
+      # Saltos mayores de librerias que tocan la validacion de toda la API o todos los formularios, y la migracion
+      # de Prisma 7: se hacen a proposito y probando a mano, no como actualizacion automatica.
+      - dependency-name: "zod"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@hookform/resolvers"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions (also keeps the commit-SHA pins in the deploy workflow up to date)
   - package-ecosystem: github-actions

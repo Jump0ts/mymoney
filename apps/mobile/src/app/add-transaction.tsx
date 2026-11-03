@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { TransactionForm } from '@/features/transactions/TransactionForm';
 import type { AddTransactionFormValues } from '@/features/transactions/transactions.schema';
+import { toCreateInput } from '@/features/transactions/transactions.utils';
 import { useCreateTransaction } from '@/features/transactions/useTransactions';
 import { ApiError } from '@/lib/api';
 
@@ -12,19 +13,10 @@ const AddTransactionScreen = () => {
 
   const handleSubmit = (values: AddTransactionFormValues) => {
     setSubmitError(null);
-    createTransaction.mutate(
-      {
-        categoryId: values.categoryId,
-        type: values.type,
-        amount: values.amount,
-        description: values.description || undefined,
-        occurredAt: values.occurredAt.toISOString(),
-      },
-      {
-        onSuccess: () => router.back(),
-        onError: (err) => setSubmitError(err instanceof ApiError ? err.message : 'Error inesperado'),
-      },
-    );
+    createTransaction.mutate(toCreateInput(values), {
+      onSuccess: () => router.back(),
+      onError: (err) => setSubmitError(err instanceof ApiError ? err.message : 'Error inesperado'),
+    });
   };
 
   return (

@@ -31,7 +31,7 @@ export type BudgetGroupFormValues = yup.InferType<typeof budgetGroupSchema>;
 
 export const budgetLineSchema = yup.object({
   name: yup.string().trim().required('El nombre es obligatorio').max(60, 'Máximo 60 caracteres'),
-  lineType: yup.mixed<BudgetLineType>().oneOf(['FIXED', 'REFUND']).required(),
+  lineType: yup.mixed<BudgetLineType>().oneOf(['EXPENSE', 'REFUND']).required(),
   // El signo lo decide el tipo (reembolso), asi el teclado numerico basta.
   amount: yup
     .string()

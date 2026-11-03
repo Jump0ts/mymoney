@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Genera dist/_headers (cabeceras de seguridad de Cloudflare) para la web exportada con
+ * Genera dist/_headers (cabeceras de seguridad para un hosting estatico que las lea de ese fichero) para la web exportada con
  * `expo export --platform web`.
  *
  * La politica de contenido (CSP) no permite scripts en linea salvo los que la propia exportacion
@@ -41,7 +41,7 @@ const apiOrigin = (apiUrl) => {
   return url.origin;
 };
 
-/** Politica de contenido (CSP) de la web: la misma para Cloudflare (`_headers`) y para el nginx del VPS. */
+/** Politica de contenido (CSP) de la web: la misma para `_headers` y para el nginx del VPS (scripts/web-nginx.js). */
 const contentSecurityPolicy = ({ apiUrl, scriptHashes }) =>
   [
     "default-src 'self'",

@@ -42,18 +42,22 @@ model Category {
 }
 
 model Transaction {
-  id          String          @id @default(cuid())
-  user        User            @relation(fields: [userId], references: [id])
-  userId      String
-  category    Category        @relation(fields: [categoryId], references: [id])
-  categoryId  String
-  type        TransactionType
-  amount      Decimal         @db.Decimal(12, 2)
-  currency    String          @default("EUR")
-  description String?
-  occurredAt  DateTime
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id            String          @id @default(cuid())
+  user          User            @relation(fields: [userId], references: [id])
+  userId        String
+  category      Category        @relation(fields: [categoryId], references: [id])
+  categoryId    String
+  type          TransactionType
+  amount        Decimal         @db.Decimal(12, 2)
+  currency      String          @default("EUR")
+  description   String?
+  occurredAt    DateTime
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  // Linea del presupuesto que este gasto cubre (como mucho un gasto por linea). Si la linea se borra, el
+  // movimiento sigue existiendo y solo pierde el enlace.
+  budgetEntry   BudgetEntry?    @relation(fields: [budgetEntryId], references: [id], onDelete: SetNull)
+  budgetEntryId String?         @unique
 
   @@index([userId, occurredAt])
   @@index([userId, categoryId])
@@ -114,20 +118,22 @@ model BudgetMonth {
 // Linea de un mes. itemId es null en las lineas puntuales (solo ese mes) y se
 // pone a null si se borra el item de la plantilla, para no tocar meses ya hechos.
 model BudgetEntry {
-  id        String      @id @default(cuid())
-  user      User        @relation(fields: [userId], references: [id])
-  userId    String
-  year      Int
-  month     Int
-  group     BudgetGroup @relation(fields: [groupId], references: [id])
-  groupId   String
-  item      BudgetItem? @relation(fields: [itemId], references: [id], onDelete: SetNull)
-  itemId    String?
-  name      String
-  amount    Decimal     @db.Decimal(12, 2)
-  paid      Boolean     @default(false)
-  position  Int         @default(0)
-  createdAt DateTime    @default(now())
+  id          String       @id @default(cuid())
+  user        User         @relation(fields: [userId], references: [id])
+  userId      String
+  year        Int
+  month       Int
+  group       BudgetGroup  @relation(fields: [groupId], references: [id])
+  groupId     String
+  item        BudgetItem?  @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  itemId      String?
+  name        String
+  amount      Decimal      @db.Decimal(12, 2)
+  paid        Boolean      @default(false)
+  position    Int          @default(0)
+  createdAt   DateTime     @default(now())
+  // Gasto de Movimientos enlazado a esta linea: su importe es el "real" de la linea y la marca como pagada.
+  transaction Transaction?
 
   @@unique([userId, year, month, itemId])
   @@index([userId, year, month])

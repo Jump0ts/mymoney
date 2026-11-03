@@ -79,3 +79,28 @@ describe('TransactionRow', () => {
     expect(flatStyle.opacity).toBe(1);
   });
 });
+
+describe('TransactionRow - linea del presupuesto', () => {
+  const linked: Transaction = {
+    ...expenseTransaction,
+    budgetEntry: { id: 'e1', name: 'Luz', group: { name: 'Hogar', color: '#6C5CE7' } },
+  };
+
+  it('muestra la linea y el grupo del presupuesto que cubre el gasto', () => {
+    render(<TransactionRow transaction={linked} onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+    expect(screen.getByText('Luz · Hogar')).toBeTruthy();
+    expect(screen.getByTestId('transaction-row-budget').props.accessibilityLabel).toBe(
+      'Cubre Luz del presupuesto, grupo Hogar',
+    );
+  });
+
+  it('sin enlace no muestra nada del presupuesto', () => {
+    render(<TransactionRow transaction={expenseTransaction} onEdit={jest.fn()} onDelete={jest.fn()} />);
+    render(
+      <TransactionRow transaction={{ ...expenseTransaction, id: 'tx-3', budgetEntry: null }} onEdit={jest.fn()} onDelete={jest.fn()} />,
+    );
+
+    expect(screen.queryByTestId('transaction-row-budget')).toBeNull();
+  });
+});

@@ -2,7 +2,7 @@ import type { SegmentOption } from '@/components/SegmentedControl';
 import type { BudgetLineType, BudgetScope } from './budgets.types';
 
 export const LINE_TYPE_OPTIONS: SegmentOption<BudgetLineType>[] = [
-  { label: 'Fijo', value: 'FIXED' },
+  { label: 'Gasto', value: 'EXPENSE' },
   { label: 'Reembolso', value: 'REFUND' },
 ];
 

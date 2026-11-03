@@ -1,11 +1,11 @@
 # MyMoney on the DigitalOcean VPS
 
-Production backend + database on the droplet that already hosts `travel_agency`; the web app on Cloudflare (Workers static assets).
+Production backend + database on the droplet that already hosts `travel_agency`; the web app, served from the same droplet.
 This folder contains everything needed to deploy. Steps marked 🔴 in section 3 change real infrastructure, so they are done one at a
 time, each with explicit confirmation.
 
 ```
- Mobile / Web (Cloudflare)
+ Mobile / Web
         │ HTTPS
         ▼
  DNS (Cloudflare) ──► VPS 139.59.143.82 ── DO firewall: only 22, 80, 443
@@ -13,6 +13,7 @@ time, each with explicit confirmation.
                        │ travel_agency's nginx (owns 80/443)          │
                        │   travel.…       → travel app                │
                        │   mymoney-api.…  → /api/ and /health only    │
+                       │   mymoney.…      → web (static files)        │
                        └───────────────┬──────────────────────────────┘
                           network `travel-agency_default` (nginx ↔ api only)
                        ┌───────────────▼──────────────┐   network `internal` (no Internet)
@@ -33,7 +34,7 @@ time, each with explicit confirmation.
 | Supply chain | GitHub Actions pinned by commit SHA; image deployed by **digest** with its *attestation* verified before deploying; private GHCR package. |
 | CI SSH key | A dedicated key with `restrict` and a **forced command**: it can only request `deploy <digest> <user>` (the GHCR token travels over stdin and the registry session is closed right after the pull). No shell, no tunnels, no scp. The image repository is pinned on the server. |
 | Approval | Deployment is **automatic but gated by a human**: every push to `master` that changes what is deployed builds the image, and the deploy job then **waits for approval** from the required reviewer of the protected `production` environment (administrators cannot bypass it). The environment admits only the `master` branch, and `master` itself only accepts pull requests with passing CI. A deployment can also be launched by hand (`workflow_dispatch`) to roll back. |
-| Web | Cloudflare headers (`_headers`) generated at build time: CSP without `unsafe-inline`/`unsafe-eval` for scripts (one hash per script), it can only connect to the API, HSTS, no framing, no referrer. |
+| Web | Served by its own container (non-root, read-only, no published ports). Headers generated at build time, each sent once: CSP without `unsafe-inline`/`unsafe-eval` for scripts (one hash per script), it can only connect to the API, HSTS, no framing, no referrer. |
 | Data | Backups with 600/700 permissions, taken before every migration, downloaded to your PC with SHA-256 verification. |
 
 ## 2. What lives where (server, user `deploy`)
@@ -128,30 +129,31 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://mymoney-api.josanfersal
   -H 'Content-Type: application/json' -d '{}'     # 403
 ```
 
-**3.8 Web app on Cloudflare** (Workers static assets; no tokens in GitHub: it is connected from the Cloudflare dashboard).
-*Workers & Pages → Create application → Import a repository* → this repository. What gets published is described in
-[`wrangler.jsonc`](../../wrangler.jsonc) (`apps/mobile/dist`, unknown paths answer `index.html` for Expo Router, and neither
-`workers.dev` nor per-version URLs are exposed). In the dashboard:
+**3.8 Web app (served from the VPS).** The API image also carries the compiled web (`/opt/deploy/web`) and the generated config of the nginx
+that serves it (`/opt/deploy/web-nginx/nginx.conf`, with the CSP computed at build time: one hash per inline script, connections only to the
+API). One image, one digest and one approval therefore deploy API and web together, always at the same version. `deploy.sh` recreates the
+`web` container (non-root, read-only filesystem, no capabilities, no published ports, 48 MB limit) on every deployment, and the shared nginx
+terminates TLS for `WEB_DOMAIN`, rate-limits and proxies to it. Security headers come from the web container, once each; the shared nginx adds
+none for this vhost. The API URL baked into the web is `WEB_API_URL` in `.github/workflows/deploy-api.yml` (it must be `https`).
 
-| Setting | Value |
-|---|---|
-| Project name | `mymoney` (must match `name` in `wrangler.jsonc`) |
-| Production branch | `master` (the repository's default branch) |
-| Build command | `npm ci && npm run build:web --workspace=apps/mobile` |
-| Deploy command | `npx wrangler deploy` (default) |
-| Build variables | `NODE_VERSION=24`, `EXPO_PUBLIC_API_URL=https://mymoney-api.josanfersal.dev`, `EXPO_PUBLIC_APP_ENV=production` |
-| Preview builds | **Disabled** (there is no API for them and they would expose unreviewed builds) |
-| Custom domain | `mymoney.josanfersal.dev` (must match `CORS_ORIGINS`), added under *Settings → Domains & Routes → Add → **Custom domain*** |
+Set-up (each 🔴 step changes real infrastructure and is confirmed first):
 
-Gotchas found while setting it up:
+1. 🔴 DNS: `A` and `AAAA` records for `mymoney` pointing at the droplet, **DNS only (no proxy)**, like in 3.1.
+2. 🔴 On the server add `WEB_DOMAIN=mymoney.josanfersal.dev` to `.env.production` (it must also be in `CORS_ORIGINS`; `deploy.sh` checks it)
+   and deploy. Before touching DNS you can test inside the Docker network:
+   ```bash
+   docker exec travel-agency-nginx-1 wget -qO- http://mymoney-web:8080/healthz
+   ```
+3. 🔴 Certificate and HTTPS (idempotent; it only requests what is missing):
+   ```bash
+   cd ~/mymoney/release && DOMAIN=mymoney-api.josanfersal.dev WEB_DOMAIN=mymoney.josanfersal.dev ./bootstrap-cert.sh
+   ```
+4. Verify: `curl -sI https://mymoney.josanfersal.dev/login` (200, each security header once) and sign in from the web.
 
-- Add a **Custom domain**, not a *Route*: a route only attaches the Worker to a hostname that must already exist in DNS, so the name
-  keeps returning `NXDOMAIN`. A custom domain creates the DNS record and the certificate itself.
-- Delete any leftover `A`/`AAAA` records for that name first (for example ones pointing at the VPS).
-- The build writes `dist/_headers` with the computed CSP (`apps/mobile/scripts/web-headers.js`). If you change the API's domain,
-  only `EXPO_PUBLIC_API_URL` needs to change.
-- **Known limitation:** Cloudflare's shared IP addresses are blocked by Spanish ISPs while some football matches are broadcast, so the
-  web can be unreachable from Spain at those times. The API (on the VPS) and the native apps are not affected.
+Why not a static host or CDN: Spanish ISPs block the shared IP addresses of CDNs (Cloudflare, Fastly, Vercel, GitHub Pages…) during some football
+matches, so a web app hosted there can be unreachable from Spain while the API (on the droplet's own IP) keeps working. The web was first
+published on Cloudflare and moved here for that reason; serving it from the droplet costs about 5 MB of RAM. Gotchas if you ever use a static host:
+add a *custom domain*, not a *route* (a route does not create the DNS record), and delete leftover `A`/`AAAA` records of that name first.
 
 **3.9 🔴 Backups.** On the server (the `deploy` user's cron):
 
@@ -175,37 +177,7 @@ powershell -File deploy\backup\pull-backups.ps1 -Server mymoney-vps -RemoteRoot 
 ```
 Known limitation: this download uses the admin key (which gives a shell as `deploy`). It lives on your PC; protect the disk with BitLocker.
 
-**3.11 Web served from the VPS** (optional; alternative to 3.8).
-Spanish ISPs block the shared IP addresses of CDNs (Cloudflare, Fastly, Vercel, GitHub Pages…) during some football matches, so a web
-app hosted there can be unreachable from Spain while the API (on the droplet's own IP) keeps working. Serving the web from the same
-droplet avoids it, costs about 5 MB of RAM and needs no CDN.
-
-How it works: the API image also carries the compiled web (`/opt/deploy/web`) and the generated config of the nginx that serves it
-(`/opt/deploy/web-nginx/nginx.conf`, with the CSP computed at build time exactly as for `_headers`). One image, one digest and one approval
-therefore deploy API and web together, always at the same version. `deploy.sh` recreates the `web` container (non-root, read-only
-filesystem, no capabilities, no published ports, 48 MB limit) on every deployment, and the shared nginx terminates TLS for `WEB_DOMAIN`,
-rate-limits and proxies to it. Security headers come from the web container, once each; the shared nginx adds none for this vhost.
-The API URL baked into the web is `WEB_API_URL` in `.github/workflows/deploy-api.yml` (it must be `https`).
-
-Switching from the static host (each 🔴 step changes real infrastructure and is confirmed first; downtime is the minute or two between
-the DNS change and the certificate):
-
-1. Merge to `master` and approve the deployment. While `WEB_DOMAIN` is not set in `.env.production`, nothing about the web is started.
-2. 🔴 On the server add `WEB_DOMAIN=mymoney.josanfersal.dev` (it must also be in `CORS_ORIGINS`) and re-apply:
-   ```bash
-   echo 'WEB_DOMAIN=mymoney.josanfersal.dev' >> ~/mymoney/.env.production
-   cd ~/mymoney/release && ./deploy.sh "$(cat ../state/current)"
-   # test inside the Docker network, before touching DNS:
-   docker exec travel-agency-nginx-1 wget -qO- http://mymoney-web:8080/healthz
-   ```
-3. 🔴 DNS: remove the custom domain from the old static host (which also removes its DNS record), then create `A` and `AAAA` records
-   for `mymoney` pointing at the droplet, **DNS only (no proxy)**.
-4. 🔴 Certificate and HTTPS: `cd ~/mymoney/release && DOMAIN=mymoney-api.josanfersal.dev WEB_DOMAIN=mymoney.josanfersal.dev ./bootstrap-cert.sh`.
-5. Verify (`curl -sI https://mymoney.josanfersal.dev/login`: 200, each security header once; sign in from the web) and delete the old project.
-
-Rollback: add the custom domain back to the old host (while its project still exists) and delete the `A`/`AAAA` records.
-
-**3.12 Monitoring.** Add the check `https://mymoney-api.josanfersal.dev/health` to DigitalOcean (Uptime). travel's 85 % memory alert
+**3.10 Monitoring.** Add the check `https://mymoney-api.josanfersal.dev/health` to DigitalOcean (Uptime). travel's 85 % memory alert
 already covers the droplet: if it fires repeatedly, upgrade to 2 GB.
 
 ## 4. Operations

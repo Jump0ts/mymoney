@@ -49,5 +49,3 @@ android/
 # TypeScript
 *.tsbuildinfo
 
-# Cache local de wrangler
-.wrangler/

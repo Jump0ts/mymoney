@@ -5,10 +5,15 @@ import { View } from 'react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
+import { notify } from '@/utils/alert';
 import { formatMoney } from '@/utils/format';
 import type { BudgetEntry } from './budgets.types';
+import { getEntryActual, isEntryLinked } from './budgets.utils';
 import { BudgetMoveButtons } from './BudgetMoveButtons';
 import { styles } from './BudgetEntryRow.styles';
+
+const LINKED_TITLE = 'Línea enlazada a un gasto';
+const LINKED_MESSAGE = 'Está pagada por un movimiento. Para cambiarlo, quita el enlace desde ese movimiento en Movimientos.';
 
 interface BudgetEntryRowProps {
   entry: BudgetEntry;
@@ -71,24 +76,45 @@ export const BudgetEntryRow = memo(
     }
 
     const isRefund = Number(entry.amount) < 0;
+    const linked = isEntryLinked(entry);
+    const actual = getEntryActual(entry);
+    // Enlazada: el importe que se ve es el real del gasto y, si difiere, debajo queda el previsto.
+    const differs = linked && actual !== Number(entry.amount);
+    const shownAmount = linked ? String(actual) : entry.amount;
     return (
       <AnimatedPressable
         testID={`budget-entry-${entry.id}`}
         accessibilityRole="checkbox"
-        accessibilityLabel={`${entry.name}, ${formatMoney(entry.amount)}`}
+        accessibilityLabel={
+          linked
+            ? `${entry.name}, ${formatMoney(shownAmount)}${differs ? `, previsto ${formatMoney(entry.amount)}` : ''}, enlazada a un movimiento`
+            : `${entry.name}, ${formatMoney(entry.amount)}`
+        }
+        accessibilityHint={linked ? 'Para cambiarla, quita el enlace desde el movimiento en Movimientos' : undefined}
         accessibilityState={{ checked: entry.paid }}
-        onPress={() => onTogglePaid(entry)}
+        // No se deshabilita: un toque sin respuesta confunde. Explica por que no se puede marcar a mano.
+        onPress={() => (linked ? notify(LINKED_TITLE, LINKED_MESSAGE) : onTogglePaid(entry))}
         style={styles.row}>
         <Feather
           name={entry.paid ? 'check-square' : 'square'}
           size={20}
           color={entry.paid ? theme.primary : theme.textSecondary}
         />
-        <ThemedText themeColor={entry.paid ? 'textSecondary' : 'text'} style={styles.name}>
-          {entry.name}
-        </ThemedText>
+        <View style={styles.nameBlock}>
+          <View style={styles.nameLine}>
+            <ThemedText themeColor={entry.paid ? 'textSecondary' : 'text'} style={styles.nameText}>
+              {entry.name}
+            </ThemedText>
+            {linked && <Feather testID={`budget-entry-link-${entry.id}`} name="link" size={14} color={theme.textSecondary} />}
+          </View>
+          {differs && (
+            <ThemedText type="small" themeColor="textSecondary">
+              Previsto {formatMoney(entry.amount)}
+            </ThemedText>
+          )}
+        </View>
         <ThemedText type="smallBold" themeColor={isRefund ? 'income' : entry.paid ? 'textSecondary' : 'text'}>
-          {formatMoney(entry.amount)}
+          {formatMoney(shownAmount)}
         </ThemedText>
       </AnimatedPressable>
     );
