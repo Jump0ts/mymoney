@@ -7,6 +7,7 @@ import { badRequest, conflict, notFound } from "../../utils/errors.js";
 import {
   createEntrySchema,
   createGroupSchema,
+  deleteEntryQuerySchema,
   createItemSchema,
   entriesOrderParamsSchema,
   monthParamsSchema,
@@ -17,6 +18,7 @@ import {
   updateMonthSchema,
 } from "./budgets.schema.js";
 import {
+  afterMonth,
   compareYearMonth,
   isFutureMonth,
   isTooFarAhead,
@@ -410,30 +412,52 @@ budgetsRouter.post(
       await prisma.budgetMonth.create({ data: { userId, ...target } });
     }
 
-    const itemId = body.recurring
-      ? (
-          await prisma.budgetItem.create({
-            data: {
-              userId,
-              groupId: body.groupId,
-              name: body.name,
-              amount: body.amount,
-              position: await nextItemPosition(userId, body.groupId),
-            },
-          })
-        ).id
-      : null;
+    const [itemPosition, entryPosition] = await Promise.all([
+      nextItemPosition(userId, body.groupId),
+      nextEntryPosition(userId, target, body.groupId),
+    ]);
 
-    const entry = await prisma.budgetEntry.create({
-      data: {
-        userId,
-        ...target,
-        groupId: body.groupId,
-        itemId,
-        name: body.name,
-        amount: body.amount,
-        position: await nextEntryPosition(userId, target, body.groupId),
-      },
+    const entry = await prisma.$transaction(async (tx) => {
+      const item = body.recurring
+        ? await tx.budgetItem.create({
+            data: { userId, groupId: body.groupId, name: body.name, amount: body.amount, position: itemPosition },
+          })
+        : null;
+
+      const created = await tx.budgetEntry.create({
+        data: {
+          userId,
+          ...target,
+          groupId: body.groupId,
+          itemId: item?.id ?? null,
+          name: body.name,
+          amount: body.amount,
+          position: entryPosition,
+        },
+      });
+
+      // Una linea recurrente vale tambien para los meses posteriores que ya estan guardados (los que solo
+      // se han visto y los que se abran mas adelante la recogen de la plantilla).
+      if (item) {
+        const later = await tx.budgetMonth.findMany({
+          where: { userId, ...afterMonth(target) },
+          select: { year: true, month: true },
+        });
+        await tx.budgetEntry.createMany({
+          data: later.map((month) => ({
+            userId,
+            year: month.year,
+            month: month.month,
+            groupId: item.groupId,
+            itemId: item.id,
+            name: item.name,
+            amount: item.amount,
+            position: item.position,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      return created;
     });
     res.status(201).json({ entry });
   }),
@@ -469,7 +493,7 @@ budgetsRouter.put(
 budgetsRouter.patch(
   "/entries/:id",
   asyncHandler(async (req, res) => {
-    const body = updateEntrySchema.parse(req.body);
+    const { scope, ...body } = updateEntrySchema.parse(req.body);
     const userId = req.auth!.userId;
     const entry = await prisma.budgetEntry.findFirst({ where: { id: req.params.id, userId } });
     if (!entry) throw notFound("Línea no encontrada");
@@ -490,7 +514,39 @@ budgetsRouter.patch(
       if (linked) throw badRequest("Una línea enlazada a un gasto no puede pasar a reembolso");
     }
 
-    const updated = await prisma.budgetEntry.update({ where: { id: entry.id }, data: body });
+    // Lo que comparte con la plantilla: nombre, importe y grupo.
+    const shared = {
+      ...(body.name !== undefined && { name: body.name }),
+      ...(body.amount !== undefined && { amount: body.amount }),
+      ...(body.groupId !== undefined && { groupId: body.groupId }),
+    };
+
+    if (scope === "template" && entry.itemId && Object.keys(shared).length > 0) {
+      // "Este y los siguientes": cambia la plantilla y los meses posteriores ya guardados, salvo las lineas
+      // pagadas, enlazadas a un gasto o editadas a mano solo para su mes. Esta linea vuelve a seguir la plantilla.
+      const itemId = entry.itemId;
+      const updated = await prisma.$transaction(async (tx) => {
+        const saved = await tx.budgetEntry.update({ where: { id: entry.id }, data: { ...body, edited: false } });
+        await tx.budgetItem.updateMany({ where: { id: itemId, userId }, data: shared });
+        await tx.budgetEntry.updateMany({
+          where: { userId, itemId, paid: false, edited: false, transaction: { is: null }, ...afterMonth(entry) },
+          data: shared,
+        });
+        return saved;
+      });
+      res.json({ entry: updated });
+      return;
+    }
+
+    // Solo este mes: si cambia lo que viene de la plantilla, la linea queda marcada como editada a mano.
+    const changesTemplateValues =
+      (body.name !== undefined && body.name !== entry.name) ||
+      (body.amount !== undefined && !entry.amount.equals(body.amount)) ||
+      (body.groupId !== undefined && body.groupId !== entry.groupId);
+    const updated = await prisma.budgetEntry.update({
+      where: { id: entry.id },
+      data: { ...body, ...(entry.itemId && changesTemplateValues && { edited: true }) },
+    });
     res.json({ entry: updated });
   }),
 );
@@ -498,10 +554,25 @@ budgetsRouter.patch(
 budgetsRouter.delete(
   "/entries/:id",
   asyncHandler(async (req, res) => {
-    const entry = await prisma.budgetEntry.findFirst({ where: { id: req.params.id, userId: req.auth!.userId } });
+    const { scope } = deleteEntryQuerySchema.parse(req.query);
+    const userId = req.auth!.userId;
+    const entry = await prisma.budgetEntry.findFirst({ where: { id: req.params.id, userId } });
     if (!entry) throw notFound("Línea no encontrada");
 
-    await prisma.budgetEntry.delete({ where: { id: entry.id } });
+    if (scope === "template" && entry.itemId) {
+      // Quitarla de la plantilla tambien la quita de los meses posteriores ya guardados, salvo las lineas
+      // pagadas, enlazadas a un gasto o editadas a mano: esas se quedan como lineas sueltas de su mes.
+      const itemId = entry.itemId;
+      await prisma.$transaction([
+        prisma.budgetEntry.deleteMany({
+          where: { userId, itemId, paid: false, edited: false, transaction: { is: null }, ...afterMonth(entry) },
+        }),
+        prisma.budgetEntry.delete({ where: { id: entry.id } }),
+        prisma.budgetItem.deleteMany({ where: { id: itemId, userId } }),
+      ]);
+    } else {
+      await prisma.budgetEntry.delete({ where: { id: entry.id } });
+    }
     res.status(204).send();
   }),
 );

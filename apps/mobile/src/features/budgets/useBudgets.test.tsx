@@ -107,7 +107,7 @@ const fixedLine = { name: 'Netflix HD', amount: 25 } as const;
 describe('useUpdateEntry', () => {
   beforeEach(() => jest.mocked(apiRequest).mockReset().mockResolvedValue({}));
 
-  it('con alcance "month" solo cambia la linea del mes', async () => {
+  it('con alcance "month" envia una sola peticion con scope month', async () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useUpdateEntry(), { wrapper });
 
@@ -118,11 +118,11 @@ describe('useUpdateEntry', () => {
     expect(apiRequest).toHaveBeenCalledTimes(1);
     expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1', {
       method: 'PATCH',
-      body: { name: 'Netflix HD', amount: 25 },
+      body: { name: 'Netflix HD', amount: 25, scope: 'month' },
     });
   });
 
-  it('con alcance "template" cambia tambien el item de la plantilla', async () => {
+  it('con alcance "template" pide al servidor que cambie tambien la plantilla y los meses siguientes, en una sola peticion', async () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useUpdateEntry(), { wrapper });
 
@@ -130,13 +130,14 @@ describe('useUpdateEntry', () => {
       await result.current.mutateAsync({ entry: entry(), line: fixedLine, scope: 'template' });
     });
 
-    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/items/i1', {
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1', {
       method: 'PATCH',
-      body: { name: 'Netflix HD', amount: 25 },
+      body: { name: 'Netflix HD', amount: 25, scope: 'template' },
     });
   });
 
-  it('una linea puntual (sin item) no toca la plantilla aunque se pida', async () => {
+  it('una linea puntual (sin item) siempre se envia como "month" aunque se pida "template"', async () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useUpdateEntry(), { wrapper });
 
@@ -144,19 +145,24 @@ describe('useUpdateEntry', () => {
       await result.current.mutateAsync({ entry: entry({ itemId: null }), line: fixedLine, scope: 'template' });
     });
 
-    expect(apiRequest).toHaveBeenCalledTimes(1);
+    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1', {
+      method: 'PATCH',
+      body: { name: 'Netflix HD', amount: 25, scope: 'month' },
+    });
   });
 
-  it('si la plantilla ya no tiene el item (404) el cambio del mes cuenta como hecho', async () => {
-    const { wrapper } = setup();
-    jest.mocked(apiRequest).mockResolvedValueOnce({}).mockRejectedValueOnce(new ApiError(404, 'Línea no encontrada'));
+  it('un fallo del servidor se propaga y refresca el presupuesto', async () => {
+    const { queryClient, wrapper } = setup();
+    jest.mocked(apiRequest).mockRejectedValue(new ApiError(500, 'Error de red'));
     const { result } = renderHook(() => useUpdateEntry(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync({ entry: entry(), line: fixedLine, scope: 'template' });
+      await expect(
+        result.current.mutateAsync({ entry: entry(), line: fixedLine, scope: 'template' }),
+      ).rejects.toThrow('Error de red');
     });
 
-    expect(apiRequest).toHaveBeenCalledTimes(2);
+    expect(queryClient.getQueryState(budgetMonthKey(target))?.isInvalidated).toBe(true);
   });
 });
 
@@ -175,7 +181,7 @@ describe('useDeleteEntry', () => {
     expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1', { method: 'DELETE' });
   });
 
-  it('con alcance "template" quita tambien el item de la plantilla', async () => {
+  it('con alcance "template" pide al servidor quitarla tambien de la plantilla y de los meses siguientes, en una sola peticion', async () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useDeleteEntry(), { wrapper });
 
@@ -183,46 +189,31 @@ describe('useDeleteEntry', () => {
       await result.current.mutateAsync({ entry: entry(), scope: 'template' });
     });
 
-    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/items/i1', { method: 'DELETE' });
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1?scope=template', { method: 'DELETE' });
   });
 
-  it('con alcance "template" quita primero el item y despues la linea', async () => {
+  it('una linea puntual (sin item) se quita solo de su mes aunque se pida "template"', async () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useDeleteEntry(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync({ entry: entry(), scope: 'template' });
+      await result.current.mutateAsync({ entry: entry({ itemId: null }), scope: 'template' });
     });
 
-    expect(jest.mocked(apiRequest).mock.calls.map(([url]) => url)).toEqual([
-      '/api/budgets/items/i1',
-      '/api/budgets/entries/e1',
-    ]);
+    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1', { method: 'DELETE' });
   });
 
-  it('si falla a medias se puede reintentar hasta terminar (un 404 cuenta como hecho)', async () => {
+  it('si la linea ya no existe (404) cuenta como hecho, para poder reintentar', async () => {
     const { wrapper } = setup();
+    jest.mocked(apiRequest).mockRejectedValue(new ApiError(404, 'Línea no encontrada'));
     const { result } = renderHook(() => useDeleteEntry(), { wrapper });
 
-    // 1.er intento: el item se borra pero la linea del mes falla.
-    jest
-      .mocked(apiRequest)
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new ApiError(500, 'Error de red'));
-    await act(async () => {
-      await expect(result.current.mutateAsync({ entry: entry(), scope: 'template' })).rejects.toThrow();
-    });
-
-    // 2.o intento: el item ya no existe (404) y la linea se borra.
-    jest
-      .mocked(apiRequest)
-      .mockRejectedValueOnce(new ApiError(404, 'Línea no encontrada'))
-      .mockResolvedValueOnce(undefined);
     await act(async () => {
       await result.current.mutateAsync({ entry: entry(), scope: 'template' });
     });
 
-    expect(apiRequest).toHaveBeenLastCalledWith('/api/budgets/entries/e1', { method: 'DELETE' });
+    expect(apiRequest).toHaveBeenCalledTimes(1);
   });
 
   it('refresca el presupuesto aunque falle, para no dejar la pantalla desfasada', async () => {

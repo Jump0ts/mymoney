@@ -796,3 +796,312 @@ describe("presupuestos de meses futuros", () => {
     });
   });
 });
+
+describe("cambios de plantilla en meses posteriores ya guardados", () => {
+  const now = new Date();
+  const current = { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+  const monthUrl = (delta: number) => {
+    const { year, month } = addMonths(current, delta);
+    return `/api/budgets/months/${year}/${month}`;
+  };
+
+  type Entry = {
+    id: string;
+    name: string;
+    amount: string;
+    paid: boolean;
+    edited: boolean;
+    itemId: string | null;
+    groupId: string;
+  };
+
+  const entriesOf = async (token: string, delta: number) => {
+    const res = await as(token).get(monthUrl(delta));
+    return (res.body.groups as { entries: Entry[] }[]).flatMap((group) => group.entries);
+  };
+  const entryNamed = async (token: string, delta: number, name: string) =>
+    (await entriesOf(token, delta)).find((entry) => entry.name === name);
+
+  // Plantilla con una linea recurrente "Netflix" y los meses -1, 0, +2 y +4 guardados; el +1 y el +3 solo se ven.
+  const setup = async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token, "Hogar");
+    await createItem(token, group.id, { name: "Netflix", amount: 10 });
+    await as(token).get(monthUrl(-1));
+    await as(token).get(monthUrl(0));
+    await as(token).post(`${monthUrl(2)}/open`, {});
+    await as(token).post(`${monthUrl(4)}/open`, {});
+    return { token, group };
+  };
+
+  const edit = (token: string, id: string, body: object) => as(token).patch(`/api/budgets/entries/${id}`, body);
+
+  describe("alta de una linea recurrente", () => {
+    it("llega a los meses posteriores guardados, sin pagar, y no a los anteriores", async () => {
+      const { token, group } = await setup();
+
+      await as(token).post(`${monthUrl(0)}/entries`, { groupId: group.id, name: "Gimnasio", amount: 30, recurring: true });
+
+      for (const delta of [0, 2, 4]) {
+        expect(await entryNamed(token, delta, "Gimnasio")).toMatchObject({ amount: "30", paid: false, edited: false });
+      }
+      expect(await entryNamed(token, -1, "Gimnasio")).toBeUndefined();
+    });
+
+    it("los meses que solo se habian visto la recogen de la plantilla al verlos", async () => {
+      const { token, group } = await setup();
+
+      await as(token).post(`${monthUrl(0)}/entries`, { groupId: group.id, name: "Gimnasio", amount: 30, recurring: true });
+      const preview = await as(token).get(monthUrl(1));
+
+      expect(preview.body.preview).toBe(true);
+      expect(preview.body.groups[0].entries.map((e: { name: string }) => e.name)).toContain("Gimnasio");
+    });
+
+    it("una linea solo de este mes no se propaga", async () => {
+      const { token, group } = await setup();
+
+      await as(token).post(`${monthUrl(0)}/entries`, { groupId: group.id, name: "Seguro", amount: 380, recurring: false });
+
+      expect(await entryNamed(token, 0, "Seguro")).toBeDefined();
+      expect(await entryNamed(token, 2, "Seguro")).toBeUndefined();
+      expect(await entryNamed(token, 4, "Seguro")).toBeUndefined();
+    });
+
+    it("dar de alta en un mes futuro tampoco llega a los meses anteriores", async () => {
+      const { token, group } = await setup();
+
+      await as(token).post(`${monthUrl(2)}/entries`, { groupId: group.id, name: "Gimnasio", amount: 30, recurring: true });
+
+      expect(await entryNamed(token, 2, "Gimnasio")).toBeDefined();
+      expect(await entryNamed(token, 4, "Gimnasio")).toBeDefined();
+      expect(await entryNamed(token, 0, "Gimnasio")).toBeUndefined();
+      expect(await entryNamed(token, -1, "Gimnasio")).toBeUndefined();
+    });
+  });
+
+  describe("editar con «este y los siguientes»", () => {
+    it("cambia el importe y el nombre en la plantilla y en los meses posteriores", async () => {
+      const { token } = await setup();
+      const netflix = (await entryNamed(token, 0, "Netflix"))!;
+
+      const res = await edit(token, netflix.id, { name: "Netflix 4K", amount: 15, scope: "template" });
+
+      expect(res.status).toBe(200);
+      for (const delta of [0, 2, 4]) {
+        expect(await entryNamed(token, delta, "Netflix 4K")).toMatchObject({ amount: "15" });
+      }
+      // Un mes anterior no cambia, y un mes que se abra despues sale con lo nuevo.
+      expect(await entryNamed(token, -1, "Netflix")).toMatchObject({ amount: "10" });
+      const preview = await as(token).get(monthUrl(1));
+      expect(preview.body.groups[0].entries[0]).toMatchObject({ name: "Netflix 4K", amount: "15" });
+    });
+
+    it("no toca las lineas pagadas de los meses posteriores", async () => {
+      const { token } = await setup();
+      const later = (await entryNamed(token, 2, "Netflix"))!;
+      await edit(token, later.id, { paid: true });
+      const netflix = (await entryNamed(token, 0, "Netflix"))!;
+
+      await edit(token, netflix.id, { amount: 15, scope: "template" });
+
+      expect(await entryNamed(token, 2, "Netflix")).toMatchObject({ amount: "10", paid: true });
+      expect(await entryNamed(token, 4, "Netflix")).toMatchObject({ amount: "15" });
+    });
+
+    it("no toca las lineas enlazadas a un gasto", async () => {
+      const { token } = await setup();
+      const category = await firstExpenseCategory(token);
+      const later = (await entryNamed(token, 2, "Netflix"))!;
+      const link = await as(token).post("/api/transactions", {
+        categoryId: category.id,
+        type: "EXPENSE",
+        amount: 10,
+        occurredAt: new Date().toISOString(),
+        budgetEntryId: later.id,
+      });
+      expect(link.status).toBe(201);
+      const netflix = (await entryNamed(token, 0, "Netflix"))!;
+
+      await edit(token, netflix.id, { amount: 15, scope: "template" });
+
+      expect(await entryNamed(token, 2, "Netflix")).toMatchObject({ amount: "10", paid: true });
+    });
+
+    it("respeta lo editado a mano solo para su mes", async () => {
+      const { token } = await setup();
+      const later = (await entryNamed(token, 2, "Netflix"))!;
+      const handEdit = await edit(token, later.id, { amount: 99, scope: "month" });
+      expect(handEdit.body.entry.edited).toBe(true);
+      const netflix = (await entryNamed(token, 0, "Netflix"))!;
+
+      await edit(token, netflix.id, { amount: 15, scope: "template" });
+
+      expect(await entryNamed(token, 2, "Netflix")).toMatchObject({ amount: "99", edited: true });
+      expect(await entryNamed(token, 4, "Netflix")).toMatchObject({ amount: "15", edited: false });
+    });
+
+    it("volver a editar una linea con «este y los siguientes» la devuelve a la plantilla", async () => {
+      const { token } = await setup();
+      const later = (await entryNamed(token, 2, "Netflix"))!;
+      await edit(token, later.id, { amount: 99, scope: "month" });
+
+      const res = await edit(token, later.id, { amount: 20, scope: "template" });
+
+      expect(res.body.entry.edited).toBe(false);
+      expect(await entryNamed(token, 2, "Netflix")).toMatchObject({ amount: "20", edited: false });
+      expect(await entryNamed(token, 4, "Netflix")).toMatchObject({ amount: "20" });
+      // Los meses anteriores a este no cambian.
+      expect(await entryNamed(token, 0, "Netflix")).toMatchObject({ amount: "10" });
+    });
+
+    it("mover la linea de grupo tambien llega a los meses posteriores", async () => {
+      const { token } = await setup();
+      const other = await createGroup(token, "Ocio");
+      const netflix = (await entryNamed(token, 0, "Netflix"))!;
+
+      await edit(token, netflix.id, { groupId: other.id, scope: "template" });
+
+      expect(await entryNamed(token, 2, "Netflix")).toMatchObject({ groupId: other.id });
+      expect(await entryNamed(token, 4, "Netflix")).toMatchObject({ groupId: other.id });
+    });
+
+    it("una linea suelta (sin plantilla) se edita solo en su mes aunque se pida «template»", async () => {
+      const { token, group } = await setup();
+      await as(token).post(`${monthUrl(0)}/entries`, { groupId: group.id, name: "Seguro", amount: 380, recurring: false });
+      const seguro = (await entryNamed(token, 0, "Seguro"))!;
+
+      const res = await edit(token, seguro.id, { amount: 400, scope: "template" });
+
+      expect(res.status).toBe(200);
+      expect(await entryNamed(token, 0, "Seguro")).toMatchObject({ amount: "400", edited: false });
+    });
+
+    it("marcar como pagada con scope «template» no cambia la plantilla ni los meses posteriores", async () => {
+      const { token } = await setup();
+      const netflix = (await entryNamed(token, 0, "Netflix"))!;
+
+      await edit(token, netflix.id, { paid: true, scope: "template" });
+
+      expect(await entryNamed(token, 0, "Netflix")).toMatchObject({ paid: true });
+      expect(await entryNamed(token, 2, "Netflix")).toMatchObject({ paid: false, amount: "10" });
+    });
+
+    it("no toca los datos de otro usuario", async () => {
+      const mine = await setup();
+      const theirs = await setup();
+      const netflix = (await entryNamed(mine.token, 0, "Netflix"))!;
+
+      await edit(mine.token, netflix.id, { amount: 15, scope: "template" });
+
+      expect(await entryNamed(theirs.token, 2, "Netflix")).toMatchObject({ amount: "10" });
+      expect((await edit(theirs.token, netflix.id, { amount: 1, scope: "template" })).status).toBe(404);
+    });
+
+    it("rechaza un scope desconocido", async () => {
+      const { token } = await setup();
+      const netflix = (await entryNamed(token, 0, "Netflix"))!;
+
+      expect((await edit(token, netflix.id, { amount: 15, scope: "todos" })).status).toBe(400);
+    });
+  });
+
+  describe("editar solo este mes", () => {
+    it("marca la linea como editada a mano si cambia nombre, importe o grupo", async () => {
+      const { token } = await setup();
+      const netflix = (await entryNamed(token, 2, "Netflix"))!;
+
+      await edit(token, netflix.id, { amount: 12 });
+
+      expect(await entryNamed(token, 2, "Netflix")).toMatchObject({ amount: "12", edited: true });
+    });
+
+    it("no la marca si el valor es el mismo, ni al pagarla, ni al reordenarla", async () => {
+      const { token } = await setup();
+      const netflix = (await entryNamed(token, 2, "Netflix"))!;
+
+      await edit(token, netflix.id, { amount: 10, name: "Netflix" });
+      await edit(token, netflix.id, { paid: true });
+      await edit(token, netflix.id, { position: 3 });
+
+      expect(await entryNamed(token, 2, "Netflix")).toMatchObject({ edited: false, paid: true });
+    });
+
+    it("una linea que no viene de la plantilla no se marca", async () => {
+      const { token, group } = await setup();
+      await as(token).post(`${monthUrl(0)}/entries`, { groupId: group.id, name: "Seguro", amount: 380, recurring: false });
+      const seguro = (await entryNamed(token, 0, "Seguro"))!;
+
+      await edit(token, seguro.id, { amount: 400 });
+
+      expect(await entryNamed(token, 0, "Seguro")).toMatchObject({ amount: "400", edited: false });
+    });
+  });
+
+  describe("quitar con «este y los siguientes»", () => {
+    const remove = (token: string, id: string, scope?: string) =>
+      as(token).del(`/api/budgets/entries/${id}${scope ? `?scope=${scope}` : ""}`);
+
+    it("quita la linea de la plantilla y de los meses posteriores, y no de los anteriores", async () => {
+      const { token } = await setup();
+      const netflix = (await entryNamed(token, 0, "Netflix"))!;
+
+      const res = await remove(token, netflix.id, "template");
+
+      expect(res.status).toBe(204);
+      expect(await entryNamed(token, 0, "Netflix")).toBeUndefined();
+      expect(await entryNamed(token, 2, "Netflix")).toBeUndefined();
+      expect(await entryNamed(token, 4, "Netflix")).toBeUndefined();
+      expect(await entryNamed(token, -1, "Netflix")).toBeDefined();
+      const preview = await as(token).get(monthUrl(1));
+      expect(preview.body.groups[0].entries).toEqual([]);
+    });
+
+    it("conserva como lineas sueltas las pagadas y las editadas a mano de los meses posteriores", async () => {
+      const { token } = await setup();
+      const paid = (await entryNamed(token, 2, "Netflix"))!;
+      await edit(token, paid.id, { paid: true });
+      const handEdited = (await entryNamed(token, 4, "Netflix"))!;
+      await edit(token, handEdited.id, { amount: 99 });
+      const netflix = (await entryNamed(token, 0, "Netflix"))!;
+
+      await remove(token, netflix.id, "template");
+
+      expect(await entryNamed(token, 2, "Netflix")).toMatchObject({ paid: true, itemId: null });
+      expect(await entryNamed(token, 4, "Netflix")).toMatchObject({ amount: "99", itemId: null });
+      expect((await as(token).get("/api/budgets/items")).body.items).toEqual([]);
+    });
+
+    it("sin scope (o «month») solo quita la linea de ese mes", async () => {
+      const { token } = await setup();
+      const netflix = (await entryNamed(token, 0, "Netflix"))!;
+
+      await remove(token, netflix.id);
+      await remove(token, (await entryNamed(token, 2, "Netflix"))!.id, "month");
+
+      expect(await entryNamed(token, 0, "Netflix")).toBeUndefined();
+      expect(await entryNamed(token, 2, "Netflix")).toBeUndefined();
+      expect(await entryNamed(token, 4, "Netflix")).toBeDefined();
+      expect((await as(token).get("/api/budgets/items")).body.items).toHaveLength(1);
+    });
+
+    it("una linea suelta se quita sin error aunque se pida «template»", async () => {
+      const { token, group } = await setup();
+      await as(token).post(`${monthUrl(0)}/entries`, { groupId: group.id, name: "Seguro", amount: 380, recurring: false });
+      const seguro = (await entryNamed(token, 0, "Seguro"))!;
+
+      expect((await remove(token, seguro.id, "template")).status).toBe(204);
+      expect(await entryNamed(token, 0, "Seguro")).toBeUndefined();
+    });
+
+    it("rechaza un scope desconocido y no toca lo de otro usuario", async () => {
+      const mine = await setup();
+      const theirs = await setup();
+      const netflix = (await entryNamed(mine.token, 0, "Netflix"))!;
+
+      expect((await remove(mine.token, netflix.id, "todos")).status).toBe(400);
+      expect((await remove(theirs.token, netflix.id, "template")).status).toBe(404);
+      expect(await entryNamed(mine.token, 2, "Netflix")).toBeDefined();
+    });
+  });
+});

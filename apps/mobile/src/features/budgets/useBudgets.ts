@@ -110,8 +110,7 @@ export const useCreateEntry = (target: YearMonth) => {
   });
 };
 
-// Si lo que se quiere cambiar o quitar ya no existe (404), para quien lo pide es un exito:
-// asi un reintento tras un fallo a medias de las dos peticiones puede terminar el trabajo.
+// Si lo que se quiere quitar ya no existe (404), para quien lo pide es un exito.
 const ignoreNotFound = async (request: Promise<unknown>) => {
   try {
     await request;
@@ -120,34 +119,34 @@ const ignoreNotFound = async (request: Promise<unknown>) => {
   }
 };
 
-// Con scope "template" el cambio tambien llega a la plantilla (y por tanto a los meses
-// que se generen despues); los meses ya generados no se tocan. Son dos peticiones: el
-// refresco va en onSettled para que la pantalla refleje lo que si se llego a guardar.
+// Con scope "month" el cambio es solo de ese mes (la linea queda marcada como editada a mano en el servidor).
+// Con scope "template" el cambio tambien llega a la plantilla y a los meses posteriores ya guardados, salvo
+// las lineas pagadas, enlazadas o editadas a mano. Es una sola peticion: el servidor lo hace entero o nada.
 export const useUpdateEntry = () => {
   const refresh = useRefreshBudgets();
   return useMutation({
-    mutationFn: async ({ entry, line, scope }: { entry: BudgetEntry; line: BudgetLinePayload; scope: BudgetScope }) => {
-      const body = { name: line.name, amount: line.amount };
-      await apiRequest(`/api/budgets/entries/${entry.id}`, { method: 'PATCH', body });
-      if (scope === 'template' && entry.itemId) {
-        await ignoreNotFound(apiRequest(`/api/budgets/items/${entry.itemId}`, { method: 'PATCH', body }));
-      }
-    },
+    mutationFn: ({ entry, line, scope }: { entry: BudgetEntry; line: BudgetLinePayload; scope: BudgetScope }) =>
+      apiRequest(`/api/budgets/entries/${entry.id}`, {
+        method: 'PATCH',
+        // Una linea puntual (sin plantilla) solo puede ser de su mes.
+        body: { name: line.name, amount: line.amount, scope: entry.itemId ? scope : 'month' },
+      }),
     onSettled: refresh,
   });
 };
 
-// Primero la plantilla y despues la linea del mes: si falla a medias, la linea sigue ahi
-// y se puede volver a borrar (el item ya inexistente cuenta como hecho).
+// Con scope "template" tambien se quita de la plantilla y de los meses posteriores ya guardados (menos las
+// lineas pagadas, enlazadas o editadas a mano, que se quedan como lineas sueltas). Si la linea ya no existe
+// (404) para quien la quita es un exito, asi un reintento tras un fallo de red puede terminar el trabajo.
 export const useDeleteEntry = () => {
   const refresh = useRefreshBudgets();
   return useMutation({
-    mutationFn: async ({ entry, scope }: { entry: BudgetEntry; scope: BudgetScope }) => {
-      if (scope === 'template' && entry.itemId) {
-        await ignoreNotFound(apiRequest(`/api/budgets/items/${entry.itemId}`, { method: 'DELETE' }));
-      }
-      await ignoreNotFound(apiRequest(`/api/budgets/entries/${entry.id}`, { method: 'DELETE' }));
-    },
+    mutationFn: ({ entry, scope }: { entry: BudgetEntry; scope: BudgetScope }) =>
+      ignoreNotFound(
+        apiRequest(`/api/budgets/entries/${entry.id}${scope === 'template' && entry.itemId ? '?scope=template' : ''}`, {
+          method: 'DELETE',
+        }),
+      ),
     onSettled: refresh,
   });
 };

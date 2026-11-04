@@ -13,6 +13,11 @@ export const addMonths = ({ year, month }: YearMonth, delta: number): YearMonth 
   return { year: Math.floor(total / 12), month: (total % 12) + 1 };
 };
 
+// Filtro de Prisma: filas de meses estrictamente posteriores al indicado.
+export const afterMonth = ({ year, month }: YearMonth) => ({
+  OR: [{ year: { gt: year } }, { year, month: { gt: month } }],
+});
+
 // Un mes posterior al actual (UTC): se muestra sin guardarlo hasta que el usuario escribe algo en el.
 export const isFutureMonth = (target: YearMonth, now: Date = new Date()): boolean =>
   compareYearMonth(target, { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }) > 0;

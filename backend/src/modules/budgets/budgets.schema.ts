@@ -57,13 +57,20 @@ export const createEntrySchema = createItemSchema.extend({
   recurring: z.boolean().default(false),
 });
 
+// "month": el cambio es solo de este mes (y la linea queda marcada como editada a mano); "template": tambien
+// cambia la plantilla y los meses posteriores ya guardados que no se hayan tocado a mano.
+export const entryScopeSchema = z.enum(["month", "template"]).default("month");
+
 export const updateEntrySchema = z.object({
   groupId: z.string().min(1).optional(),
   name: z.string().trim().min(1).max(60).optional(),
   amount: amountSchema.optional(),
   paid: z.boolean().optional(),
   position: z.number().int().min(0).optional(),
+  scope: entryScopeSchema,
 });
+
+export const deleteEntryQuerySchema = z.object({ scope: entryScopeSchema });
 
 export const updateMonthSchema = z.object({
   income: z.number().min(0).max(10_000_000),
