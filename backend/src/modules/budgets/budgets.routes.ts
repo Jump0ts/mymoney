@@ -7,6 +7,7 @@ import { badRequest, conflict, notFound } from "../../utils/errors.js";
 import {
   createEntrySchema,
   createGroupSchema,
+  deleteEntryQuerySchema,
   createItemSchema,
   entriesOrderParamsSchema,
   monthParamsSchema,
@@ -16,30 +17,30 @@ import {
   updateItemSchema,
   updateMonthSchema,
 } from "./budgets.schema.js";
-import { compareYearMonth } from "./budgets.utils.js";
+import {
+  afterMonth,
+  compareYearMonth,
+  isFutureMonth,
+  isTooFarAhead,
+  MAX_MONTHS_AHEAD,
+  PREVIEW_ENTRY_PREFIX,
+} from "./budgets.utils.js";
+import {
+  findOwnedGroup,
+  findPreviousMonth,
+  lastCategoryByItem,
+  nextEntryPosition,
+  openMonth,
+} from "./budgets.service.js";
 import type { YearMonth } from "./budgets.types.js";
 
 export const budgetsRouter = Router();
 budgetsRouter.use(requireAuth);
 
-const findOwnedGroup = async (userId: string, groupId: string) => {
-  const group = await prisma.budgetGroup.findFirst({ where: { id: groupId, userId } });
-  if (!group) throw notFound("Grupo no encontrado");
-  return group;
-};
-
 const sameIds = (a: string[], b: string[]) => a.length === b.length && new Set([...a, ...b]).size === a.length;
 
 const nextItemPosition =async (userId: string, groupId: string) => {
   const max = await prisma.budgetItem.aggregate({ where: { userId, groupId }, _max: { position: true } });
-  return (max._max.position ?? -1) + 1;
-};
-
-const nextEntryPosition = async (userId: string, target: YearMonth, groupId: string) => {
-  const max = await prisma.budgetEntry.aggregate({
-    where: { userId, ...target, groupId },
-    _max: { position: true },
-  });
   return (max._max.position ?? -1) + 1;
 };
 
@@ -64,57 +65,6 @@ const checkRemainder = async <T extends { limit?: number | null; isRemainder?: b
   return { ...body, limit: null };
 };
 
-// Abre el presupuesto de un mes: la primera vez lo genera copiando la plantilla
-// (con "pagado" en false) y el sueldo del ultimo mes anterior. Devuelve false si
-// el mes es anterior al primer presupuesto del usuario: no tiene sentido
-// rellenar con la plantilla de hoy meses que ya pasaron.
-const openMonth = async (userId: string, target: YearMonth): Promise<boolean> => {
-  const existing = await prisma.budgetMonth.findUnique({
-    where: { userId_year_month: { userId, ...target } },
-  });
-  if (existing) return true;
-
-  const earliest = await prisma.budgetMonth.findFirst({
-    where: { userId },
-    orderBy: [{ year: "asc" }, { month: "asc" }],
-  });
-  if (earliest && compareYearMonth(target, earliest) < 0) return false;
-
-  const previous = await prisma.budgetMonth.findFirst({
-    where: {
-      userId,
-      OR: [{ year: { lt: target.year } }, { year: target.year, month: { lt: target.month } }],
-    },
-    orderBy: [{ year: "desc" }, { month: "desc" }],
-  });
-  const items = await prisma.budgetItem.findMany({
-    where: { userId },
-    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-  });
-
-  try {
-    await prisma.$transaction([
-      prisma.budgetMonth.create({ data: { userId, ...target, income: previous?.income ?? 0 } }),
-      prisma.budgetEntry.createMany({
-        data: items.map((item) => ({
-          userId,
-          ...target,
-          groupId: item.groupId,
-          itemId: item.id,
-          name: item.name,
-          amount: item.amount,
-          position: item.position,
-        })),
-        skipDuplicates: true,
-      }),
-    ]);
-  } catch (error) {
-    // Otra peticion abrio el mismo mes a la vez: ya esta generado, no hay nada que hacer.
-    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
-  }
-  return true;
-};
-
 const buildMonthResponse = async (userId: string, target: YearMonth) => {
   const month = await prisma.budgetMonth.findUnique({
     where: { userId_year_month: { userId, ...target } },
@@ -129,11 +79,55 @@ const buildMonthResponse = async (userId: string, target: YearMonth) => {
     }),
   ]);
 
+  // Solo las lineas sin pagar de plantilla necesitan la categoria sugerida (son las que se van a pagar).
+  const suggestions = await lastCategoryByItem(
+    userId,
+    entries.flatMap((entry) => (!entry.paid && entry.itemId ? [entry.itemId] : [])),
+  );
+
   return {
+    preview: false,
     month: month ? { ...target, income: month.income } : null,
     groups: groups.map((group) => ({
       ...group,
-      entries: entries.filter((entry) => entry.groupId === group.id),
+      entries: entries
+        .filter((entry) => entry.groupId === group.id)
+        .map((entry) => ({
+          ...entry,
+          suggestedCategoryId: (!entry.paid && entry.itemId && suggestions.get(entry.itemId)) || null,
+        })),
+    })),
+  };
+};
+
+// Lo que tendria un mes futuro si se abriera ahora (plantilla + ultimo sueldo), sin guardar nada: asi mirar
+// meses por delante no los congela con la plantilla de hoy. Sus lineas llevan un id provisional.
+const buildPreviewResponse = async (userId: string, target: YearMonth) => {
+  const [previous, groups, items] = await Promise.all([
+    findPreviousMonth(userId, target),
+    prisma.budgetGroup.findMany({ where: { userId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
+    prisma.budgetItem.findMany({ where: { userId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
+  ]);
+
+  return {
+    preview: true,
+    month: { ...target, income: previous?.income ?? new Prisma.Decimal(0) },
+    groups: groups.map((group) => ({
+      ...group,
+      entries: items
+        .filter((item) => item.groupId === group.id)
+        .map((item) => ({
+          id: `${PREVIEW_ENTRY_PREFIX}${item.id}`,
+          year: target.year,
+          month: target.month,
+          groupId: item.groupId,
+          itemId: item.id,
+          name: item.name,
+          amount: item.amount,
+          paid: false,
+          position: item.position,
+          transaction: null,
+        })),
     })),
   };
 };
@@ -286,14 +280,49 @@ budgetsRouter.delete(
 
 // ---- Presupuesto de un mes ----
 
-// GET que puede crear el mes la primera vez que se abre (idempotente).
+// GET de un mes. Un mes actual o pasado se genera la primera vez que se abre (idempotente); uno futuro que
+// aun no existe se devuelve como vista previa, sin guardarlo, hasta que se escribe algo en el.
 budgetsRouter.get(
   "/months/:year/:month",
   asyncHandler(async (req, res) => {
     const target = monthParamsSchema.parse(req.params);
     const userId = req.auth!.userId;
 
+    if (isFutureMonth(target)) {
+      if (isTooFarAhead(target)) {
+        throw badRequest(`Solo se pueden preparar presupuestos hasta ${MAX_MONTHS_AHEAD} meses por delante`);
+      }
+      const [existing, earliest] = await Promise.all([
+        prisma.budgetMonth.findUnique({ where: { userId_year_month: { userId, ...target } } }),
+        prisma.budgetMonth.findFirst({ where: { userId }, orderBy: [{ year: "asc" }, { month: "asc" }] }),
+      ]);
+      // Un mes anterior al primero guardado no se rellena con la plantilla: sigue el camino de siempre (sin mes).
+      if (!existing && (!earliest || compareYearMonth(target, earliest) >= 0)) {
+        res.json(await buildPreviewResponse(userId, target));
+        return;
+      }
+    }
+
     await openMonth(userId, target);
+    res.json(await buildMonthResponse(userId, target));
+  }),
+);
+
+// Guarda de verdad un mes (generandolo desde la plantilla si hace falta), por ejemplo antes de marcar
+// como pagada una linea de un mes que solo se estaba viendo. Idempotente.
+budgetsRouter.post(
+  "/months/:year/:month/open",
+  asyncHandler(async (req, res) => {
+    const target = monthParamsSchema.parse(req.params);
+    const userId = req.auth!.userId;
+
+    if (!(await openMonth(userId, target))) {
+      await prisma.budgetMonth.upsert({
+        where: { userId_year_month: { userId, ...target } },
+        update: {},
+        create: { userId, ...target },
+      });
+    }
     res.json(await buildMonthResponse(userId, target));
   }),
 );
@@ -329,30 +358,52 @@ budgetsRouter.post(
       await prisma.budgetMonth.create({ data: { userId, ...target } });
     }
 
-    const itemId = body.recurring
-      ? (
-          await prisma.budgetItem.create({
-            data: {
-              userId,
-              groupId: body.groupId,
-              name: body.name,
-              amount: body.amount,
-              position: await nextItemPosition(userId, body.groupId),
-            },
-          })
-        ).id
-      : null;
+    const [itemPosition, entryPosition] = await Promise.all([
+      nextItemPosition(userId, body.groupId),
+      nextEntryPosition(prisma, userId, target, body.groupId),
+    ]);
 
-    const entry = await prisma.budgetEntry.create({
-      data: {
-        userId,
-        ...target,
-        groupId: body.groupId,
-        itemId,
-        name: body.name,
-        amount: body.amount,
-        position: await nextEntryPosition(userId, target, body.groupId),
-      },
+    const entry = await prisma.$transaction(async (tx) => {
+      const item = body.recurring
+        ? await tx.budgetItem.create({
+            data: { userId, groupId: body.groupId, name: body.name, amount: body.amount, position: itemPosition },
+          })
+        : null;
+
+      const created = await tx.budgetEntry.create({
+        data: {
+          userId,
+          ...target,
+          groupId: body.groupId,
+          itemId: item?.id ?? null,
+          name: body.name,
+          amount: body.amount,
+          position: entryPosition,
+        },
+      });
+
+      // Una linea recurrente vale tambien para los meses posteriores que ya estan guardados (los que solo
+      // se han visto y los que se abran mas adelante la recogen de la plantilla).
+      if (item) {
+        const later = await tx.budgetMonth.findMany({
+          where: { userId, ...afterMonth(target) },
+          select: { year: true, month: true },
+        });
+        await tx.budgetEntry.createMany({
+          data: later.map((month) => ({
+            userId,
+            year: month.year,
+            month: month.month,
+            groupId: item.groupId,
+            itemId: item.id,
+            name: item.name,
+            amount: item.amount,
+            position: item.position,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      return created;
     });
     res.status(201).json({ entry });
   }),
@@ -388,7 +439,7 @@ budgetsRouter.put(
 budgetsRouter.patch(
   "/entries/:id",
   asyncHandler(async (req, res) => {
-    const body = updateEntrySchema.parse(req.body);
+    const { scope, ...body } = updateEntrySchema.parse(req.body);
     const userId = req.auth!.userId;
     const entry = await prisma.budgetEntry.findFirst({ where: { id: req.params.id, userId } });
     if (!entry) throw notFound("Línea no encontrada");
@@ -409,7 +460,39 @@ budgetsRouter.patch(
       if (linked) throw badRequest("Una línea enlazada a un gasto no puede pasar a reembolso");
     }
 
-    const updated = await prisma.budgetEntry.update({ where: { id: entry.id }, data: body });
+    // Lo que comparte con la plantilla: nombre, importe y grupo.
+    const shared = {
+      ...(body.name !== undefined && { name: body.name }),
+      ...(body.amount !== undefined && { amount: body.amount }),
+      ...(body.groupId !== undefined && { groupId: body.groupId }),
+    };
+
+    if (scope === "template" && entry.itemId && Object.keys(shared).length > 0) {
+      // "Este y los siguientes": cambia la plantilla y los meses posteriores ya guardados, salvo las lineas
+      // pagadas, enlazadas a un gasto o editadas a mano solo para su mes. Esta linea vuelve a seguir la plantilla.
+      const itemId = entry.itemId;
+      const updated = await prisma.$transaction(async (tx) => {
+        const saved = await tx.budgetEntry.update({ where: { id: entry.id }, data: { ...body, edited: false } });
+        await tx.budgetItem.updateMany({ where: { id: itemId, userId }, data: shared });
+        await tx.budgetEntry.updateMany({
+          where: { userId, itemId, paid: false, edited: false, transaction: { is: null }, ...afterMonth(entry) },
+          data: shared,
+        });
+        return saved;
+      });
+      res.json({ entry: updated });
+      return;
+    }
+
+    // Solo este mes: si cambia lo que viene de la plantilla, la linea queda marcada como editada a mano.
+    const changesTemplateValues =
+      (body.name !== undefined && body.name !== entry.name) ||
+      (body.amount !== undefined && !entry.amount.equals(body.amount)) ||
+      (body.groupId !== undefined && body.groupId !== entry.groupId);
+    const updated = await prisma.budgetEntry.update({
+      where: { id: entry.id },
+      data: { ...body, ...(entry.itemId && changesTemplateValues && { edited: true }) },
+    });
     res.json({ entry: updated });
   }),
 );
@@ -417,10 +500,25 @@ budgetsRouter.patch(
 budgetsRouter.delete(
   "/entries/:id",
   asyncHandler(async (req, res) => {
-    const entry = await prisma.budgetEntry.findFirst({ where: { id: req.params.id, userId: req.auth!.userId } });
+    const { scope } = deleteEntryQuerySchema.parse(req.query);
+    const userId = req.auth!.userId;
+    const entry = await prisma.budgetEntry.findFirst({ where: { id: req.params.id, userId } });
     if (!entry) throw notFound("Línea no encontrada");
 
-    await prisma.budgetEntry.delete({ where: { id: entry.id } });
+    if (scope === "template" && entry.itemId) {
+      // Quitarla de la plantilla tambien la quita de los meses posteriores ya guardados, salvo las lineas
+      // pagadas, enlazadas a un gasto o editadas a mano: esas se quedan como lineas sueltas de su mes.
+      const itemId = entry.itemId;
+      await prisma.$transaction([
+        prisma.budgetEntry.deleteMany({
+          where: { userId, itemId, paid: false, edited: false, transaction: { is: null }, ...afterMonth(entry) },
+        }),
+        prisma.budgetEntry.delete({ where: { id: entry.id } }),
+        prisma.budgetItem.deleteMany({ where: { id: itemId, userId } }),
+      ]);
+    } else {
+      await prisma.budgetEntry.delete({ where: { id: entry.id } });
+    }
     res.status(204).send();
   }),
 );

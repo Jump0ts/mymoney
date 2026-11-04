@@ -1,0 +1,126 @@
+import { yupResolver } from '@hookform/resolvers/yup';
+import { useMemo } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+
+import { AnimatedPressable } from '@/components/AnimatedPressable';
+import { Button } from '@/components/Button';
+import { CategoryPill } from '@/components/CategoryPill';
+import { FieldError } from '@/components/FieldError';
+import { Input } from '@/components/Input';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { useCategories } from '@/features/categories/useCategories';
+import { formatMoney } from '@/utils/format';
+import { payEntrySchema, type PayEntryFormValues } from './budgets.schema';
+import { styles } from './PayEntryForm.styles';
+
+interface PayEntryFormProps {
+  // Linea que se paga: su nombre encabeza la hoja y el importe previsto es el que se propone.
+  entryName: string;
+  plannedAmount: string;
+  // Categoria sugerida (la del ultimo pago de esta misma linea); vacia la primera vez.
+  defaultCategoryId?: string;
+  isSubmitting: boolean;
+  submitError: string | null;
+  onSubmit: (values: PayEntryFormValues) => void;
+}
+
+// "21.99" -> "21,99": el teclado y lo que se escribe usan la coma.
+const toInputText = (amount: string) => String(Number(amount)).replace('.', ',');
+
+export const PayEntryForm = ({
+  entryName,
+  plannedAmount,
+  defaultCategoryId,
+  isSubmitting,
+  submitError,
+  onSubmit,
+}: PayEntryFormProps) => {
+  const { data: categories } = useCategories();
+
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<PayEntryFormValues>({
+    resolver: yupResolver(payEntrySchema),
+    defaultValues: { categoryId: defaultCategoryId ?? '', amount: toInputText(plannedAmount) },
+  });
+
+  // Solo gastos: la linea de un presupuesto se paga con un gasto.
+  const expenseCategories = useMemo(() => categories?.filter((c) => c.type === 'EXPENSE') ?? [], [categories]);
+
+  return (
+    <ThemedView style={styles.container}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <View style={styles.field}>
+            <ThemedText type="subtitle" accessibilityRole="header">
+              {entryName}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Previsto {formatMoney(plannedAmount)}
+            </ThemedText>
+          </View>
+
+          <View style={styles.field}>
+            <Controller
+              control={control}
+              name="amount"
+              render={({ field }) => (
+                <Input
+                  testID="pay-entry-amount"
+                  accessibilityLabel="Importe pagado en euros"
+                  placeholder="0,00 €"
+                  keyboardType="decimal-pad"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  onBlur={field.onBlur}
+                  style={styles.amountInput}
+                />
+              )}
+            />
+            <FieldError message={errors.amount?.message} />
+          </View>
+
+          <View style={styles.field}>
+            <ThemedText type="small" themeColor="textSecondary">
+              Categoría
+            </ThemedText>
+            <Controller
+              control={control}
+              name="categoryId"
+              render={({ field }) => (
+                <View accessibilityRole="radiogroup" style={styles.chipWrap}>
+                  {expenseCategories.map((category) => (
+                    <AnimatedPressable
+                      key={category.id}
+                      accessibilityRole="radio"
+                      accessibilityLabel={category.name}
+                      accessibilityState={{ selected: field.value === category.id }}
+                      testID={`pay-entry-category-${category.id}`}
+                      onPress={() => field.onChange(category.id)}
+                      style={[styles.chipTouchArea, { opacity: !field.value || field.value === category.id ? 1 : 0.4 }]}>
+                      <CategoryPill category={category} />
+                    </AnimatedPressable>
+                  ))}
+                </View>
+              )}
+            />
+            <FieldError message={errors.categoryId?.message} />
+          </View>
+
+          <FieldError message={submitError} />
+
+          <Button
+            testID="pay-entry-submit"
+            label="Marcar como pagada"
+            loading={isSubmitting}
+            onPress={handleSubmit(onSubmit)}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ThemedView>
+  );
+};

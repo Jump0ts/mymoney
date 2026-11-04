@@ -59,7 +59,7 @@ describe("enlazar un gasto con una linea del presupuesto", () => {
     const res = await createExpense(ctx, { budgetEntryId: entry.id });
 
     expect(res.status).toBe(201);
-    expect(res.body.transaction.budgetEntry).toEqual({ id: entry.id, name: "Luz", group: { name: "Hogar", color: expect.any(String) } });
+    expect(res.body.transaction.budgetEntry).toEqual({ id: entry.id, name: "Luz", fromTransaction: false, group: { name: "Hogar", color: expect.any(String) } });
     const updated = await getEntry(ctx, entry.id);
     expect(updated.paid).toBe(true);
     expect(updated.amount).toBe("60");

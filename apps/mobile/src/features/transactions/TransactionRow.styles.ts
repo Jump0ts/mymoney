@@ -3,8 +3,11 @@ import { Spacing } from '@/constants/theme';
 
 export const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.two },
-  rowInfo: { flex: 1, gap: Spacing.one },
-  rowMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  // minWidth 0: sin esto la informacion no encoge por debajo del ancho de sus textos y empuja el importe.
+  rowInfo: { flex: 1, minWidth: 0, gap: Spacing.one },
+  // La categoria y la fecha pasan a dos lineas (en vez de partir la fecha en tres) cuando no caben juntas.
+  rowMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: Spacing.two, rowGap: Spacing.one },
+  date: { flexShrink: 0 },
   // Linea del presupuesto que cubre el gasto, discreta bajo la categoria y la fecha.
   budgetMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
   budgetText: { flexShrink: 1, minWidth: 0 },

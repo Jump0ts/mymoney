@@ -1,5 +1,5 @@
 import type { AddTransactionFormValues } from './transactions.schema';
-import { toCreateInput, toUpdateInput } from './transactions.utils';
+import { toCreateInput, toNewExpenseDefaults, toUpdateInput } from './transactions.utils';
 
 const expense: AddTransactionFormValues = {
   type: 'EXPENSE',
@@ -48,5 +48,73 @@ describe('toUpdateInput', () => {
 
   it('si el gasto pasa a ingreso manda null aunque hubiera una linea', () => {
     expect(toUpdateInput({ ...expense, type: 'INCOME' }).budgetEntryId).toBeNull();
+  });
+});
+
+describe('gasto que sale de un grupo del presupuesto', () => {
+  const fromGroup: AddTransactionFormValues = { ...expense, budgetEntryId: null, budgetGroupId: 'g-deseos' };
+
+  it('al crear manda el grupo y ninguna linea', () => {
+    const input = toCreateInput(fromGroup);
+
+    expect(input.budgetGroupId).toBe('g-deseos');
+    expect(input).not.toHaveProperty('budgetEntryId');
+  });
+
+  it('el grupo manda sobre una linea que se hubiera quedado en el formulario', () => {
+    const input = toCreateInput({ ...fromGroup, budgetEntryId: 'entry-1' });
+
+    expect(input.budgetGroupId).toBe('g-deseos');
+    expect(input).not.toHaveProperty('budgetEntryId');
+  });
+
+  it('al editar manda el grupo y no el campo de la linea (los dos juntos son un error)', () => {
+    const input = toUpdateInput(fromGroup);
+
+    expect(input.budgetGroupId).toBe('g-deseos');
+    expect(input).not.toHaveProperty('budgetEntryId');
+  });
+
+  it('sin grupo no manda el campo', () => {
+    expect(toCreateInput({ ...expense, budgetGroupId: null })).not.toHaveProperty('budgetGroupId');
+    expect(toUpdateInput({ ...expense, budgetGroupId: undefined })).not.toHaveProperty('budgetGroupId');
+  });
+
+  it('un ingreso nunca manda grupo', () => {
+    expect(toCreateInput({ ...fromGroup, type: 'INCOME' })).not.toHaveProperty('budgetGroupId');
+    expect(toUpdateInput({ ...fromGroup, type: 'INCOME' })).toHaveProperty('budgetEntryId', null);
+    expect(toUpdateInput({ ...fromGroup, type: 'INCOME' })).not.toHaveProperty('budgetGroupId');
+  });
+});
+
+describe('toNewExpenseDefaults', () => {
+  it('sin grupo no hay valores propios: el formulario usa los suyos', () => {
+    expect(toNewExpenseDefaults(undefined, '2026-09-30')).toBeUndefined();
+  });
+
+  it('con grupo prepara un gasto vacio de hoy con el grupo elegido', () => {
+    const values = toNewExpenseDefaults('g-deseos')!;
+
+    expect(values).toMatchObject({
+      type: 'EXPENSE',
+      categoryId: '',
+      description: '',
+      budgetEntryId: null,
+      budgetGroupId: 'g-deseos',
+    });
+    expect(values.amount).toBeUndefined();
+    expect(Math.abs(values.occurredAt.getTime() - Date.now())).toBeLessThan(5000);
+  });
+
+  it('con un dia de otro mes usa ese dia a mediodia', () => {
+    const values = toNewExpenseDefaults('g-deseos', '2026-09-30')!;
+
+    expect(values.occurredAt).toEqual(new Date(2026, 8, 30, 12, 0, 0));
+  });
+
+  it('una fecha invalida se ignora y se usa hoy', () => {
+    const values = toNewExpenseDefaults('g-deseos', 'ayer')!;
+
+    expect(Math.abs(values.occurredAt.getTime() - Date.now())).toBeLessThan(5000);
   });
 });
