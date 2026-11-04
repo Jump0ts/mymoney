@@ -48,6 +48,16 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     ...Platform.select({ web: { position: 'absolute', right: 0 } }),
   },
+  // Version para pantallas estrechas (ver monthRowStyles): el selector de mes y el boton van en una fila normal.
+  monthRowNarrow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.two },
+  dayToggleNarrow: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.medium,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   dayPickerPanel: { gap: Spacing.two, alignItems: 'center' },
   textButton: { minHeight: 44, justifyContent: 'center' },
   chipScrollWrap: {
@@ -97,3 +107,12 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+
+// Por debajo de este ancho de ventana no cabe el selector de mes centrado con el boton de calendario flotando a su
+// derecha (en web se tapaban: la flecha de "mes siguiente" quedaba debajo del boton a 375 px). Ahi van en una fila.
+export const NARROW_MONTH_ROW_WIDTH = 480;
+
+export const monthRowStyles = (windowWidth: number) =>
+  windowWidth < NARROW_MONTH_ROW_WIDTH
+    ? { row: styles.monthRowNarrow, toggle: styles.dayToggleNarrow }
+    : { row: styles.monthRow, toggle: styles.dayToggle };

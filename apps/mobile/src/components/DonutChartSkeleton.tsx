@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { Skeleton } from './Skeleton';
 import { Spacing } from '@/constants/theme';
+import { LEGEND_MIN_WIDTH } from './DonutChart.constants';
 import { styles } from './DonutChart.styles';
 
 const LEGEND_ROWS = 4;
@@ -16,7 +17,8 @@ export const DonutChartSkeleton = ({ size = 176 }: DonutChartSkeletonProps) => (
 );
 
 export const DonutChartLegendSkeleton = () => (
-  <View style={{ gap: Spacing.two, flex: 1 }}>
+  // Mismo reparto que la leyenda real (ver DonutChart.constants), para que no salte al cargar.
+  <View style={{ gap: Spacing.two, flexGrow: 1, flexBasis: LEGEND_MIN_WIDTH }}>
     {Array.from({ length: LEGEND_ROWS }, (_, i) => (
       <Skeleton key={i} height={14} width={i % 2 === 0 ? '90%' : '70%'} />
     ))}
