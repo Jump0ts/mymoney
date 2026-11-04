@@ -8,6 +8,8 @@ export interface BudgetEntry {
   position: number;
   // Gasto de Movimientos enlazado a la linea: su importe es el "real" y la linea cuenta como pagada.
   transaction?: { id: string; amount: string; occurredAt: string } | null;
+  // Categoria del ultimo gasto con el que se pago esta misma linea de plantilla (solo en lineas sin pagar).
+  suggestedCategoryId?: string | null;
 }
 
 export interface BudgetGroup {

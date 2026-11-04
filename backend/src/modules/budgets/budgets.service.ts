@@ -20,6 +20,24 @@ export const nextEntryPosition = async (db: Db | typeof prisma, userId: string, 
   return (max._max.position ?? -1) + 1;
 };
 
+// Categoria del ultimo gasto enlazado a cada linea de plantilla (por itemId). Al pagar una linea se propone esa misma,
+// asi la segunda vez basta confirmar. Una plantilla sin ningun gasto enlazado no aparece en el resultado.
+export const lastCategoryByItem = async (userId: string, itemIds: string[]): Promise<Map<string, string>> => {
+  const result = new Map<string, string>();
+  if (itemIds.length === 0) return result;
+
+  const rows = await prisma.transaction.findMany({
+    where: { userId, budgetEntry: { itemId: { in: itemIds } } },
+    orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
+    select: { categoryId: true, budgetEntry: { select: { itemId: true } } },
+  });
+  for (const row of rows) {
+    const itemId = row.budgetEntry?.itemId;
+    if (itemId && !result.has(itemId)) result.set(itemId, row.categoryId);
+  }
+  return result;
+};
+
 // Ultimo mes guardado anterior al indicado: de el se copia el sueldo al generar un mes nuevo.
 export const findPreviousMonth = (userId: string, target: YearMonth) =>
   prisma.budgetMonth.findFirst({

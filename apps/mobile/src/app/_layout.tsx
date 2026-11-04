@@ -36,6 +36,10 @@ const RootLayout = () => {
               options={{ presentation: 'modal', headerShown: true, title: 'Nuevo movimiento' }}
             />
             <Stack.Screen
+              name="pay-entry"
+              options={{ presentation: 'modal', headerShown: true, title: 'Marcar como pagada' }}
+            />
+            <Stack.Screen
               name="edit-transaction/[id]"
               options={{ presentation: 'modal', headerShown: true, title: 'Editar movimiento' }}
             />

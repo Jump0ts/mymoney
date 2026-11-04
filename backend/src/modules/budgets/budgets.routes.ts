@@ -25,7 +25,13 @@ import {
   MAX_MONTHS_AHEAD,
   PREVIEW_ENTRY_PREFIX,
 } from "./budgets.utils.js";
-import { findOwnedGroup, findPreviousMonth, nextEntryPosition, openMonth } from "./budgets.service.js";
+import {
+  findOwnedGroup,
+  findPreviousMonth,
+  lastCategoryByItem,
+  nextEntryPosition,
+  openMonth,
+} from "./budgets.service.js";
 import type { YearMonth } from "./budgets.types.js";
 
 export const budgetsRouter = Router();
@@ -73,12 +79,23 @@ const buildMonthResponse = async (userId: string, target: YearMonth) => {
     }),
   ]);
 
+  // Solo las lineas sin pagar de plantilla necesitan la categoria sugerida (son las que se van a pagar).
+  const suggestions = await lastCategoryByItem(
+    userId,
+    entries.flatMap((entry) => (!entry.paid && entry.itemId ? [entry.itemId] : [])),
+  );
+
   return {
     preview: false,
     month: month ? { ...target, income: month.income } : null,
     groups: groups.map((group) => ({
       ...group,
-      entries: entries.filter((entry) => entry.groupId === group.id),
+      entries: entries
+        .filter((entry) => entry.groupId === group.id)
+        .map((entry) => ({
+          ...entry,
+          suggestedCategoryId: (!entry.paid && entry.itemId && suggestions.get(entry.itemId)) || null,
+        })),
     })),
   };
 };

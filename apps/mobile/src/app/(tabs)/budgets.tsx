@@ -21,6 +21,8 @@ import {
   expenseDateFor,
   getMonthTotals,
   getRemainderAvailable,
+  payEntryParams,
+  shouldRegisterPayment,
 } from '@/features/budgets/budgets.utils';
 import {
   useBudgetMonth,
@@ -50,6 +52,11 @@ const BudgetsScreen = () => {
 
   const handleTogglePaid = useCallback(
     async (entry: BudgetEntry) => {
+      // Pagar una linea del mes actual o de uno pasado es un gasto real: la hoja pide la categoria y lo crea.
+      if (shouldRegisterPayment(entry, selected)) {
+        router.push({ pathname: '/pay-entry', params: payEntryParams(entry, selected) });
+        return;
+      }
       const fail = () => notify('No se pudo actualizar', `No se pudo cambiar "${entry.name}". Inténtalo de nuevo.`);
       try {
         const id = await resolveEntryId(entry);
@@ -59,7 +66,7 @@ const BudgetsScreen = () => {
         fail();
       }
     },
-    [resolveEntryId, togglePaid],
+    [resolveEntryId, selected, togglePaid],
   );
 
   const handleMoveGroup = useCallback(
