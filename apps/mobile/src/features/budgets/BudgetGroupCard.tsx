@@ -36,6 +36,8 @@ interface BudgetGroupCardProps {
   groupCount?: number;
   // Subir/bajar una linea dentro del grupo (modo edicion).
   onMoveEntry?: (group: BudgetGroup, entry: BudgetEntry, delta: -1 | 1) => void;
+  // Apuntar un gasto real que sale de este grupo (fuera del modo edicion); sin esto no hay boton.
+  onAddExpense?: (group: BudgetGroup) => void;
 }
 
 export const BudgetGroupCard = memo(
@@ -51,6 +53,7 @@ export const BudgetGroupCard = memo(
     groupPosition,
     groupCount,
     onMoveEntry,
+    onAddExpense,
   }: BudgetGroupCardProps) => {
     const theme = useTheme();
     const totals = getGroupTotals(group.entries);
@@ -93,6 +96,16 @@ export const BudgetGroupCard = memo(
               position={groupPosition}
               total={groupCount}
             />
+          )}
+          {!editMode && onAddExpense && (
+            <AnimatedPressable
+              testID={`budget-group-add-expense-${group.id}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Añadir gasto a ${group.name}`}
+              onPress={() => onAddExpense(group)}
+              style={styles.headerButton}>
+              <Feather name="plus" size={22} color={headerTextColor} />
+            </AnimatedPressable>
           )}
           {editMode && (
             <AnimatedPressable

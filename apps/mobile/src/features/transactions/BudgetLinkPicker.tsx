@@ -26,18 +26,35 @@ interface BudgetLinkPickerProps {
   ownTransactionId?: string;
   // Nombre de la linea ya enlazada ("Luz · Hogar"): se ve aunque el presupuesto aun no haya cargado.
   currentLabel?: string;
+  // Grupo elegido para que el gasto cree su propia linea puntual (alternativa a enlazar una linea que ya existe).
+  groupValue?: string | null;
+  onGroupChange?: (groupId: string) => void;
+  // Linea que nacio con este gasto y lo sigue (si cambia de mes se rehace en el nuevo): nunca se quita sola.
+  ownLineId?: string;
 }
 
-// Elige la linea del presupuesto del mes que cubre este gasto. Solo salen lineas de gasto (un reembolso no
-// se enlaza) y que no tengan ya otro gasto enlazado.
-export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, currentLabel }: BudgetLinkPickerProps) => {
+// Elige de donde sale este gasto en el presupuesto del mes: una linea que ya existe (solo salen lineas de gasto,
+// no reembolsos, y que no tengan ya otro gasto enlazado) o un grupo, para que el gasto cree su propia linea puntual.
+export const BudgetLinkPicker = ({
+  month,
+  value,
+  onChange,
+  ownTransactionId,
+  currentLabel,
+  groupValue = null,
+  onGroupChange,
+  ownLineId,
+}: BudgetLinkPickerProps) => {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
   const { data, isLoading, isError, isFetching } = useBudgetMonth(month);
 
+  // Un mes futuro sin guardar aun no tiene lineas reales: no se puede enlazar a ellas.
+  const isPreview = data?.preview === true;
+
   const groups = useMemo(
     () =>
-      (data?.groups ?? [])
+      (isPreview ? [] : (data?.groups ?? []))
         .map((group) => ({
           ...group,
           entries: group.entries.filter(
@@ -45,7 +62,7 @@ export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, cur
           ),
         }))
         .filter((group) => group.entries.length > 0),
-    [data, ownTransactionId],
+    [data, isPreview, ownTransactionId],
   );
 
   const selected = useMemo(
@@ -54,11 +71,17 @@ export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, cur
     [groups, value],
   );
 
+  const selectedGroup = useMemo(
+    () => (groupValue ? data?.groups.find((group) => group.id === groupValue) : undefined),
+    [data, groupValue],
+  );
+
   // Si el gasto cambia de mes, la linea elegida deja de ser de este presupuesto y se quita el enlace. Solo se
   // decide con datos ya actualizados: un dato antiguo en cache podria no incluir una linea recien creada.
+  // La linea que nacio con el gasto no se quita: el servidor la rehace en el mes nuevo.
   useEffect(() => {
-    if (value && data && !isFetching && !selected) onChange(null);
-  }, [value, data, isFetching, selected, onChange]);
+    if (value && value !== ownLineId && data && !isFetching && !selected) onChange(null);
+  }, [value, ownLineId, data, isFetching, selected, onChange]);
 
   const choose = (budgetEntryId: string | null, line?: LinkedLine) => {
     onChange(budgetEntryId, line);
@@ -67,11 +90,14 @@ export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, cur
 
   // Con una linea elegida que aun no se ha podido resolver (cargando o sin conexion) no se dice "Sin enlazar":
   // el enlace sigue ahi y se conserva al guardar.
-  const summary = selected
-    ? `${selected.entry.name} · ${selected.group.name}`
-    : value
-      ? (currentLabel ?? 'Línea del presupuesto')
-      : 'Sin enlazar';
+  const summary = groupValue
+    ? `Nuevo gasto en ${selectedGroup?.name ?? 'un grupo'}`
+    : selected
+      ? `${selected.entry.name} · ${selected.group.name}`
+      : value
+        ? (currentLabel ?? 'Línea del presupuesto')
+        : 'Sin enlazar';
+  const linked = Boolean(groupValue || selected);
 
   return (
     <View style={styles.container}>
@@ -82,8 +108,8 @@ export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, cur
         testID="budget-link-toggle"
         onPress={() => setExpanded((open) => !open)}
         style={styles.toggle}>
-        <Feather name="link" size={18} color={selected ? theme.primary : theme.textSecondary} />
-        <ThemedText numberOfLines={1} themeColor={selected ? 'text' : 'textSecondary'} style={styles.toggleText}>
+        <Feather name="link" size={18} color={linked ? theme.primary : theme.textSecondary} />
+        <ThemedText numberOfLines={1} themeColor={linked ? 'text' : 'textSecondary'} style={styles.toggleText}>
           {summary}
         </ThemedText>
         <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.textSecondary} />
@@ -103,22 +129,58 @@ export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, cur
           )}
           {!isLoading && !isError && groups.length === 0 && (
             <ThemedText type="small" themeColor="textSecondary">
-              No hay líneas de gasto libres en el presupuesto de este mes.
+              {isPreview
+                ? 'Este mes aún no está preparado en Presupuesto: edítalo allí para poder enlazar.'
+                : 'No hay líneas de gasto libres en el presupuesto de este mes.'}
             </ThemedText>
           )}
 
           <AnimatedPressable
             accessibilityRole="radio"
             accessibilityLabel="Sin enlazar"
-            accessibilityState={{ selected: value === null }}
+            accessibilityState={{ selected: value === null && !groupValue }}
             testID="budget-link-none"
             // Opciones apiladas de 44 pt: el hitSlop de 8 por defecto haria que se solaparan con las vecinas.
             hitSlop={0}
             onPress={() => choose(null)}
-            style={[styles.option, value === null && { backgroundColor: theme.backgroundSelected }]}>
+            style={[styles.option, value === null && !groupValue && { backgroundColor: theme.backgroundSelected }]}>
             <ThemedText style={styles.optionName}>Sin enlazar</ThemedText>
-            {value === null && <Feather name="check" size={18} color={theme.primary} />}
+            {value === null && !groupValue && <Feather name="check" size={18} color={theme.primary} />}
           </AnimatedPressable>
+
+          {onGroupChange && (data?.groups.length ?? 0) > 0 && (
+            <View>
+              <ThemedText type="smallBold" themeColor="textSecondary" accessibilityRole="header" style={styles.groupTitle}>
+                Gasto nuevo en un grupo
+              </ThemedText>
+              {data?.groups.map((group) => {
+                const active = group.id === groupValue;
+                return (
+                  <AnimatedPressable
+                    key={group.id}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`Nuevo gasto en ${group.name}`}
+                    accessibilityState={{ selected: active }}
+                    testID={`budget-group-option-${group.id}`}
+                    hitSlop={0}
+                    onPress={() => {
+                      onGroupChange(group.id);
+                      setExpanded(false);
+                    }}
+                    style={[styles.option, active && { backgroundColor: theme.backgroundSelected }]}>
+                    <ThemedText style={styles.optionName}>{group.name}</ThemedText>
+                    {active && <Feather name="check" size={18} color={theme.primary} />}
+                  </AnimatedPressable>
+                );
+              })}
+            </View>
+          )}
+
+          {onGroupChange && groups.length > 0 && (
+            <ThemedText type="smallBold" themeColor="textSecondary" accessibilityRole="header" style={styles.groupTitle}>
+              Enlazar con una línea
+            </ThemedText>
+          )}
 
           {groups.map((group) => (
             <View key={group.id}>

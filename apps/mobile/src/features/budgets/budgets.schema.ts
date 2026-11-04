@@ -41,3 +41,14 @@ export const budgetLineSchema = yup.object({
 });
 
 export type BudgetLineFormValues = yup.InferType<typeof budgetLineSchema>;
+
+// Hoja de "marcar como pagada": el gasto real de una linea del presupuesto.
+export const payEntrySchema = yup.object({
+  categoryId: yup.string().required('Elige una categoría'),
+  amount: yup
+    .string()
+    .required('El importe es obligatorio')
+    .test('valid-amount', 'Introduce un importe válido mayor que 0', (value) => isValidAmount(value ?? '')),
+});
+
+export type PayEntryFormValues = yup.InferType<typeof payEntrySchema>;

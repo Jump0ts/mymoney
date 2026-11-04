@@ -11,9 +11,15 @@ import {
   updateTransactionSchema,
 } from "./transactions.schema.js";
 import type { MonthlyBreakdownRow } from "./transactions.types.js";
+import { ensureMonth, findOwnedGroup } from "../budgets/budgets.service.js";
 import {
+  LINK_EXCLUSIVE,
   LINK_ONLY_EXPENSE,
   assertLinkable,
+  createEntryForExpense,
+  entryNameFor,
+  monthOf,
+  releaseEntry,
   setEntryPaid,
   transactionInclude,
   withLinkConflict,
@@ -141,23 +147,42 @@ transactionsRouter.get(
 transactionsRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { budgetEntryId, ...body } = createTransactionSchema.parse(req.body);
+    const { budgetEntryId, budgetGroupId, ...body } = createTransactionSchema.parse(req.body);
     const userId = req.auth!.userId;
 
     const category = await prisma.category.findFirst({
       where: { id: body.categoryId, userId },
     });
     if (!category) throw notFound("Categoría no encontrada");
-    if (budgetEntryId && body.type !== "EXPENSE") throw badRequest(LINK_ONLY_EXPENSE);
+    if ((budgetEntryId || budgetGroupId) && body.type !== "EXPENSE") throw badRequest(LINK_ONLY_EXPENSE);
+    if (budgetEntryId && budgetGroupId) throw badRequest(LINK_EXCLUSIVE);
+
+    // Con grupo, el gasto crea su propia linea puntual: el mes se guarda antes (puede generarse desde la plantilla).
+    const month = monthOf(body.occurredAt);
+    if (budgetGroupId) {
+      await findOwnedGroup(userId, budgetGroupId);
+      await ensureMonth(userId, month);
+    }
 
     const transaction = await withLinkConflict(() =>
       prisma.$transaction(async (db) => {
-        if (budgetEntryId) await assertLinkable(db, userId, budgetEntryId);
+        let linkId = budgetEntryId ?? null;
+        if (budgetGroupId) {
+          const entry = await createEntryForExpense(db, userId, {
+            groupId: budgetGroupId,
+            name: entryNameFor(body.description, category.name),
+            amount: body.amount,
+            month,
+          });
+          linkId = entry.id;
+        } else if (linkId) {
+          await assertLinkable(db, userId, linkId);
+        }
         const created = await db.transaction.create({
-          data: { ...body, userId, budgetEntryId: budgetEntryId ?? null },
+          data: { ...body, userId, budgetEntryId: linkId },
           include: transactionInclude,
         });
-        if (budgetEntryId) await setEntryPaid(db, budgetEntryId, true);
+        if (linkId && !budgetGroupId) await setEntryPaid(db, linkId, true);
         return created;
       }),
     );
@@ -168,41 +193,79 @@ transactionsRouter.post(
 transactionsRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
-    const { budgetEntryId: requestedLink, ...body } = updateTransactionSchema.parse(req.body);
+    const { budgetEntryId: requestedLink, budgetGroupId, ...body } = updateTransactionSchema.parse(req.body);
     const userId = req.auth!.userId;
 
     const existing = await prisma.transaction.findFirst({
       where: { id: req.params.id, userId },
+      include: { budgetEntry: { select: { id: true, fromTransaction: true, groupId: true, year: true, month: true } } },
     });
     if (!existing) throw notFound("Movimiento no encontrado");
+
+    const type = body.type ?? existing.type;
+    const amount = body.amount ?? Number(existing.amount);
+    const description = body.description !== undefined ? body.description : existing.description;
+    const occurredAt = body.occurredAt ?? existing.occurredAt;
+    if (budgetGroupId && requestedLink) throw badRequest(LINK_EXCLUSIVE);
+    if (budgetGroupId && type !== "EXPENSE") throw badRequest(LINK_ONLY_EXPENSE);
+
+    const category = await prisma.category.findFirst({
+      where: { id: body.categoryId ?? existing.categoryId, userId },
+    });
+    if (!category) throw notFound("Categoría no encontrada");
 
     // undefined = no tocar el enlace; null = quitarlo. Un ingreso no puede estar enlazado: si el gasto pasa
     // a ingreso, pierde el enlace; pedir a la vez un enlace y un ingreso es un error.
     let nextLink = requestedLink !== undefined ? requestedLink : existing.budgetEntryId;
-    if (nextLink && (body.type ?? existing.type) !== "EXPENSE") {
+    if (nextLink && type !== "EXPENSE") {
       if (requestedLink) throw badRequest(LINK_ONLY_EXPENSE);
       nextLink = null;
     }
 
-    if (body.categoryId) {
-      const category = await prisma.category.findFirst({
-        where: { id: body.categoryId, userId },
-      });
-      if (!category) throw notFound("Categoría no encontrada");
+    // Una linea creada con este gasto vive en el mes del gasto: si la fecha cambia de mes, se rehace en el nuevo
+    // (mismo grupo) en vez de dejarla en un mes que ya no le corresponde.
+    const own = existing.budgetEntry;
+    const month = monthOf(occurredAt);
+    let newGroupId = budgetGroupId;
+    if (!newGroupId && own?.fromTransaction && nextLink === own.id) {
+      if (month.year !== own.year || month.month !== own.month) newGroupId = own.groupId;
+    }
+    if (newGroupId) {
+      await findOwnedGroup(userId, newGroupId);
+      await ensureMonth(userId, month);
     }
 
-    const linkChanged = nextLink !== existing.budgetEntryId;
     const transaction = await withLinkConflict(() =>
       prisma.$transaction(async (db) => {
-        if (nextLink && linkChanged) await assertLinkable(db, userId, nextLink, existing.id);
-        const updated = await db.transaction.update({
+        let linkId = nextLink;
+        if (newGroupId) {
+          const entry = await createEntryForExpense(db, userId, {
+            groupId: newGroupId,
+            name: entryNameFor(description, category.name),
+            amount,
+            month,
+          });
+          linkId = entry.id;
+        } else if (linkId && linkId !== existing.budgetEntryId) {
+          await assertLinkable(db, userId, linkId, existing.id);
+        }
+
+        await db.transaction.update({
           where: { id: existing.id },
-          data: { ...body, budgetEntryId: nextLink },
-          include: transactionInclude,
+          data: { ...body, budgetEntryId: linkId },
         });
-        if (linkChanged && existing.budgetEntryId) await setEntryPaid(db, existing.budgetEntryId, false);
-        if (linkChanged && nextLink) await setEntryPaid(db, nextLink, true);
-        return updated;
+
+        const linkChanged = linkId !== existing.budgetEntryId;
+        if (linkChanged && existing.budgetEntryId) await releaseEntry(db, existing.budgetEntryId);
+        if (linkChanged && linkId && !newGroupId) await setEntryPaid(db, linkId, true);
+        // La linea que nacio con el gasto sigue a su gasto: mismo importe y nombre.
+        if (!linkChanged && own?.fromTransaction) {
+          await db.budgetEntry.update({
+            where: { id: own.id },
+            data: { amount, name: entryNameFor(description, category.name) },
+          });
+        }
+        return db.transaction.findUniqueOrThrow({ where: { id: existing.id }, include: transactionInclude });
       }),
     );
     res.json({ transaction });
@@ -219,8 +282,8 @@ transactionsRouter.delete(
 
     await prisma.$transaction(async (db) => {
       await db.transaction.delete({ where: { id: existing.id } });
-      // Sin el gasto, la linea del presupuesto vuelve a estar sin pagar.
-      if (existing.budgetEntryId) await setEntryPaid(db, existing.budgetEntryId, false);
+      // Sin el gasto, la linea del presupuesto vuelve a estar sin pagar (o se borra, si nacio con el gasto).
+      if (existing.budgetEntryId) await releaseEntry(db, existing.budgetEntryId);
     });
     res.status(204).send();
   }),

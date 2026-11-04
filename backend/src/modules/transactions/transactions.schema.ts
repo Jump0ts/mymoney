@@ -11,6 +11,9 @@ export const createTransactionSchema = z.object({
   occurredAt: z.coerce.date(),
   // Linea del presupuesto que cubre este gasto; null al editar quita el enlace.
   budgetEntryId: z.string().min(1).nullable().optional(),
+  // Grupo del presupuesto del que sale este gasto: crea una linea puntual ya pagada y enlazada en el mes del gasto.
+  // No se combina con budgetEntryId (enlazar con una linea que ya existe).
+  budgetGroupId: z.string().min(1).optional(),
 });
 
 export const updateTransactionSchema = createTransactionSchema.partial();

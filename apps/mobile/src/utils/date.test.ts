@@ -1,4 +1,12 @@
-import { compareYearMonth, formatDateKey, getCurrentYearMonth, getDayRange, getMonthRange } from './date';
+import {
+  addMonths,
+  compareYearMonth,
+  formatDateKey,
+  getCurrentYearMonth,
+  getDayRange,
+  getMonthRange,
+  parseDateKey,
+} from './date';
 
 describe('getCurrentYearMonth', () => {
   it('devuelve el año y el mes (1-12) actuales', () => {
@@ -59,5 +67,43 @@ describe('getDayRange', () => {
     const { from, to } = getDayRange('2026-06-15');
     expect(from).toBe('2026-06-15T00:00:00.000Z');
     expect(to).toBe('2026-06-15T23:59:59.999Z');
+  });
+});
+
+describe('addMonths', () => {
+  it('suma meses dentro del mismo año', () => {
+    expect(addMonths({ year: 2026, month: 3 }, 4)).toEqual({ year: 2026, month: 7 });
+  });
+
+  it('cruza el fin de año hacia delante y hacia atras', () => {
+    expect(addMonths({ year: 2026, month: 11 }, 3)).toEqual({ year: 2027, month: 2 });
+    expect(addMonths({ year: 2026, month: 2 }, -3)).toEqual({ year: 2025, month: 11 });
+  });
+
+  it('con 0 deja el mes igual y con 12 salta un año exacto', () => {
+    expect(addMonths({ year: 2026, month: 12 }, 0)).toEqual({ year: 2026, month: 12 });
+    expect(addMonths({ year: 2026, month: 12 }, 12)).toEqual({ year: 2027, month: 12 });
+  });
+});
+
+describe('parseDateKey', () => {
+  it('devuelve ese dia a mediodia, hora local', () => {
+    expect(parseDateKey('2026-09-30')).toEqual(new Date(2026, 8, 30, 12, 0, 0));
+  });
+
+  it('es la inversa de formatDateKey', () => {
+    const date = new Date(2026, 1, 28, 12);
+    expect(formatDateKey(parseDateKey(formatDateKey(date))!)).toBe('2026-02-28');
+  });
+
+  it('rechaza lo que no es una fecha', () => {
+    expect(parseDateKey('')).toBeUndefined();
+    expect(parseDateKey('ayer')).toBeUndefined();
+    expect(parseDateKey('2026-9-3')).toBeUndefined();
+  });
+
+  it('rechaza dias que no existen en vez de saltar al mes siguiente', () => {
+    expect(parseDateKey('2026-02-30')).toBeUndefined();
+    expect(parseDateKey('2026-13-01')).toBeUndefined();
   });
 });

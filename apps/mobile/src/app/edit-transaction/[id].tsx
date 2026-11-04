@@ -40,6 +40,7 @@ const EditTransactionScreen = () => {
     description: transaction.description ?? '',
     occurredAt: new Date(transaction.occurredAt),
     budgetEntryId: transaction.budgetEntry?.id ?? null,
+    budgetGroupId: null,
   };
 
   const handleSubmit = (values: AddTransactionFormValues) => {
@@ -61,6 +62,7 @@ const EditTransactionScreen = () => {
       submitError={submitError}
       onSubmit={handleSubmit}
       ownTransactionId={id}
+      ownBudgetLineId={transaction.budgetEntry?.fromTransaction ? transaction.budgetEntry.id : undefined}
       linkedBudgetLabel={
         transaction.budgetEntry ? `${transaction.budgetEntry.name} · ${transaction.budgetEntry.group.name}` : undefined
       }

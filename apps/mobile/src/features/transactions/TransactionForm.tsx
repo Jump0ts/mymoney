@@ -30,6 +30,8 @@ interface TransactionFormProps {
   ownTransactionId?: string;
   // Nombre ("Luz · Hogar") de la linea a la que ya esta enlazado el movimiento que se edita.
   linkedBudgetLabel?: string;
+  // Linea que nacio con el movimiento que se edita: lo sigue aunque cambie de mes, asi que no se desenlaza sola.
+  ownBudgetLineId?: string;
 }
 
 export const TransactionForm = ({
@@ -40,6 +42,7 @@ export const TransactionForm = ({
   onSubmit,
   ownTransactionId,
   linkedBudgetLabel,
+  ownBudgetLineId,
 }: TransactionFormProps) => {
   const theme = useTheme();
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -48,7 +51,7 @@ export const TransactionForm = ({
     return { year: initial.getFullYear(), month: initial.getMonth() + 1 };
   });
   const [amountText, setAmountText] = useState(
-    defaultValues ? String(defaultValues.amount).replace('.', ',') : '',
+    defaultValues?.amount != null ? String(defaultValues.amount).replace('.', ',') : '',
   );
 
   const { data: categories } = useCategories();
@@ -69,6 +72,7 @@ export const TransactionForm = ({
       description: '',
       occurredAt: new Date(),
       budgetEntryId: null,
+      budgetGroupId: null,
     },
   });
 
@@ -76,6 +80,7 @@ export const TransactionForm = ({
   const categoryId = watch('categoryId');
   const occurredAt = watch('occurredAt');
   const budgetEntryId = watch('budgetEntryId');
+  const budgetGroupId = watch('budgetGroupId');
 
   const visibleCategories = useMemo(
     () => categories?.filter((c) => c.type === type) ?? [],
@@ -103,8 +108,11 @@ export const TransactionForm = ({
                     onPress={() => {
                       field.onChange(option);
                       setValue('categoryId', '');
-                      // Un ingreso no cubre ninguna linea del presupuesto.
-                      if (option === 'INCOME') setValue('budgetEntryId', null);
+                      // Un ingreso no cubre ninguna linea del presupuesto ni sale de un grupo.
+                      if (option === 'INCOME') {
+                        setValue('budgetEntryId', null);
+                        setValue('budgetGroupId', null);
+                      }
                     }}
                     style={[
                       styles.segment,
@@ -210,8 +218,16 @@ export const TransactionForm = ({
             <BudgetLinkPicker
               month={{ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 }}
               value={budgetEntryId ?? null}
+              groupValue={budgetGroupId ?? null}
+              onGroupChange={(groupId) => {
+                // Un grupo crea una linea nueva: sustituye a enlazar una que ya existe.
+                setValue('budgetEntryId', null, { shouldDirty: true });
+                setValue('budgetGroupId', groupId, { shouldDirty: true });
+              }}
+              ownLineId={ownBudgetLineId}
               onChange={(id, line) => {
                 setValue('budgetEntryId', id, { shouldDirty: true });
+                setValue('budgetGroupId', null, { shouldDirty: true });
                 if (!id || !line) return;
                 // Enlazar rellena lo que este vacio con lo de la linea del presupuesto (importe previsto y nombre
                 // como descripcion); lo que ya este escrito no se toca.

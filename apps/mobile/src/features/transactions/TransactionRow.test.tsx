@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { TransactionRow } from './TransactionRow';
+import { styles } from './TransactionRow.styles';
 import type { Transaction } from './transactions.types';
 
 const expenseTransaction: Transaction = {
@@ -102,5 +104,24 @@ describe('TransactionRow - linea del presupuesto', () => {
     );
 
     expect(screen.queryByTestId('transaction-row-budget')).toBeNull();
+  });
+});
+
+describe('TransactionRow - pantallas estrechas', () => {
+  it('la fecha va en una sola linea (antes se partia en "07 / oct / 2026")', () => {
+    render(<TransactionRow transaction={expenseTransaction} onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+    const date = screen.getByText(/oct|may/i, { exact: false });
+    expect(date.props.numberOfLines).toBe(1);
+  });
+
+  it('la categoria y la fecha pueden pasar a dos lineas en vez de comprimirse', () => {
+    const meta = StyleSheet.flatten(styles.rowMeta);
+    const info = StyleSheet.flatten(styles.rowInfo);
+
+    expect(meta.flexWrap).toBe('wrap');
+    expect(StyleSheet.flatten(styles.date).flexShrink).toBe(0);
+    // minWidth 0 deja que la informacion encoja en vez de empujar el importe y los botones.
+    expect(info.minWidth).toBe(0);
   });
 });

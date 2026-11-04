@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, ScrollView, View } from 'react-native';
+import { Platform, ScrollView, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, LinearTransition, useReducedMotion } from 'react-native-reanimated';
 
@@ -24,7 +24,7 @@ import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { getCurrentYearMonth, getDayRange, getMonthRange } from '@/utils/date';
-import { styles } from '@/screens/tabs/transactions.styles';
+import { monthRowStyles, styles } from '@/screens/tabs/transactions.styles';
 import { confirmAsync, notify } from '@/utils/alert';
 
 const CHIP_SCROLL_STEP = 160;
@@ -37,6 +37,8 @@ const ROW_REFLOW = LinearTransition.duration(200);
 
 const TransactionsScreen = () => {
   const theme = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
+  const monthRow = monthRowStyles(windowWidth);
   const [type, setType] = useState<TransactionType | undefined>(undefined);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [search, setSearch] = useState('');
@@ -171,7 +173,7 @@ const TransactionsScreen = () => {
         </View>
 
         <View style={styles.filters}>
-          <View style={styles.monthRow}>
+          <View style={monthRow.row}>
             <MonthYearPicker
               year={selectedMonth.year}
               month={selectedMonth.month}
@@ -184,7 +186,7 @@ const TransactionsScreen = () => {
               testID="day-picker-toggle"
               onPress={() => setShowDayPicker((v) => !v)}
               style={[
-                styles.dayToggle,
+                monthRow.toggle,
                 {
                   backgroundColor: selectedDay ? theme.primary : theme.backgroundElement,
                   borderColor: theme.border,

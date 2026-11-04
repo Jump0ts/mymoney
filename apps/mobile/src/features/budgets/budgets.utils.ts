@@ -9,6 +9,8 @@ import type {
   BudgetMonthTotals,
   BudgetTotals,
 } from './budgets.types';
+import type { TransactionInput } from '@/features/transactions/useTransactions';
+import { compareYearMonth, formatDateKey, getCurrentYearMonth, parseDateKey, type YearMonth } from '@/utils/date';
 
 // Evita arrastrar errores de coma flotante (0.1 + 0.2) a lo que se muestra.
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
@@ -141,4 +143,60 @@ export const setGroupOrder = (month: BudgetMonthResponse, ids: string[]): Budget
 export const setEntryOrder = (month: BudgetMonthResponse, groupId: string, ids: string[]): BudgetMonthResponse => ({
   ...month,
   groups: month.groups.map((group) => (group.id === groupId ? { ...group, entries: sortByIds(group.entries, ids) } : group)),
+});
+
+// Se puede apuntar un gasto real en el mes actual o en uno pasado; en un mes futuro se planifica con lineas.
+export const canAddExpenseIn = (target: YearMonth, now: YearMonth = getCurrentYearMonth()): boolean =>
+  compareYearMonth(target, now) <= 0;
+
+// Dia que propone "+ gasto" al abrir Movimientos desde Presupuesto: hoy en el mes actual (undefined: el formulario ya
+// usa hoy) y el ultimo dia en un mes pasado.
+export const expenseDateFor = (target: YearMonth, now: YearMonth = getCurrentYearMonth()): string | undefined =>
+  compareYearMonth(target, now) >= 0 ? undefined : formatDateKey(new Date(target.year, target.month, 0, 12));
+
+// Marcar como pagada una linea sin enlazar de un mes actual o pasado registra el pago (crea el gasto). No aplica a un
+// mes futuro (aun no se ha pagado nada), a un reembolso (no es un gasto) ni a lo que ya esta pagado (ahi solo se desmarca).
+export const shouldRegisterPayment = (
+  entry: BudgetEntry,
+  target: YearMonth,
+  now: YearMonth = getCurrentYearMonth(),
+): boolean => !entry.paid && !isEntryLinked(entry) && Number(entry.amount) > 0 && canAddExpenseIn(target, now);
+
+// Parametros con los que se abre la hoja de pago. Viajan por la ruta, asi que todo son textos y solo van los que existen.
+// (type y no interface: asi encaja como parametros de ruta de expo-router.)
+export type PayEntryParams = {
+  entryId: string;
+  name: string;
+  amount: string;
+  categoryId?: string;
+  date?: string;
+};
+
+export const payEntryParams = (
+  entry: BudgetEntry,
+  target: YearMonth,
+  now: YearMonth = getCurrentYearMonth(),
+): PayEntryParams => {
+  const date = expenseDateFor(target, now);
+  return {
+    entryId: entry.id,
+    name: entry.name,
+    amount: entry.amount,
+    ...(entry.suggestedCategoryId ? { categoryId: entry.suggestedCategoryId } : {}),
+    ...(date ? { date } : {}),
+  };
+};
+
+// El gasto que crea la hoja de pago: enlazado a la linea, con su nombre como descripcion y la fecha de hoy (o el
+// ultimo dia del mes si la linea es de un mes pasado).
+export const toPaymentInput = (
+  params: Pick<PayEntryParams, 'entryId' | 'name' | 'date'>,
+  values: { categoryId: string; amount: string },
+): TransactionInput => ({
+  type: 'EXPENSE',
+  categoryId: values.categoryId,
+  amount: parseAmountInput(values.amount) ?? 0,
+  description: params.name,
+  occurredAt: ((params.date && parseDateKey(params.date)) || new Date()).toISOString(),
+  budgetEntryId: params.entryId,
 });

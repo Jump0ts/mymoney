@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import type { BudgetEntry, BudgetGroup } from './budgets.types';
 import { BudgetGroupCard } from './BudgetGroupCard';
@@ -84,5 +84,29 @@ describe('BudgetGroupCard', () => {
 
     expect(screen.getByTestId('budget-limit-g1')).toBeTruthy();
     expect(screen.getByText(/Quedan.*150,00/)).toBeTruthy();
+  });
+});
+
+describe('BudgetGroupCard - apuntar un gasto', () => {
+  it('con onAddExpense ofrece el boton y lo llama con el grupo', () => {
+    const onAddExpense = jest.fn();
+    const hogar = group([]);
+    render(<BudgetGroupCard group={hogar} onTogglePaid={jest.fn()} onAddExpense={onAddExpense} />);
+
+    fireEvent.press(screen.getByLabelText('Añadir gasto a Hogar'));
+
+    expect(onAddExpense).toHaveBeenCalledWith(hogar);
+  });
+
+  it('sin onAddExpense (mes futuro) no hay boton', () => {
+    render(<BudgetGroupCard group={group([])} onTogglePaid={jest.fn()} />);
+
+    expect(screen.queryByLabelText('Añadir gasto a Hogar')).toBeNull();
+  });
+
+  it('en modo edicion se esconde: ahi se editan las lineas', () => {
+    render(<BudgetGroupCard group={group([])} onTogglePaid={jest.fn()} onAddExpense={jest.fn()} editMode />);
+
+    expect(screen.queryByLabelText('Añadir gasto a Hogar')).toBeNull();
   });
 });

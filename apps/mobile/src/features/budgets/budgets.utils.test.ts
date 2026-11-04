@@ -1,5 +1,7 @@
 import type { BudgetEntry, BudgetGroup, BudgetMonthResponse } from './budgets.types';
 import {
+  canAddExpenseIn,
+  expenseDateFor,
   formatAmountForInput,
   getEntryActual,
   isEntryLinked,
@@ -13,9 +15,12 @@ import {
   setEntryOrder,
   setGroupOrder,
   parseAmountInput,
+  payEntryParams,
   setEntryPaid,
+  shouldRegisterPayment,
   toGroupPayload,
   toLinePayload,
+  toPaymentInput,
 } from './budgets.utils';
 
 const fixed = (id: string, amount: string, paid: boolean): BudgetEntry => ({
@@ -420,5 +425,134 @@ describe('lineas enlazadas a un gasto de Movimientos', () => {
     const totals = getGroupTotals([linked('60.00', '62.30'), fixed('b', '20.00', true), fixed('c', '5.00', false)]);
 
     expect(totals).toEqual({ planned: 85, paid: 82.3 });
+  });
+});
+
+describe('canAddExpenseIn', () => {
+  const now = { year: 2026, month: 11 };
+
+  it('se puede apuntar un gasto en el mes actual y en meses pasados', () => {
+    expect(canAddExpenseIn({ year: 2026, month: 11 }, now)).toBe(true);
+    expect(canAddExpenseIn({ year: 2026, month: 10 }, now)).toBe(true);
+    expect(canAddExpenseIn({ year: 2025, month: 12 }, now)).toBe(true);
+  });
+
+  it('en un mes futuro no: ahi se planifica con lineas', () => {
+    expect(canAddExpenseIn({ year: 2026, month: 12 }, now)).toBe(false);
+    expect(canAddExpenseIn({ year: 2027, month: 1 }, now)).toBe(false);
+  });
+});
+
+describe('expenseDateFor', () => {
+  const now = { year: 2026, month: 11 };
+
+  it('en el mes actual no propone dia (el formulario usa hoy)', () => {
+    expect(expenseDateFor({ year: 2026, month: 11 }, now)).toBeUndefined();
+  });
+
+  it('en un mes pasado propone su ultimo dia', () => {
+    expect(expenseDateFor({ year: 2026, month: 10 }, now)).toBe('2026-10-31');
+    expect(expenseDateFor({ year: 2026, month: 9 }, now)).toBe('2026-09-30');
+    expect(expenseDateFor({ year: 2026, month: 2 }, now)).toBe('2026-02-28');
+  });
+
+  it('respeta los bisiestos y el cambio de año', () => {
+    expect(expenseDateFor({ year: 2024, month: 2 }, now)).toBe('2024-02-29');
+    expect(expenseDateFor({ year: 2025, month: 12 }, now)).toBe('2025-12-31');
+  });
+});
+
+describe('shouldRegisterPayment', () => {
+  const now = { year: 2026, month: 11 };
+  const unpaid = fixed('seguro', '120.00', false);
+
+  it('una linea sin pagar del mes actual abre la hoja de pago', () => {
+    expect(shouldRegisterPayment(unpaid, { year: 2026, month: 11 }, now)).toBe(true);
+  });
+
+  it('tambien en un mes pasado', () => {
+    expect(shouldRegisterPayment(unpaid, { year: 2026, month: 9 }, now)).toBe(true);
+  });
+
+  it('en un mes futuro se sigue marcando a mano: aun no se ha pagado nada', () => {
+    expect(shouldRegisterPayment(unpaid, { year: 2026, month: 12 }, now)).toBe(false);
+  });
+
+  it('una linea ya pagada no: tocarla solo la desmarca', () => {
+    expect(shouldRegisterPayment(fixed('seguro', '120.00', true), { year: 2026, month: 11 }, now)).toBe(false);
+  });
+
+  it('un reembolso (importe negativo) no es un gasto', () => {
+    expect(shouldRegisterPayment(fixed('devolucion', '-30.00', false), { year: 2026, month: 11 }, now)).toBe(false);
+  });
+
+  it('una linea ya enlazada a un gasto no', () => {
+    const linked = { ...unpaid, paid: false, transaction: { id: 't1', amount: '120.00', occurredAt: '2026-11-02T10:00:00.000Z' } };
+    expect(shouldRegisterPayment(linked, { year: 2026, month: 11 }, now)).toBe(false);
+  });
+});
+
+describe('payEntryParams', () => {
+  const now = { year: 2026, month: 11 };
+  const entry = { ...fixed('e1', '21.99', false), name: 'Netflix' };
+
+  it('lleva la linea, su nombre y su importe previsto', () => {
+    expect(payEntryParams(entry, { year: 2026, month: 11 }, now)).toEqual({
+      entryId: 'e1',
+      name: 'Netflix',
+      amount: '21.99',
+    });
+  });
+
+  it('anade la categoria sugerida cuando la hay', () => {
+    expect(payEntryParams({ ...entry, suggestedCategoryId: 'cat-ocio' }, { year: 2026, month: 11 }, now)).toMatchObject({
+      categoryId: 'cat-ocio',
+    });
+  });
+
+  it('sin sugerencia (null) no manda categoria', () => {
+    expect(payEntryParams({ ...entry, suggestedCategoryId: null }, { year: 2026, month: 11 }, now)).not.toHaveProperty(
+      'categoryId',
+    );
+  });
+
+  it('en un mes pasado manda el ultimo dia de ese mes; en el actual no manda fecha', () => {
+    expect(payEntryParams(entry, { year: 2026, month: 10 }, now)).toMatchObject({ date: '2026-10-31' });
+    expect(payEntryParams(entry, { year: 2026, month: 11 }, now)).not.toHaveProperty('date');
+  });
+});
+
+describe('toPaymentInput', () => {
+  const values = { categoryId: 'cat-ocio', amount: '21,99' };
+
+  it('crea un gasto enlazado a la linea, con su nombre como descripcion', () => {
+    const input = toPaymentInput({ entryId: 'e1', name: 'Netflix' }, values);
+
+    expect(input).toMatchObject({
+      type: 'EXPENSE',
+      categoryId: 'cat-ocio',
+      amount: 21.99,
+      description: 'Netflix',
+      budgetEntryId: 'e1',
+    });
+    expect(input).not.toHaveProperty('budgetGroupId');
+  });
+
+  it('sin fecha usa ahora', () => {
+    const before = Date.now();
+    const { occurredAt } = toPaymentInput({ entryId: 'e1', name: 'Netflix' }, values);
+
+    expect(new Date(occurredAt).getTime()).toBeGreaterThanOrEqual(before);
+  });
+
+  it('con fecha usa ese dia (a mediodia, como el resto de la app)', () => {
+    const { occurredAt } = toPaymentInput({ entryId: 'e1', name: 'Netflix', date: '2026-10-31' }, values);
+    const date = new Date(occurredAt);
+
+    expect([date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours()]).toEqual([2026, 10, 31, 12]);
+  });
+
+  it('entiende los importes con separador de miles', () => {
+    expect(toPaymentInput({ entryId: 'e1', name: 'Hipoteca' }, { ...values, amount: '1.250,50' }).amount).toBe(1250.5);
   });
 });

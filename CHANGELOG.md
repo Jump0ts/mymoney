@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
+## [0.4.0] — 2026-11-04 — Beta
+
+> Budget release: an expense is written down once (from *Movimientos* or from the budget) and ticking a planned line registers the payment, plus budgets for future months.
+
+### Added
+- **One-off expenses no longer need to be written twice.** An expense that comes out of a budget group (for example a beer from *Deseos*) is now created once and shows up in both places.
+  - In the expense form, the *Presupuesto* field has a new section **Gasto nuevo en un grupo**: choosing a group creates the expense **and**, at the same time, a one-off line already paid and linked to it in the budget of the expense's month (named after the description, or the category if there is none). Linking to an existing line still works from the new section *Enlazar con una línea*.
+  - In *Presupuesto*, each group has a **+** button (current and past months) that opens the same form with the group already chosen and, in a past month, its last day as the date.
+  - The line follows its expense: editing the amount or the description updates it, changing the date to another month recreates it in that month, and **deleting the expense, turning it into an income or linking it to another line deletes the line that was born with it**. A one-off line you wrote yourself is never deleted this way (it just goes back to unpaid), and deleting the line from the budget leaves the expense in *Movimientos*.
+  - API: `POST` and `PATCH /api/transactions` take `budgetGroupId` (not together with `budgetEntryId`; only expenses; `404` for a group of another user) and do everything in one transaction. `BudgetEntry.fromTransaction` is a new column with a default (only adds a column) that marks the lines created this way. The transaction's `budgetEntry` now includes it.
+- **Ticking a planned line registers the payment.** In *Presupuesto*, ticking an unpaid line of the current or a past month (the insurance, Netflix...) no longer just marks it: it opens a small sheet, **Marcar como pagada**, with the amount (the planned one, editable if the real bill was different) and the category, and confirming creates the expense in *Movimientos* already linked to the line.
+  - **The category is remembered per line.** The first time you choose it; afterwards the sheet opens with the category of the last expense that paid that same recurring line already chosen, so confirming takes one tap. A one-off line has nothing to remember from.
+  - The expense is dated today, or the last day of the month when the line belongs to a past month, and takes the line's name as its description.
+  - Not changed: a future month is still ticked by hand (nothing has been paid yet), a refund line is too, and a line that is already paid or linked is still undone from *Movimientos* (a tap never deletes an expense).
+  - API: each unpaid recurring line of `GET /api/budgets/months/:year/:month` carries `suggestedCategoryId` (the category of the latest expense linked to that recurring line, `null` if none). No new column or migration.
+- **Plan future months in the budget.** The month selector of *Presupuesto* can now go up to **12 months ahead** (it used to stop at the current month), so a known charge or expense, such as the car insurance, can be written down in advance.
+  - A future month is **not saved just by looking at it**: it is shown as it would be (recurring template and last salary) with a "Mes por preparar" note, and it is only saved when you edit it, tick a line or set its expected salary. Browsing ahead therefore never freezes a month with today's template.
+  - **Recurring changes reach the later months that are already saved.** Adding a recurring line, editing a line with *Este y los siguientes* or removing it with that option now also applies to the following months you had already saved (for example the one where you wrote the car insurance). Lines that are **paid, linked to an expense or edited by hand for their own month** are left alone (a removed recurring line that was paid or edited stays as a one-off line). Editing a line again with *Este y los siguientes* makes it follow the template again. Earlier months never change.
+  - API: `GET /api/budgets/months/:year/:month` answers `preview: true` for a future month that is not saved (its lines carry a provisional `preview:` id and cannot be edited), and `POST .../open` saves it. The server accepts one month more than the app offers and answers `400` beyond that.
+  - API: `BudgetEntry.edited` (new column with a default, no data changes) remembers the lines edited by hand for one month. `PATCH /api/budgets/entries/:id` and `DELETE /api/budgets/entries/:id?scope=template` take a `scope` (`month` by default, or `template`) and do the whole change in one transaction; the app no longer makes two requests for it.
+  - In *Movimientos* the budget link of an expense dated in an unsaved future month offers no lines yet: edit that month in *Presupuesto* first.
+
+### Changed
+- Dependency updates: `zod` 3 → 4 in the backend (the only branch with the fix for the memory use when validating huge collections; same error format for the client), `vitest` 2 → 4 (clears the critical development-only alerts; tests only, it does not reach the production image) and the minor-and-patch group (`dotenv`, `tsx`, `supertest`, `typescript-eslint`, `@tanstack/react-query`, `react-hook-form`, `zustand`).
+- Database: this release applies two migrations, `BudgetEntry.edited` and `BudgetEntry.fromTransaction`. Both only **add a column with a default** (no data is touched).
+
+### Fixed
+- Narrow phones (360-430 px): the legend of the category chart in the Overview no longer shrinks every category name to a single letter (it moves under the chart when it does not fit beside it); the date of a transaction is no longer split over three lines (category and date wrap onto two lines instead); and on the web the month selector and the calendar button of *Movimientos* no longer overlap (the "next month" arrow was hidden under the button).
+
 ## [0.3.0] — 2026-10-26 — Beta
 
 > Everyday-use release: link expenses with the budget, install the web as an app, and several budget fixes.
@@ -101,6 +130,7 @@ author as a personal tool, and interfaces and data models may still change.
 - Automatic payment detection (Android only), multiple accounts/wallets, and recurring expenses outside the budget.
 - Screenshots and a public demo.
 
+[0.4.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.4.0-beta
 [0.3.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.3.0-beta
 [0.2.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.2.0-beta
 [0.1.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.1.0-beta

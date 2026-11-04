@@ -8,6 +8,8 @@ export interface BudgetEntry {
   position: number;
   // Gasto de Movimientos enlazado a la linea: su importe es el "real" y la linea cuenta como pagada.
   transaction?: { id: string; amount: string; occurredAt: string } | null;
+  // Categoria del ultimo gasto con el que se pago esta misma linea de plantilla (solo en lineas sin pagar).
+  suggestedCategoryId?: string | null;
 }
 
 export interface BudgetGroup {
@@ -23,6 +25,9 @@ export interface BudgetGroup {
 }
 
 export interface BudgetMonthResponse {
+  // true en un mes futuro que aun no se ha guardado: se ve como quedaria, pero sus lineas llevan un id
+  // provisional y no se pueden editar hasta guardarlo (useOpenMonth).
+  preview?: boolean;
   // null si el mes es anterior al primer presupuesto y no se ha generado.
   month: { year: number; month: number; income: string } | null;
   groups: BudgetGroup[];

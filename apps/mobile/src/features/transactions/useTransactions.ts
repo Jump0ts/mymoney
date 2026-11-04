@@ -51,6 +51,8 @@ export interface TransactionInput {
   occurredAt: string;
   // Al crear, se omite si no hay enlace; al editar, null lo quita.
   budgetEntryId?: string | null;
+  // Crea una linea puntual ya pagada en este grupo del presupuesto y la enlaza (no va junto a budgetEntryId).
+  budgetGroupId?: string;
 }
 
 const invalidateAll = (queryClient: ReturnType<typeof useQueryClient>) => {
