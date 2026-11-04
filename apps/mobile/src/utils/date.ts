@@ -33,3 +33,12 @@ export const getDayRange = (dateKey: string): { from: string; to: string } => {
   const to = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
   return { from: from.toISOString(), to: to.toISOString() };
 };
+
+// "2026-10-31" -> ese dia a mediodia (hora local, como el selector de fecha); undefined si no es una fecha valida.
+export const parseDateKey = (dateKey: string): Date | undefined => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) return undefined;
+  const [year, month, day] = match.slice(1).map(Number);
+  const date = new Date(year, month - 1, day, 12, 0, 0);
+  return date.getMonth() === month - 1 && date.getDate() === day ? date : undefined;
+};

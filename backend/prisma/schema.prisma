@@ -118,25 +118,28 @@ model BudgetMonth {
 // Linea de un mes. itemId es null en las lineas puntuales (solo ese mes) y se
 // pone a null si se borra el item de la plantilla, para no tocar meses ya hechos.
 model BudgetEntry {
-  id          String       @id @default(cuid())
-  user        User         @relation(fields: [userId], references: [id])
-  userId      String
-  year        Int
-  month       Int
-  group       BudgetGroup  @relation(fields: [groupId], references: [id])
-  groupId     String
-  item        BudgetItem?  @relation(fields: [itemId], references: [id], onDelete: SetNull)
-  itemId      String?
-  name        String
-  amount      Decimal      @db.Decimal(12, 2)
-  paid        Boolean      @default(false)
-  position    Int          @default(0)
+  id              String       @id @default(cuid())
+  user            User         @relation(fields: [userId], references: [id])
+  userId          String
+  year            Int
+  month           Int
+  group           BudgetGroup  @relation(fields: [groupId], references: [id])
+  groupId         String
+  item            BudgetItem?  @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  itemId          String?
+  name            String
+  amount          Decimal      @db.Decimal(12, 2)
+  paid            Boolean      @default(false)
+  position        Int          @default(0)
   // Editada a mano solo para este mes (nombre, importe o grupo distintos de la plantilla): los cambios de
   // plantilla posteriores no la pisan. Volver a editarla con "este y los siguientes" la devuelve a la plantilla.
-  edited      Boolean      @default(false)
-  createdAt   DateTime     @default(now())
+  edited          Boolean      @default(false)
+  // Linea puntual creada a la vez que un gasto de Movimientos ("Descontar de" un grupo): si ese gasto se borra
+  // o deja de cubrirla, la linea se borra con el, porque no existia antes que el.
+  fromTransaction Boolean      @default(false)
+  createdAt       DateTime     @default(now())
   // Gasto de Movimientos enlazado a esta linea: su importe es el "real" de la linea y la marca como pagada.
-  transaction Transaction?
+  transaction     Transaction?
 
   @@unique([userId, year, month, itemId])
   @@index([userId, year, month])

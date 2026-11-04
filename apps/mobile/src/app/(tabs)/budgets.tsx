@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,7 +16,14 @@ import { BudgetSkeleton } from '@/features/budgets/BudgetSkeleton';
 import { BudgetSummary } from '@/features/budgets/BudgetSummary';
 import type { BudgetEntry, BudgetGroup } from '@/features/budgets/budgets.types';
 import { MAX_MONTHS_AHEAD } from '@/features/budgets/budgets.constants';
-import { getMonthTotals, getRemainderAvailable } from '@/features/budgets/budgets.utils';
+import {
+  canAddExpenseIn,
+  expenseDateFor,
+  getMonthTotals,
+  getRemainderAvailable,
+  payEntryParams,
+  shouldRegisterPayment,
+} from '@/features/budgets/budgets.utils';
 import {
   useBudgetMonth,
   useMoveInBudget,
@@ -44,6 +52,11 @@ const BudgetsScreen = () => {
 
   const handleTogglePaid = useCallback(
     async (entry: BudgetEntry) => {
+      // Pagar una linea del mes actual o de uno pasado es un gasto real: la hoja pide la categoria y lo crea.
+      if (shouldRegisterPayment(entry, selected)) {
+        router.push({ pathname: '/pay-entry', params: payEntryParams(entry, selected) });
+        return;
+      }
       const fail = () => notify('No se pudo actualizar', `No se pudo cambiar "${entry.name}". Inténtalo de nuevo.`);
       try {
         const id = await resolveEntryId(entry);
@@ -53,7 +66,7 @@ const BudgetsScreen = () => {
         fail();
       }
     },
-    [resolveEntryId, togglePaid],
+    [resolveEntryId, selected, togglePaid],
   );
 
   const handleMoveGroup = useCallback(
@@ -70,6 +83,15 @@ const BudgetsScreen = () => {
         notify('No se pudo mover', `No se pudo cambiar el orden de "${entry.name}". Inténtalo de nuevo.`),
       ),
     [moveEntry],
+  );
+
+  // Un gasto real del grupo: abre el formulario de Movimientos con el grupo elegido, que crea el gasto y su linea.
+  const handleAddExpense = useCallback(
+    (group: BudgetGroup) => {
+      const date = expenseDateFor(selected);
+      router.push({ pathname: '/add-transaction', params: { groupId: group.id, ...(date ? { date } : {}) } });
+    },
+    [selected],
   );
 
   // Cerrar el modo edicion o cambiar de mes descarta los formularios abiertos: antes se confirma.
@@ -149,6 +171,7 @@ const BudgetsScreen = () => {
             groupPosition={index}
             groupCount={data.groups.length}
             onMoveEntry={handleMoveEntry}
+            onAddExpense={canAddExpenseIn(selected) ? handleAddExpense : undefined}
             target={selected}
           />
         ))}

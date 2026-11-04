@@ -1,8 +1,8 @@
-import { budgetGroupSchema, budgetLineSchema } from './budgets.schema';
+import { budgetGroupSchema, budgetLineSchema, payEntrySchema } from './budgets.schema';
 
 const validLine = { name: 'Netflix', lineType: 'EXPENSE', amount: '21,99', scope: 'month' } as const;
 
-const errorsOf = async (schema: typeof budgetLineSchema | typeof budgetGroupSchema, values: object) => {
+const errorsOf = async (schema: typeof budgetLineSchema | typeof budgetGroupSchema | typeof payEntrySchema, values: object) => {
   try {
     await schema.validate(values, { abortEarly: false });
     return [];
@@ -58,5 +58,21 @@ describe('budgetLineSchema', () => {
   it('rechaza un nombre vacio y un alcance desconocido', async () => {
     expect(await errorsOf(budgetLineSchema, { ...validLine, name: '' })).toContain('El nombre es obligatorio');
     expect((await errorsOf(budgetLineSchema, { ...validLine, scope: 'siempre' })).length).toBeGreaterThan(0);
+  });
+});
+
+describe('payEntrySchema', () => {
+  const validPayment = { categoryId: 'cat-1', amount: '21,99' };
+
+  it('acepta una categoria y un importe valido', async () => {
+    expect(await errorsOf(payEntrySchema, validPayment)).toEqual([]);
+  });
+
+  it('exige elegir una categoria', async () => {
+    expect(await errorsOf(payEntrySchema, { ...validPayment, categoryId: '' })).toContain('Elige una categoría');
+  });
+
+  it.each(['', '0', '-5', 'abc', '1,234'])('rechaza el importe "%s"', async (amount) => {
+    expect((await errorsOf(payEntrySchema, { ...validPayment, amount })).length).toBeGreaterThan(0);
   });
 });

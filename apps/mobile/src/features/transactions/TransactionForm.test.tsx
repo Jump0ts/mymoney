@@ -264,7 +264,8 @@ describe('TransactionForm - enlace con el presupuesto', () => {
     expect(screen.queryByTestId('budget-link-option-e-agua')).toBeNull();
     expect(screen.queryByTestId('budget-link-option-e-ivan')).toBeNull();
     expect(screen.queryByTestId('budget-link-option-e-hipoteca')).toBeNull();
-    expect(screen.getByText('Hogar')).toBeTruthy();
+    // El nombre del grupo sale como cabecera de sus lineas y, aparte, como opcion de gasto nuevo.
+    expect(screen.getAllByText('Hogar')).toHaveLength(2);
   });
 
   it('en un mes futuro sin guardar no ofrece lineas y explica que hay que prepararlo en Presupuesto', () => {
@@ -542,9 +543,212 @@ describe('TransactionForm - enlace con el presupuesto', () => {
     expect(screen.getByTestId('budget-link-toggle').props.accessibilityState).toMatchObject({ expanded: true });
     expect(screen.getByTestId('budget-link-option-e-luz').props.accessibilityRole).toBe('radio');
     expect(screen.getByLabelText('Línea del presupuesto').props.accessibilityRole).toBe('radiogroup');
-    expect(screen.getByText('Hogar').props.accessibilityRole).toBe('header');
+    expect(screen.getAllByText('Hogar').map((node) => node.props.accessibilityRole)).toContain('header');
     // Opciones apiladas de 44 pt: sin hitSlop para que no se solapen con las vecinas.
     expect(screen.getByTestId('budget-link-option-e-luz').props.hitSlop).toBe(0);
     expect(screen.getByTestId('budget-link-option-e-luz').props.accessibilityLabel).toMatch(/^Luz, previsto /);
+  });
+});
+
+describe('TransactionForm - gasto nuevo en un grupo del presupuesto', () => {
+  const groups = [
+    ...mockBudgetGroups,
+    { id: 'g2', name: 'Deseos', color: '#E67E22', limit: null, isRemainder: true, position: 1, entries: [] },
+  ];
+
+  const baseValues: AddTransactionFormValues = {
+    type: 'EXPENSE',
+    categoryId: 'cat-exp-1',
+    amount: 3.5,
+    description: 'Cerveza',
+    occurredAt: new Date(2026, 4, 12, 12, 0, 0),
+    budgetEntryId: null,
+    budgetGroupId: null,
+  };
+
+  const renderForm = (props: Partial<React.ComponentProps<typeof TransactionForm>> = {}) => {
+    const onSubmit = jest.fn();
+    render(
+      <TransactionForm
+        defaultValues={baseValues}
+        submitLabel="Guardar"
+        isSubmitting={false}
+        submitError={null}
+        onSubmit={onSubmit}
+        {...props}
+      />,
+    );
+    return { onSubmit };
+  };
+
+  const submittedValues = (onSubmit: jest.Mock) => onSubmit.mock.calls[0][0] as AddTransactionFormValues;
+
+  beforeEach(() => {
+    mockBudgetState.isLoading = false;
+    mockBudgetState.isError = false;
+    mockBudgetState.isFetching = false;
+    mockBudgetState.data = { month: { year: 2026, month: 5, income: '2000.00' }, groups };
+  });
+
+  it('ofrece un gasto nuevo en cada grupo del presupuesto, tambien en los que no tienen lineas', () => {
+    renderForm();
+
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+
+    expect(screen.getByTestId('budget-group-option-g1')).toBeTruthy();
+    expect(screen.getByTestId('budget-group-option-g2')).toBeTruthy();
+    expect(screen.getByLabelText('Nuevo gasto en Deseos')).toBeTruthy();
+  });
+
+  it('separa las dos formas de cubrir el gasto con un titulo cada una', () => {
+    renderForm();
+
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+
+    expect(screen.getByText('Gasto nuevo en un grupo').props.accessibilityRole).toBe('header');
+    expect(screen.getByText('Enlazar con una línea').props.accessibilityRole).toBe('header');
+  });
+
+  it('elegir un grupo lo envia con el formulario, sin linea, y lo resume cerrando la lista', async () => {
+    const { onSubmit } = renderForm();
+
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+    fireEvent.press(screen.getByTestId('budget-group-option-g2'));
+
+    expect(screen.queryByTestId('budget-group-option-g2')).toBeNull();
+    expect(screen.getByText('Nuevo gasto en Deseos')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('transaction-submit'));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(submittedValues(onSubmit)).toMatchObject({ budgetGroupId: 'g2', budgetEntryId: null });
+  });
+
+  it('el grupo elegido se ve marcado al volver a abrir la lista y "Sin enlazar" deja de estarlo', () => {
+    renderForm({ defaultValues: { ...baseValues, budgetGroupId: 'g2' } });
+
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+
+    expect(screen.getByTestId('budget-group-option-g2').props.accessibilityState).toMatchObject({ selected: true });
+    expect(screen.getByTestId('budget-group-option-g1').props.accessibilityState).toMatchObject({ selected: false });
+    expect(screen.getByTestId('budget-link-none').props.accessibilityState).toMatchObject({ selected: false });
+  });
+
+  it('elegir despues una linea que ya existe sustituye al grupo', async () => {
+    const { onSubmit } = renderForm({ defaultValues: { ...baseValues, budgetGroupId: 'g2' } });
+
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+    fireEvent.press(screen.getByTestId('budget-link-option-e-luz'));
+    fireEvent.press(screen.getByTestId('transaction-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(submittedValues(onSubmit)).toMatchObject({ budgetEntryId: 'e-luz', budgetGroupId: null });
+  });
+
+  it('"Sin enlazar" quita el grupo elegido', async () => {
+    const { onSubmit } = renderForm({ defaultValues: { ...baseValues, budgetGroupId: 'g2' } });
+
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+    fireEvent.press(screen.getByTestId('budget-link-none'));
+    fireEvent.press(screen.getByTestId('transaction-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(submittedValues(onSubmit).budgetGroupId).toBeNull();
+    expect(screen.getByText('Sin enlazar')).toBeTruthy();
+  });
+
+  it('elegir un grupo quita la linea que hubiera elegida', async () => {
+    const { onSubmit } = renderForm({ defaultValues: { ...baseValues, budgetEntryId: 'e-luz' } });
+
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+    fireEvent.press(screen.getByTestId('budget-group-option-g1'));
+    fireEvent.press(screen.getByTestId('transaction-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(submittedValues(onSubmit)).toMatchObject({ budgetGroupId: 'g1', budgetEntryId: null });
+  });
+
+  it('pasar a ingreso descarta el grupo', async () => {
+    const { onSubmit } = renderForm({ defaultValues: { ...baseValues, budgetGroupId: 'g2' } });
+
+    fireEvent.press(screen.getByTestId('transaction-type-INCOME'));
+    fireEvent.press(screen.getByTestId('category-chip-cat-inc-1'));
+    fireEvent.press(screen.getByTestId('transaction-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(submittedValues(onSubmit)).toMatchObject({ type: 'INCOME', budgetGroupId: null });
+  });
+
+  it('un grupo elegido se conserva al enviar: la comprobacion de mes solo afecta a las lineas', async () => {
+    mockBudgetState.data = { month: { year: 2026, month: 5, income: '2000.00' }, groups };
+    const { onSubmit } = renderForm({ defaultValues: { ...baseValues, budgetGroupId: 'g2' } });
+
+    fireEvent.press(screen.getByTestId('transaction-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(submittedValues(onSubmit).budgetGroupId).toBe('g2');
+  });
+
+  it('sin nombre conocido todavia (presupuesto cargando) resume "un grupo" en vez de quedarse vacio', () => {
+    mockBudgetState.data = undefined as unknown as typeof mockBudgetState.data;
+    renderForm({ defaultValues: { ...baseValues, budgetGroupId: 'g2' } });
+
+    expect(screen.getByText('Nuevo gasto en un grupo')).toBeTruthy();
+  });
+
+  it('en un mes futuro sin guardar tambien ofrece los grupos: el servidor guarda el mes al crear el gasto', () => {
+    mockBudgetState.data = { preview: true, month: { year: 2026, month: 5, income: '2000.00' }, groups };
+    renderForm();
+
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+
+    expect(screen.getByTestId('budget-group-option-g2')).toBeTruthy();
+    expect(screen.queryByTestId('budget-link-option-e-luz')).toBeNull();
+  });
+
+  it('sin grupos en el presupuesto no aparece la seccion', () => {
+    mockBudgetState.data = { month: { year: 2026, month: 5, income: '2000.00' }, groups: [] };
+    renderForm();
+
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+
+    expect(screen.queryByText('Gasto nuevo en un grupo')).toBeNull();
+  });
+
+  describe('al editar un gasto que creo su propia linea', () => {
+    const own = { ...baseValues, budgetEntryId: 'e-propia' };
+
+    it('la linea no se quita sola aunque ya no este en el presupuesto del mes: el servidor la rehace', async () => {
+      const { onSubmit } = renderForm({
+        defaultValues: own,
+        ownBudgetLineId: 'e-propia',
+        linkedBudgetLabel: 'Cerveza · Deseos',
+      });
+
+      fireEvent.press(screen.getByTestId('transaction-submit'));
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(submittedValues(onSubmit).budgetEntryId).toBe('e-propia');
+      expect(screen.getByText('Cerveza · Deseos')).toBeTruthy();
+    });
+
+    it('otra linea de otro mes que no es la propia si se sigue quitando', async () => {
+      const { onSubmit } = renderForm({
+        defaultValues: { ...baseValues, budgetEntryId: 'e-de-otro-mes' },
+        ownBudgetLineId: 'e-propia',
+      });
+
+      fireEvent.press(screen.getByTestId('transaction-submit'));
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(submittedValues(onSubmit).budgetEntryId).toBeNull();
+    });
+  });
+
+  describe('gasto nuevo desde "+ gasto" de Presupuesto', () => {
+    it('con importe vacio muestra el campo vacio (no "undefined") y el grupo ya elegido', () => {
+      renderForm({ defaultValues: { ...baseValues, amount: undefined as unknown as number, description: '', budgetGroupId: 'g2' } });
+
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('');
+      expect(screen.getByText('Nuevo gasto en Deseos')).toBeTruthy();
+    });
   });
 });
