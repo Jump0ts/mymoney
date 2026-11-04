@@ -12,6 +12,7 @@ beforeEach(async () => {
   await prisma.budgetGroup.deleteMany();
   await prisma.transaction.deleteMany();
   await prisma.category.deleteMany();
+  await prisma.savedColor.deleteMany();
   await prisma.user.deleteMany();
 });
 

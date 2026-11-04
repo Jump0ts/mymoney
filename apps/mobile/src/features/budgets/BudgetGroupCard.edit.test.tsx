@@ -9,6 +9,13 @@ const mockCreateEntry = jest.fn().mockResolvedValue(undefined);
 const mockUpdateGroup = jest.fn().mockResolvedValue(undefined);
 const mockDeleteGroup = jest.fn().mockResolvedValue(undefined);
 
+// El campo de color pide los colores propios guardados al servidor: aqui no hay ninguno.
+jest.mock('@/features/colors/useColors', () => ({
+  useSavedColors: () => ({ data: [] }),
+  useSaveColor: () => ({ mutate: jest.fn() }),
+  useRemoveColor: () => ({ mutate: jest.fn(), isPending: false }),
+}));
+
 jest.mock('./useBudgets', () => ({
   useUpdateEntry: () => ({ mutateAsync: mockUpdateEntry }),
   useDeleteEntry: () => ({ mutateAsync: mockDeleteEntry }),

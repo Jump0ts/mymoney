@@ -24,6 +24,7 @@ model User {
   budgetItems   BudgetItem[]
   budgetMonths  BudgetMonth[]
   budgetEntries BudgetEntry[]
+  savedColors   SavedColor[]
 }
 
 model Category {
@@ -143,4 +144,16 @@ model BudgetEntry {
 
   @@unique([userId, year, month, itemId])
   @@index([userId, year, month])
+}
+
+// Colores propios que el usuario guarda para volver a elegirlos al dar color a una categoria o a un grupo del
+// presupuesto. Son privados de cada usuario. `hex` va siempre como #RRGGBB en mayusculas (sin duplicados por caso).
+model SavedColor {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  hex       String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, hex])
 }

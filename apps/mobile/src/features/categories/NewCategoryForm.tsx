@@ -5,12 +5,12 @@ import { View } from 'react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { ColorPicker } from '@/components/ColorPicker';
 import { Input } from '@/components/Input';
 import { ThemedText } from '@/components/themed-text';
+import { ColorField } from '@/features/colors/ColorField';
 import { ApiError } from '@/lib/api';
 import { notify } from '@/utils/alert';
-import { CategoryPalette } from './categories.constants';
+import { ColorPalette } from '@/features/colors/colors.constants';
 import { createCategorySchema, type CreateCategoryFormValues } from './categories.schema';
 import { useCreateCategory } from './useCategories';
 import { styles } from './NewCategoryForm.styles';
@@ -19,7 +19,7 @@ export const NewCategoryForm = ({ onDone }: { onDone: () => void }) => {
   const createCategory = useCreateCategory();
   const { control, handleSubmit, watch } = useForm<CreateCategoryFormValues>({
     resolver: yupResolver(createCategorySchema),
-    defaultValues: { name: '', type: 'EXPENSE', color: CategoryPalette[0], icon: 'tag' },
+    defaultValues: { name: '', type: 'EXPENSE', color: ColorPalette[0], icon: 'tag' },
   });
   const selectedType = watch('type');
 
@@ -69,7 +69,7 @@ export const NewCategoryForm = ({ onDone }: { onDone: () => void }) => {
       <Controller
         control={control}
         name="color"
-        render={({ field }) => <ColorPicker colors={CategoryPalette} value={field.value} onChange={field.onChange} />}
+        render={({ field }) => <ColorField value={field.value} onChange={field.onChange} />}
       />
 
       <Button label="Crear categoría" loading={createCategory.isPending} onPress={handleSubmit(onSubmit)} />

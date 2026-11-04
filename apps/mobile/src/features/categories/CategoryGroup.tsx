@@ -6,6 +6,7 @@ import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Card } from '@/components/Card';
 import { ThemedText } from '@/components/themed-text';
+import { useLegibleColor } from '@/hooks/use-legible-color';
 import { useTheme } from '@/hooks/use-theme';
 import type { Category } from './categories.types';
 import { styles } from './CategoryGroup.styles';
@@ -23,6 +24,7 @@ const ROW_REFLOW = LinearTransition.duration(200);
 
 export const CategoryGroup = memo(({ title, categories, onDelete }: CategoryGroupProps) => {
   const theme = useTheme();
+  const legible = useLegibleColor();
   if (categories.length === 0) return null;
 
   return (
@@ -33,7 +35,7 @@ export const CategoryGroup = memo(({ title, categories, onDelete }: CategoryGrou
       {categories.map((category) => (
         <Animated.View key={category.id} exiting={ROW_EXIT} layout={ROW_REFLOW}>
           <Card style={styles.categoryRow}>
-            <View style={[styles.dot, { backgroundColor: category.color }]} />
+            <View testID={`category-dot-${category.id}`} style={[styles.dot, { backgroundColor: legible(category.color) }]} />
             <ThemedText style={styles.categoryName}>{category.name}</ThemedText>
             <AnimatedPressable
               accessibilityRole="button"

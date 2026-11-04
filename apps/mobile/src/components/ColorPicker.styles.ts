@@ -6,4 +6,6 @@ export const styles = StyleSheet.create({
   // Boton pulsable de 44x44 (minimo tactil); el punto de color visible es mas pequeno.
   swatch: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 28, height: 28, borderRadius: 14 },
+  // El boton "+": un circulo con el borde discontinuo, para que no parezca un color mas.
+  add: { borderWidth: 1.5, borderStyle: 'dashed' },
 });

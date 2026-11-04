@@ -2,6 +2,13 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { CategoryGroup } from './CategoryGroup';
 import type { Category } from './categories.types';
 
+let mockScheme: 'light' | 'dark' = 'light';
+
+jest.mock('@/hooks/use-color-scheme', () => ({ useColorScheme: () => mockScheme }));
+
+const dotColor = (id: string) =>
+  Object.assign({}, ...[screen.getByTestId(`category-dot-${id}`).props.style].flat(Infinity).filter(Boolean)).backgroundColor;
+
 const categories: Category[] = [
   { id: 'cat-1', name: 'Alimentación', icon: 'shopping-cart', color: '#E67E22', type: 'EXPENSE' },
   { id: 'cat-2', name: 'Transporte', icon: 'car', color: '#3498DB', type: 'EXPENSE' },
@@ -35,5 +42,34 @@ describe('CategoryGroup', () => {
     render(<CategoryGroup title="Gastos" categories={categories} onDelete={jest.fn()} />);
 
     expect(screen.getByLabelText('Borrar Transporte')).toBeTruthy();
+  });
+
+  describe('color de cada categoria', () => {
+    afterEach(() => {
+      mockScheme = 'light';
+    });
+
+    it('el punto lleva el color de la categoria', () => {
+      render(<CategoryGroup title="Gastos" categories={categories} onDelete={jest.fn()} />);
+
+      expect(dotColor('cat-1')).toBe('#E67E22');
+      expect(dotColor('cat-2')).toBe('#3498DB');
+    });
+
+    it('un color propio casi negro se aclara en modo oscuro, y un casi blanco se oscurece en modo claro', () => {
+      const custom: Category[] = [
+        { id: 'dark', name: 'Oscura', icon: 'tag', color: '#101010', type: 'EXPENSE' },
+        { id: 'pale', name: 'Palida', icon: 'tag', color: '#FFFFF0', type: 'EXPENSE' },
+      ];
+      const { unmount } = render(<CategoryGroup title="Gastos" categories={custom} onDelete={jest.fn()} />);
+      expect(dotColor('dark')).toBe('#101010');
+      expect(dotColor('pale')).not.toBe('#FFFFF0');
+      unmount();
+
+      mockScheme = 'dark';
+      render(<CategoryGroup title="Gastos" categories={custom} onDelete={jest.fn()} />);
+      expect(dotColor('dark')).not.toBe('#101010');
+      expect(dotColor('pale')).toBe('#FFFFF0');
+    });
   });
 });
