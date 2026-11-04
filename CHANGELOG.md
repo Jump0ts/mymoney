@@ -6,6 +6,10 @@ author as a personal tool, and interfaces and data models may still change.
 
 ## [Unreleased]
 
+### Added
+- **Plan future months in the budget.** The month selector of *Presupuesto* can now go up to **12 months ahead** (it used to stop at the current month), so a known charge or expense, such as the car insurance, can be written down in advance. A future month works like any other: the first time it is opened it is generated from the recurring template and the last salary, and you can add one-off lines, tick them and set the expected salary. The server accepts one extra month and answers `400` beyond that, so browsing can never create months without limit.
+  - Note: a month is a snapshot taken when it is first opened. Recurring lines added or changed afterwards do not reach a future month that was already opened; they do reach the ones opened later.
+
 ### Fixed
 - Narrow phones (360-430 px): the legend of the category chart in the Overview no longer shrinks every category name to a single letter (it moves under the chart when it does not fit beside it); the date of a transaction is no longer split over three lines (category and date wrap onto two lines instead); and on the web the month selector and the calendar button of *Movimientos* no longer overlap (the "next month" arrow was hidden under the button).
 
