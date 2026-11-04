@@ -1,4 +1,6 @@
 import { render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
+import { LEGEND_MIN_WIDTH } from './DonutChart.constants';
 import { DonutChartLegendSkeleton, DonutChartSkeleton } from './DonutChartSkeleton';
 
 beforeEach(() => {
@@ -29,5 +31,16 @@ describe('DonutChartLegendSkeleton', () => {
     expect(screen.getAllByTestId('skeleton').length).toBeGreaterThan(1);
 
     unmount();
+  });
+});
+
+describe('DonutChartLegendSkeleton - mismo reparto que la leyenda real', () => {
+  it('pide el mismo ancho minimo para no saltar al cargar', () => {
+    const { toJSON } = render(<DonutChartLegendSkeleton />);
+    const root = toJSON() as unknown as { props: { style: object } };
+    const style = StyleSheet.flatten(root.props.style) as { flexBasis?: number; flexGrow?: number };
+
+    expect(style.flexBasis).toBe(LEGEND_MIN_WIDTH);
+    expect(style.flexGrow).toBe(1);
   });
 });

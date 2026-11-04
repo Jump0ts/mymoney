@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
+## [Unreleased]
+
+### Fixed
+- Narrow phones (360-430 px): the legend of the category chart in the Overview no longer shrinks every category name to a single letter (it moves under the chart when it does not fit beside it); the date of a transaction is no longer split over three lines (category and date wrap onto two lines instead); and on the web the month selector and the calendar button of *Movimientos* no longer overlap (the "next month" arrow was hidden under the button).
+
 ## [0.3.0] — 2026-10-26 — Beta
 
 > Everyday-use release: link expenses with the budget, install the web as an app, and several budget fixes.

@@ -48,7 +48,7 @@ export const TransactionRow = memo(({ transaction, onEdit, onDelete, isDeleting 
           </ThemedText>
           <View style={styles.rowMeta}>
             <CategoryPill category={transaction.category} />
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.date}>
               {formatDate(transaction.occurredAt)}
             </ThemedText>
           </View>
