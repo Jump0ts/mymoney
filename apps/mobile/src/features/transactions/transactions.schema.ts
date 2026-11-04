@@ -12,6 +12,8 @@ export const addTransactionSchema = yup.object({
   occurredAt: yup.date().required(),
   // Linea del presupuesto que cubre este gasto (opcional; solo para gastos).
   budgetEntryId: yup.string().nullable().optional(),
+  // Grupo del presupuesto del que sale el gasto: crea una linea puntual nueva (no se combina con budgetEntryId).
+  budgetGroupId: yup.string().nullable().optional(),
 });
 
 export type AddTransactionFormValues = yup.InferType<typeof addTransactionSchema>;

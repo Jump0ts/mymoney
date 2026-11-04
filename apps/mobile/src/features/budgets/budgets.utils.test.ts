@@ -1,5 +1,7 @@
 import type { BudgetEntry, BudgetGroup, BudgetMonthResponse } from './budgets.types';
 import {
+  canAddExpenseIn,
+  expenseDateFor,
   formatAmountForInput,
   getEntryActual,
   isEntryLinked,
@@ -420,5 +422,39 @@ describe('lineas enlazadas a un gasto de Movimientos', () => {
     const totals = getGroupTotals([linked('60.00', '62.30'), fixed('b', '20.00', true), fixed('c', '5.00', false)]);
 
     expect(totals).toEqual({ planned: 85, paid: 82.3 });
+  });
+});
+
+describe('canAddExpenseIn', () => {
+  const now = { year: 2026, month: 11 };
+
+  it('se puede apuntar un gasto en el mes actual y en meses pasados', () => {
+    expect(canAddExpenseIn({ year: 2026, month: 11 }, now)).toBe(true);
+    expect(canAddExpenseIn({ year: 2026, month: 10 }, now)).toBe(true);
+    expect(canAddExpenseIn({ year: 2025, month: 12 }, now)).toBe(true);
+  });
+
+  it('en un mes futuro no: ahi se planifica con lineas', () => {
+    expect(canAddExpenseIn({ year: 2026, month: 12 }, now)).toBe(false);
+    expect(canAddExpenseIn({ year: 2027, month: 1 }, now)).toBe(false);
+  });
+});
+
+describe('expenseDateFor', () => {
+  const now = { year: 2026, month: 11 };
+
+  it('en el mes actual no propone dia (el formulario usa hoy)', () => {
+    expect(expenseDateFor({ year: 2026, month: 11 }, now)).toBeUndefined();
+  });
+
+  it('en un mes pasado propone su ultimo dia', () => {
+    expect(expenseDateFor({ year: 2026, month: 10 }, now)).toBe('2026-10-31');
+    expect(expenseDateFor({ year: 2026, month: 9 }, now)).toBe('2026-09-30');
+    expect(expenseDateFor({ year: 2026, month: 2 }, now)).toBe('2026-02-28');
+  });
+
+  it('respeta los bisiestos y el cambio de año', () => {
+    expect(expenseDateFor({ year: 2024, month: 2 }, now)).toBe('2024-02-29');
+    expect(expenseDateFor({ year: 2025, month: 12 }, now)).toBe('2025-12-31');
   });
 });

@@ -9,6 +9,7 @@ import type {
   BudgetMonthTotals,
   BudgetTotals,
 } from './budgets.types';
+import { compareYearMonth, formatDateKey, getCurrentYearMonth, type YearMonth } from '@/utils/date';
 
 // Evita arrastrar errores de coma flotante (0.1 + 0.2) a lo que se muestra.
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
@@ -142,3 +143,12 @@ export const setEntryOrder = (month: BudgetMonthResponse, groupId: string, ids: 
   ...month,
   groups: month.groups.map((group) => (group.id === groupId ? { ...group, entries: sortByIds(group.entries, ids) } : group)),
 });
+
+// Se puede apuntar un gasto real en el mes actual o en uno pasado; en un mes futuro se planifica con lineas.
+export const canAddExpenseIn = (target: YearMonth, now: YearMonth = getCurrentYearMonth()): boolean =>
+  compareYearMonth(target, now) <= 0;
+
+// Dia que propone "+ gasto" al abrir Movimientos desde Presupuesto: hoy en el mes actual (undefined: el formulario ya
+// usa hoy) y el ultimo dia en un mes pasado.
+export const expenseDateFor = (target: YearMonth, now: YearMonth = getCurrentYearMonth()): string | undefined =>
+  compareYearMonth(target, now) >= 0 ? undefined : formatDateKey(new Date(target.year, target.month, 0, 12));

@@ -25,29 +25,16 @@ import {
   MAX_MONTHS_AHEAD,
   PREVIEW_ENTRY_PREFIX,
 } from "./budgets.utils.js";
+import { findOwnedGroup, findPreviousMonth, nextEntryPosition, openMonth } from "./budgets.service.js";
 import type { YearMonth } from "./budgets.types.js";
 
 export const budgetsRouter = Router();
 budgetsRouter.use(requireAuth);
 
-const findOwnedGroup = async (userId: string, groupId: string) => {
-  const group = await prisma.budgetGroup.findFirst({ where: { id: groupId, userId } });
-  if (!group) throw notFound("Grupo no encontrado");
-  return group;
-};
-
 const sameIds = (a: string[], b: string[]) => a.length === b.length && new Set([...a, ...b]).size === a.length;
 
 const nextItemPosition =async (userId: string, groupId: string) => {
   const max = await prisma.budgetItem.aggregate({ where: { userId, groupId }, _max: { position: true } });
-  return (max._max.position ?? -1) + 1;
-};
-
-const nextEntryPosition = async (userId: string, target: YearMonth, groupId: string) => {
-  const max = await prisma.budgetEntry.aggregate({
-    where: { userId, ...target, groupId },
-    _max: { position: true },
-  });
   return (max._max.position ?? -1) + 1;
 };
 
@@ -70,64 +57,6 @@ const checkRemainder = async <T extends { limit?: number | null; isRemainder?: b
     if (other) throw badRequest(`Ya existe un grupo que recibe lo que sobra: ${other.name}`);
   }
   return { ...body, limit: null };
-};
-
-// Ultimo mes guardado anterior al indicado: de el se copia el sueldo al generar un mes nuevo.
-const findPreviousMonth = (userId: string, target: YearMonth) =>
-  prisma.budgetMonth.findFirst({
-    where: {
-      userId,
-      OR: [{ year: { lt: target.year } }, { year: target.year, month: { lt: target.month } }],
-    },
-    orderBy: [{ year: "desc" }, { month: "desc" }],
-  });
-
-// Abre el presupuesto de un mes: la primera vez lo genera copiando la plantilla
-// (con "pagado" en false) y el sueldo del ultimo mes anterior. Devuelve false si
-// el mes es anterior al primer presupuesto del usuario: no tiene sentido
-// rellenar con la plantilla de hoy meses que ya pasaron.
-const openMonth = async (userId: string, target: YearMonth): Promise<boolean> => {
-  if (isTooFarAhead(target)) {
-    throw badRequest(`Solo se pueden preparar presupuestos hasta ${MAX_MONTHS_AHEAD} meses por delante`);
-  }
-  const existing = await prisma.budgetMonth.findUnique({
-    where: { userId_year_month: { userId, ...target } },
-  });
-  if (existing) return true;
-
-  const earliest = await prisma.budgetMonth.findFirst({
-    where: { userId },
-    orderBy: [{ year: "asc" }, { month: "asc" }],
-  });
-  if (earliest && compareYearMonth(target, earliest) < 0) return false;
-
-  const previous = await findPreviousMonth(userId, target);
-  const items = await prisma.budgetItem.findMany({
-    where: { userId },
-    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-  });
-
-  try {
-    await prisma.$transaction([
-      prisma.budgetMonth.create({ data: { userId, ...target, income: previous?.income ?? 0 } }),
-      prisma.budgetEntry.createMany({
-        data: items.map((item) => ({
-          userId,
-          ...target,
-          groupId: item.groupId,
-          itemId: item.id,
-          name: item.name,
-          amount: item.amount,
-          position: item.position,
-        })),
-        skipDuplicates: true,
-      }),
-    ]);
-  } catch (error) {
-    // Otra peticion abrio el mismo mes a la vez: ya esta generado, no hay nada que hacer.
-    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
-  }
-  return true;
 };
 
 const buildMonthResponse = async (userId: string, target: YearMonth) => {
@@ -414,7 +343,7 @@ budgetsRouter.post(
 
     const [itemPosition, entryPosition] = await Promise.all([
       nextItemPosition(userId, body.groupId),
-      nextEntryPosition(userId, target, body.groupId),
+      nextEntryPosition(prisma, userId, target, body.groupId),
     ]);
 
     const entry = await prisma.$transaction(async (tx) => {

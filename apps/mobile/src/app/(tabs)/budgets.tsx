@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,7 +16,12 @@ import { BudgetSkeleton } from '@/features/budgets/BudgetSkeleton';
 import { BudgetSummary } from '@/features/budgets/BudgetSummary';
 import type { BudgetEntry, BudgetGroup } from '@/features/budgets/budgets.types';
 import { MAX_MONTHS_AHEAD } from '@/features/budgets/budgets.constants';
-import { getMonthTotals, getRemainderAvailable } from '@/features/budgets/budgets.utils';
+import {
+  canAddExpenseIn,
+  expenseDateFor,
+  getMonthTotals,
+  getRemainderAvailable,
+} from '@/features/budgets/budgets.utils';
 import {
   useBudgetMonth,
   useMoveInBudget,
@@ -70,6 +76,15 @@ const BudgetsScreen = () => {
         notify('No se pudo mover', `No se pudo cambiar el orden de "${entry.name}". Inténtalo de nuevo.`),
       ),
     [moveEntry],
+  );
+
+  // Un gasto real del grupo: abre el formulario de Movimientos con el grupo elegido, que crea el gasto y su linea.
+  const handleAddExpense = useCallback(
+    (group: BudgetGroup) => {
+      const date = expenseDateFor(selected);
+      router.push({ pathname: '/add-transaction', params: { groupId: group.id, ...(date ? { date } : {}) } });
+    },
+    [selected],
   );
 
   // Cerrar el modo edicion o cambiar de mes descarta los formularios abiertos: antes se confirma.
@@ -149,6 +164,7 @@ const BudgetsScreen = () => {
             groupPosition={index}
             groupCount={data.groups.length}
             onMoveEntry={handleMoveEntry}
+            onAddExpense={canAddExpenseIn(selected) ? handleAddExpense : undefined}
             target={selected}
           />
         ))}
