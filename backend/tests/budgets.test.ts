@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { app, registerUser } from "./helpers.js";
-import { addMonths, isTooFarAhead, MAX_MONTHS_AHEAD } from "../src/modules/budgets/budgets.utils.js";
+import { prisma } from "../src/prisma.js";
+import { addMonths, isFutureMonth, isTooFarAhead, MAX_MONTHS_AHEAD } from "../src/modules/budgets/budgets.utils.js";
 
 const authedUser = async () => {
   const { res } = await registerUser();
@@ -619,6 +620,160 @@ describe("presupuestos de meses futuros", () => {
 
     expect(near.status).toBe(200);
     expect(near.body.month).not.toBeNull();
+  });
+
+  describe("vista previa sin guardar", () => {
+    const countFor = async (userId: string) => ({
+      months: await prisma.budgetMonth.count({ where: { userId } }),
+      entries: await prisma.budgetEntry.count({ where: { userId } }),
+    });
+    const userIdOf = async (token: string) => {
+      const me = await as(token).get("/api/auth/me");
+      return me.body.user.id as string;
+    };
+
+    it("ver un mes futuro lo devuelve como vista previa y no guarda nada", async () => {
+      const { token } = await authedUser();
+      const userId = await userIdOf(token);
+      const group = await createGroup(token);
+      await createItem(token, group.id, { name: "Netflix", amount: 12 });
+      await as(token).patch(monthUrl(0), { income: 1500 });
+      const before = await countFor(userId);
+
+      const first = await as(token).get(monthUrl(4));
+      const second = await as(token).get(monthUrl(4));
+
+      expect(first.status).toBe(200);
+      expect(first.body.preview).toBe(true);
+      expect(Number(first.body.month.income)).toBe(1500);
+      expect(first.body.groups[0].entries).toMatchObject([
+        { name: "Netflix", amount: "12", paid: false, transaction: null },
+      ]);
+      expect(first.body.groups[0].entries[0].id).toMatch(/^preview:/);
+      expect(second.body.preview).toBe(true);
+      expect(await countFor(userId)).toEqual(before);
+    });
+
+    it("el mes actual y los pasados se siguen guardando al abrirlos", async () => {
+      const { token } = await authedUser();
+      const userId = await userIdOf(token);
+
+      const res = await as(token).get(monthUrl(0));
+
+      expect(res.body.preview).toBe(false);
+      expect((await countFor(userId)).months).toBe(1);
+    });
+
+    it("la vista previa recoge los cambios de la plantilla hechos despues de mirarla", async () => {
+      const { token } = await authedUser();
+      const group = await createGroup(token);
+      await createItem(token, group.id, { name: "Netflix", amount: 12 });
+      await as(token).get(monthUrl(0));
+      await as(token).get(monthUrl(3));
+
+      await createItem(token, group.id, { name: "Gimnasio", amount: 30 });
+      const again = await as(token).get(monthUrl(3));
+
+      expect(again.body.groups[0].entries.map((e: { name: string }) => e.name)).toEqual(["Netflix", "Gimnasio"]);
+    });
+
+    it("escribir en el mes lo guarda y deja de ser vista previa", async () => {
+      const { token } = await authedUser();
+      const userId = await userIdOf(token);
+      const group = await createGroup(token);
+      await createItem(token, group.id, { name: "Netflix", amount: 12 });
+      await as(token).get(monthUrl(0));
+      await as(token).get(monthUrl(2));
+
+      await as(token).post(`${monthUrl(2)}/entries`, { groupId: group.id, name: "Seguro", amount: 380, recurring: false });
+      const after = await as(token).get(monthUrl(2));
+
+      expect(after.body.preview).toBe(false);
+      expect(after.body.groups[0].entries.map((e: { name: string }) => e.name)).toEqual(["Netflix", "Seguro"]);
+      expect((await countFor(userId)).months).toBe(2);
+    });
+
+    it("fijar el sueldo previsto guarda el mes", async () => {
+      const { token } = await authedUser();
+      await as(token).get(monthUrl(0));
+      await as(token).get(monthUrl(2));
+
+      await as(token).patch(monthUrl(2), { income: 1700 });
+      const after = await as(token).get(monthUrl(2));
+
+      expect(after.body.preview).toBe(false);
+      expect(Number(after.body.month.income)).toBe(1700);
+    });
+
+    it("POST /open guarda el mes con la plantilla, sin pagar, y es idempotente", async () => {
+      const { token } = await authedUser();
+      const userId = await userIdOf(token);
+      const group = await createGroup(token);
+      await createItem(token, group.id, { name: "Netflix", amount: 12 });
+      await as(token).get(monthUrl(0));
+
+      const first = await as(token).post(`${monthUrl(3)}/open`, {});
+      const second = await as(token).post(`${monthUrl(3)}/open`, {});
+
+      expect(first.status).toBe(200);
+      expect(first.body.preview).toBe(false);
+      expect(first.body.groups[0].entries).toHaveLength(1);
+      expect(first.body.groups[0].entries[0].id).not.toMatch(/^preview:/);
+      expect(second.body.groups[0].entries).toHaveLength(1);
+      expect((await countFor(userId)).entries).toBe(2);
+    });
+
+    it("tras guardar el mes se puede marcar una linea como pagada", async () => {
+      const { token } = await authedUser();
+      const group = await createGroup(token);
+      await createItem(token, group.id);
+      await as(token).get(monthUrl(0));
+
+      const opened = await as(token).post(`${monthUrl(2)}/open`, {});
+      const entryId = opened.body.groups[0].entries[0].id;
+      const paid = await as(token).patch(`/api/budgets/entries/${entryId}`, { paid: true });
+
+      expect(paid.status).toBe(200);
+      expect(paid.body.entry.paid).toBe(true);
+    });
+
+    it("una linea con id provisional no se puede editar: hay que guardar el mes antes", async () => {
+      const { token } = await authedUser();
+      const group = await createGroup(token);
+      const item = await createItem(token, group.id);
+      await as(token).get(monthUrl(0));
+
+      const res = await as(token).patch(`/api/budgets/entries/preview:${item.id}`, { paid: true });
+
+      expect(res.status).toBe(404);
+    });
+
+    it("POST /open respeta el limite de meses y la vista previa no mezcla datos de otro usuario", async () => {
+      const { token } = await authedUser();
+      const other = await authedUser();
+      const group = await createGroup(token);
+      await createItem(token, group.id, { name: "Privada", amount: 99 });
+      await as(token).get(monthUrl(0));
+      await as(other.token).get(monthUrl(0));
+
+      expect((await as(token).post(`${monthUrl(MAX_MONTHS_AHEAD + 2)}/open`, {})).status).toBe(400);
+      const theirs = await as(other.token).get(monthUrl(2));
+      expect(theirs.body.groups).toEqual([]);
+    });
+
+    it("un mes futuro demasiado lejos sigue dando 400 aunque sea vista previa", async () => {
+      const { token } = await authedUser();
+
+      expect((await as(token).get(monthUrl(MAX_MONTHS_AHEAD + 2))).status).toBe(400);
+    });
+
+    it("isFutureMonth compara con el mes actual en UTC", () => {
+      const base = new Date(Date.UTC(2026, 10, 30, 23, 59));
+      expect(isFutureMonth({ year: 2026, month: 11 }, base)).toBe(false);
+      expect(isFutureMonth({ year: 2026, month: 12 }, base)).toBe(true);
+      expect(isFutureMonth({ year: 2026, month: 10 }, base)).toBe(false);
+      expect(isFutureMonth({ year: 2027, month: 1 }, new Date(Date.UTC(2026, 11, 31)))).toBe(true);
+    });
   });
 
   describe("isTooFarAhead", () => {

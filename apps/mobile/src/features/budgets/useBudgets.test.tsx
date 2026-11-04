@@ -10,6 +10,7 @@ import {
   useDeleteEntry,
   useDeleteGroup,
   useMoveInBudget,
+  useOpenMonth,
   useToggleEntryPaid,
   useUpdateEntry,
   useUpdateGroup,
@@ -432,5 +433,37 @@ describe('useMoveInBudget', () => {
     await act(async () => result.current.moveGroup('g2', -1));
 
     await waitFor(() => expect(queryClient.getQueryState(budgetMonthKey(target))?.isInvalidated).toBe(true));
+  });
+});
+
+describe('useOpenMonth', () => {
+  beforeEach(() => jest.mocked(apiRequest).mockReset());
+
+  it('guarda el mes en el servidor y deja en cache el mes ya guardado', async () => {
+    const { queryClient, wrapper } = setup();
+    queryClient.setQueryData(budgetMonthKey(target), { ...seed(), preview: true });
+    const saved = { ...seed(), preview: false };
+    jest.mocked(apiRequest).mockResolvedValue(saved);
+    const { result } = renderHook(() => useOpenMonth(target), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+
+    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/months/2026/9/open', { method: 'POST' });
+    expect(queryClient.getQueryData<BudgetMonthResponse>(budgetMonthKey(target))?.preview).toBe(false);
+  });
+
+  it('si el servidor falla deja la vista previa como estaba', async () => {
+    const { queryClient, wrapper } = setup();
+    queryClient.setQueryData(budgetMonthKey(target), { ...seed(), preview: true });
+    jest.mocked(apiRequest).mockRejectedValue(new ApiError(500, 'boom'));
+    const { result } = renderHook(() => useOpenMonth(target), { wrapper });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync()).rejects.toBeInstanceOf(ApiError);
+    });
+
+    expect(queryClient.getQueryData<BudgetMonthResponse>(budgetMonthKey(target))?.preview).toBe(true);
   });
 });

@@ -267,6 +267,22 @@ describe('TransactionForm - enlace con el presupuesto', () => {
     expect(screen.getByText('Hogar')).toBeTruthy();
   });
 
+  it('en un mes futuro sin guardar no ofrece lineas y explica que hay que prepararlo en Presupuesto', () => {
+    const original = mockBudgetState.data;
+    mockBudgetState.data = { ...(original as object), preview: true };
+    try {
+      renderForm();
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+
+      expect(screen.queryByTestId('budget-link-option-e-luz')).toBeNull();
+      expect(screen.getByText(/aún no está preparado en Presupuesto/)).toBeTruthy();
+      expect(screen.getByTestId('budget-link-none')).toBeTruthy();
+    } finally {
+      mockBudgetState.data = original;
+    }
+  });
+
   it('al editar, la propia linea del gasto sigue disponible y se ve elegida', () => {
     renderForm({ defaultValues: { ...baseValues, budgetEntryId: 'e-hipoteca' }, ownTransactionId: 'tx-own' });
 

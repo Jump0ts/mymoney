@@ -16,7 +16,13 @@ import {
   updateItemSchema,
   updateMonthSchema,
 } from "./budgets.schema.js";
-import { compareYearMonth, isTooFarAhead, MAX_MONTHS_AHEAD } from "./budgets.utils.js";
+import {
+  compareYearMonth,
+  isFutureMonth,
+  isTooFarAhead,
+  MAX_MONTHS_AHEAD,
+  PREVIEW_ENTRY_PREFIX,
+} from "./budgets.utils.js";
 import type { YearMonth } from "./budgets.types.js";
 
 export const budgetsRouter = Router();
@@ -64,6 +70,16 @@ const checkRemainder = async <T extends { limit?: number | null; isRemainder?: b
   return { ...body, limit: null };
 };
 
+// Ultimo mes guardado anterior al indicado: de el se copia el sueldo al generar un mes nuevo.
+const findPreviousMonth = (userId: string, target: YearMonth) =>
+  prisma.budgetMonth.findFirst({
+    where: {
+      userId,
+      OR: [{ year: { lt: target.year } }, { year: target.year, month: { lt: target.month } }],
+    },
+    orderBy: [{ year: "desc" }, { month: "desc" }],
+  });
+
 // Abre el presupuesto de un mes: la primera vez lo genera copiando la plantilla
 // (con "pagado" en false) y el sueldo del ultimo mes anterior. Devuelve false si
 // el mes es anterior al primer presupuesto del usuario: no tiene sentido
@@ -83,13 +99,7 @@ const openMonth = async (userId: string, target: YearMonth): Promise<boolean> =>
   });
   if (earliest && compareYearMonth(target, earliest) < 0) return false;
 
-  const previous = await prisma.budgetMonth.findFirst({
-    where: {
-      userId,
-      OR: [{ year: { lt: target.year } }, { year: target.year, month: { lt: target.month } }],
-    },
-    orderBy: [{ year: "desc" }, { month: "desc" }],
-  });
+  const previous = await findPreviousMonth(userId, target);
   const items = await prisma.budgetItem.findMany({
     where: { userId },
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
@@ -133,10 +143,43 @@ const buildMonthResponse = async (userId: string, target: YearMonth) => {
   ]);
 
   return {
+    preview: false,
     month: month ? { ...target, income: month.income } : null,
     groups: groups.map((group) => ({
       ...group,
       entries: entries.filter((entry) => entry.groupId === group.id),
+    })),
+  };
+};
+
+// Lo que tendria un mes futuro si se abriera ahora (plantilla + ultimo sueldo), sin guardar nada: asi mirar
+// meses por delante no los congela con la plantilla de hoy. Sus lineas llevan un id provisional.
+const buildPreviewResponse = async (userId: string, target: YearMonth) => {
+  const [previous, groups, items] = await Promise.all([
+    findPreviousMonth(userId, target),
+    prisma.budgetGroup.findMany({ where: { userId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
+    prisma.budgetItem.findMany({ where: { userId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
+  ]);
+
+  return {
+    preview: true,
+    month: { ...target, income: previous?.income ?? new Prisma.Decimal(0) },
+    groups: groups.map((group) => ({
+      ...group,
+      entries: items
+        .filter((item) => item.groupId === group.id)
+        .map((item) => ({
+          id: `${PREVIEW_ENTRY_PREFIX}${item.id}`,
+          year: target.year,
+          month: target.month,
+          groupId: item.groupId,
+          itemId: item.id,
+          name: item.name,
+          amount: item.amount,
+          paid: false,
+          position: item.position,
+          transaction: null,
+        })),
     })),
   };
 };
@@ -289,14 +332,49 @@ budgetsRouter.delete(
 
 // ---- Presupuesto de un mes ----
 
-// GET que puede crear el mes la primera vez que se abre (idempotente).
+// GET de un mes. Un mes actual o pasado se genera la primera vez que se abre (idempotente); uno futuro que
+// aun no existe se devuelve como vista previa, sin guardarlo, hasta que se escribe algo en el.
 budgetsRouter.get(
   "/months/:year/:month",
   asyncHandler(async (req, res) => {
     const target = monthParamsSchema.parse(req.params);
     const userId = req.auth!.userId;
 
+    if (isFutureMonth(target)) {
+      if (isTooFarAhead(target)) {
+        throw badRequest(`Solo se pueden preparar presupuestos hasta ${MAX_MONTHS_AHEAD} meses por delante`);
+      }
+      const [existing, earliest] = await Promise.all([
+        prisma.budgetMonth.findUnique({ where: { userId_year_month: { userId, ...target } } }),
+        prisma.budgetMonth.findFirst({ where: { userId }, orderBy: [{ year: "asc" }, { month: "asc" }] }),
+      ]);
+      // Un mes anterior al primero guardado no se rellena con la plantilla: sigue el camino de siempre (sin mes).
+      if (!existing && (!earliest || compareYearMonth(target, earliest) >= 0)) {
+        res.json(await buildPreviewResponse(userId, target));
+        return;
+      }
+    }
+
     await openMonth(userId, target);
+    res.json(await buildMonthResponse(userId, target));
+  }),
+);
+
+// Guarda de verdad un mes (generandolo desde la plantilla si hace falta), por ejemplo antes de marcar
+// como pagada una linea de un mes que solo se estaba viendo. Idempotente.
+budgetsRouter.post(
+  "/months/:year/:month/open",
+  asyncHandler(async (req, res) => {
+    const target = monthParamsSchema.parse(req.params);
+    const userId = req.auth!.userId;
+
+    if (!(await openMonth(userId, target))) {
+      await prisma.budgetMonth.upsert({
+        where: { userId_year_month: { userId, ...target } },
+        update: {},
+        create: { userId, ...target },
+      });
+    }
     res.json(await buildMonthResponse(userId, target));
   }),
 );

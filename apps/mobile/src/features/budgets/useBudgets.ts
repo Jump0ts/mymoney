@@ -54,6 +54,17 @@ export const useUpdateMonthIncome = (target: YearMonth) => {
   });
 };
 
+// Guarda de verdad un mes que solo se estaba viendo (futuro): antes de editarlo o de marcar una linea.
+export const useOpenMonth = (target: YearMonth) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      apiRequest<BudgetMonthResponse>(`/api/budgets/months/${target.year}/${target.month}/open`, { method: 'POST' }),
+    onSuccess: (data) => queryClient.setQueryData(budgetMonthKey(target), data),
+  });
+};
+
 // ---- Editar la estructura del presupuesto (grupos y lineas) ----
 
 const useRefreshBudgets = () => {

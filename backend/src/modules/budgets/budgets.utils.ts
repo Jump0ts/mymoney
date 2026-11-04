@@ -13,6 +13,13 @@ export const addMonths = ({ year, month }: YearMonth, delta: number): YearMonth 
   return { year: Math.floor(total / 12), month: (total % 12) + 1 };
 };
 
+// Un mes posterior al actual (UTC): se muestra sin guardarlo hasta que el usuario escribe algo en el.
+export const isFutureMonth = (target: YearMonth, now: Date = new Date()): boolean =>
+  compareYearMonth(target, { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }) > 0;
+
+// Prefijo del id de las lineas de un mes sin guardar: aun no existen en la base de datos.
+export const PREVIEW_ENTRY_PREFIX = "preview:";
+
 export const isTooFarAhead = (target: YearMonth, now: Date = new Date()): boolean =>
   compareYearMonth(
     target,
