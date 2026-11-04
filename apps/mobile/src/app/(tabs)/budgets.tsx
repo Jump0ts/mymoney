@@ -14,6 +14,7 @@ import { BudgetNewGroup } from '@/features/budgets/BudgetNewGroup';
 import { BudgetSkeleton } from '@/features/budgets/BudgetSkeleton';
 import { BudgetSummary } from '@/features/budgets/BudgetSummary';
 import type { BudgetEntry, BudgetGroup } from '@/features/budgets/budgets.types';
+import { MAX_MONTHS_AHEAD } from '@/features/budgets/budgets.constants';
 import { getMonthTotals, getRemainderAvailable } from '@/features/budgets/budgets.utils';
 import {
   useBudgetMonth,
@@ -22,6 +23,7 @@ import {
   useUpdateMonthIncome,
 } from '@/features/budgets/useBudgets';
 import { EditGuardProvider, useEditGuard } from '@/features/budgets/useEditGuard';
+import { usePreviewMonth } from '@/features/budgets/usePreviewMonth';
 import { useTheme } from '@/hooks/use-theme';
 import { styles } from '@/screens/tabs/budgets.styles';
 import { notify } from '@/utils/alert';
@@ -36,16 +38,22 @@ const BudgetsScreen = () => {
   const { data, isLoading, refetch } = useBudgetMonth(selected);
   const { mutate: togglePaid } = useToggleEntryPaid(selected);
   const { mutateAsync: saveIncome } = useUpdateMonthIncome(selected);
+  const { isPreview, ensureSaved, resolveEntryId } = usePreviewMonth(selected, data);
   const { moveGroup, moveEntry } = useMoveInBudget(selected);
   const { guard, confirmDiscard } = useEditGuard();
 
   const handleTogglePaid = useCallback(
-    (entry: BudgetEntry) =>
-      togglePaid(
-        { id: entry.id, paid: !entry.paid },
-        { onError: () => notify('No se pudo actualizar', `No se pudo cambiar "${entry.name}". Inténtalo de nuevo.`) },
-      ),
-    [togglePaid],
+    async (entry: BudgetEntry) => {
+      const fail = () => notify('No se pudo actualizar', `No se pudo cambiar "${entry.name}". Inténtalo de nuevo.`);
+      try {
+        const id = await resolveEntryId(entry);
+        if (!id) return fail();
+        togglePaid({ id, paid: !entry.paid }, { onError: fail });
+      } catch {
+        fail();
+      }
+    },
+    [resolveEntryId, togglePaid],
   );
 
   const handleMoveGroup = useCallback(
@@ -67,6 +75,15 @@ const BudgetsScreen = () => {
   // Cerrar el modo edicion o cambiar de mes descarta los formularios abiertos: antes se confirma.
   const toggleEditMode = async () => {
     if (editMode && !(await confirmDiscard())) return;
+    // Editar un mes sin guardar lo guarda primero: las lineas que se editan tienen que existir.
+    if (!editMode) {
+      try {
+        await ensureSaved();
+      } catch {
+        notify('No se pudo preparar el mes', 'Inténtalo de nuevo.');
+        return;
+      }
+    }
     setEditMode((value) => !value);
   };
 
@@ -171,7 +188,13 @@ const BudgetsScreen = () => {
             year={selected.year}
             month={selected.month}
             onChange={changeMonth}
+            maxMonthsAhead={MAX_MONTHS_AHEAD}
           />
+          {isPreview && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.previewNote}>
+              Mes por preparar: se guarda cuando lo edites o marques una línea.
+            </ThemedText>
+          )}
           <View>{renderContent()}</View>
         </ScrollView>
       </SafeAreaView>

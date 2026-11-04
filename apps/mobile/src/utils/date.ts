@@ -8,6 +8,11 @@ export const getCurrentYearMonth = (): YearMonth => {
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
 };
 
+export const addMonths = ({ year, month }: YearMonth, delta: number): YearMonth => {
+  const total = year * 12 + (month - 1) + delta;
+  return { year: Math.floor(total / 12), month: (total % 12) + 1 };
+};
+
 export const compareYearMonth = (a: YearMonth, b: YearMonth): number => {
   if (a.year !== b.year) return a.year - b.year;
   return a.month - b.month;

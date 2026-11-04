@@ -35,9 +35,12 @@ export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, cur
   const [expanded, setExpanded] = useState(false);
   const { data, isLoading, isError, isFetching } = useBudgetMonth(month);
 
+  // Un mes futuro sin guardar aun no tiene lineas reales: no se puede enlazar a ellas.
+  const isPreview = data?.preview === true;
+
   const groups = useMemo(
     () =>
-      (data?.groups ?? [])
+      (isPreview ? [] : (data?.groups ?? []))
         .map((group) => ({
           ...group,
           entries: group.entries.filter(
@@ -45,7 +48,7 @@ export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, cur
           ),
         }))
         .filter((group) => group.entries.length > 0),
-    [data, ownTransactionId],
+    [data, isPreview, ownTransactionId],
   );
 
   const selected = useMemo(
@@ -103,7 +106,9 @@ export const BudgetLinkPicker = ({ month, value, onChange, ownTransactionId, cur
           )}
           {!isLoading && !isError && groups.length === 0 && (
             <ThemedText type="small" themeColor="textSecondary">
-              No hay líneas de gasto libres en el presupuesto de este mes.
+              {isPreview
+                ? 'Este mes aún no está preparado en Presupuesto: edítalo allí para poder enlazar.'
+                : 'No hay líneas de gasto libres en el presupuesto de este mes.'}
             </ThemedText>
           )}
 

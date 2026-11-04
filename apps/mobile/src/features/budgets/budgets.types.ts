@@ -23,6 +23,9 @@ export interface BudgetGroup {
 }
 
 export interface BudgetMonthResponse {
+  // true en un mes futuro que aun no se ha guardado: se ve como quedaria, pero sus lineas llevan un id
+  // provisional y no se pueden editar hasta guardarlo (useOpenMonth).
+  preview?: boolean;
   // null si el mes es anterior al primer presupuesto y no se ha generado.
   month: { year: number; month: number; income: string } | null;
   groups: BudgetGroup[];

@@ -6,6 +6,14 @@ author as a personal tool, and interfaces and data models may still change.
 
 ## [Unreleased]
 
+### Added
+- **Plan future months in the budget.** The month selector of *Presupuesto* can now go up to **12 months ahead** (it used to stop at the current month), so a known charge or expense, such as the car insurance, can be written down in advance.
+  - A future month is **not saved just by looking at it**: it is shown as it would be (recurring template and last salary) with a "Mes por preparar" note, and it is only saved when you edit it, tick a line or set its expected salary. Browsing ahead therefore never freezes a month with today's template.
+  - **Recurring changes reach the later months that are already saved.** Adding a recurring line, editing a line with *Este y los siguientes* or removing it with that option now also applies to the following months you had already saved (for example the one where you wrote the car insurance). Lines that are **paid, linked to an expense or edited by hand for their own month** are left alone (a removed recurring line that was paid or edited stays as a one-off line). Editing a line again with *Este y los siguientes* makes it follow the template again. Earlier months never change.
+  - API: `GET /api/budgets/months/:year/:month` answers `preview: true` for a future month that is not saved (its lines carry a provisional `preview:` id and cannot be edited), and `POST .../open` saves it. The server accepts one month more than the app offers and answers `400` beyond that.
+  - API: `BudgetEntry.edited` (new column with a default, no data changes) remembers the lines edited by hand for one month. `PATCH /api/budgets/entries/:id` and `DELETE /api/budgets/entries/:id?scope=template` take a `scope` (`month` by default, or `template`) and do the whole change in one transaction; the app no longer makes two requests for it.
+  - In *Movimientos* the budget link of an expense dated in an unsaved future month offers no lines yet: edit that month in *Presupuesto* first.
+
 ### Fixed
 - Narrow phones (360-430 px): the legend of the category chart in the Overview no longer shrinks every category name to a single letter (it moves under the chart when it does not fit beside it); the date of a transaction is no longer split over three lines (category and date wrap onto two lines instead); and on the web the month selector and the calendar button of *Movimientos* no longer overlap (the "next month" arrow was hidden under the button).
 

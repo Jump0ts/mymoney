@@ -22,5 +22,6 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   list: { gap: Spacing.three },
+  previewNote: { textAlign: 'center' },
   message: { gap: Spacing.three, alignItems: 'flex-start' },
 });

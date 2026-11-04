@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 import { FadeInLeft, FadeInRight } from 'react-native-reanimated';
 import { MonthYearPicker } from './MonthYearPicker';
-import { getCurrentYearMonth } from '@/utils/date';
+import { addMonths, getCurrentYearMonth } from '@/utils/date';
 
 describe('MonthYearPicker', () => {
   it('muestra el mes y el año formateados', () => {
@@ -48,6 +48,46 @@ describe('MonthYearPicker', () => {
     fireEvent.press(screen.getByTestId('month-picker-next'));
 
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  describe('con meses por delante (maxMonthsAhead)', () => {
+    it('permite avanzar mas alla del mes actual hasta el limite', () => {
+      const onChange = jest.fn();
+      const current = getCurrentYearMonth();
+      render(<MonthYearPicker year={current.year} month={current.month} onChange={onChange} maxMonthsAhead={3} />);
+
+      fireEvent.press(screen.getByTestId('month-picker-next'));
+
+      const next = addMonths(current, 1);
+      expect(onChange).toHaveBeenCalledWith(next.year, next.month);
+    });
+
+    it('deshabilita siguiente al llegar al ultimo mes permitido', () => {
+      const onChange = jest.fn();
+      const last = addMonths(getCurrentYearMonth(), 3);
+      render(<MonthYearPicker year={last.year} month={last.month} onChange={onChange} maxMonthsAhead={3} />);
+
+      fireEvent.press(screen.getByTestId('month-picker-next'));
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.getByLabelText('Mes siguiente').props.accessibilityState).toMatchObject({ disabled: true });
+    });
+
+    it('sigue habilitado un mes antes del limite', () => {
+      const penultimate = addMonths(getCurrentYearMonth(), 2);
+      render(<MonthYearPicker year={penultimate.year} month={penultimate.month} onChange={jest.fn()} maxMonthsAhead={3} />);
+
+      expect(screen.getByLabelText('Mes siguiente').props.accessibilityState).toMatchObject({ disabled: false });
+    });
+
+    it('cruza el cambio de año hacia delante', () => {
+      const onChange = jest.fn();
+      render(<MonthYearPicker year={2026} month={12} onChange={onChange} maxMonthsAhead={600} />);
+
+      fireEvent.press(screen.getByTestId('month-picker-next'));
+
+      expect(onChange).toHaveBeenCalledWith(2027, 1);
+    });
   });
 
   it('adapta la altura de la etiqueta al tamano de letra del sistema, con tope', () => {
