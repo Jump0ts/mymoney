@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
+## [Unreleased]
+
+### Added
+- **The app has its own icon.** The iOS and Android icons, the adaptive Android layers (foreground and monochrome, on the brand colour) and the splash image were still the Expo defaults; they are now the same white **M** on indigo as the installed web app. They are generated from that mark by `npm run icons` (`apps/mobile/scripts/generate-icons.js`, no image library needed), and a test checks that the committed PNGs are exactly that output, that the iOS icon has no transparency and that the Android foreground fits the adaptive safe zone.
+- **The browser tab has a title.** The web had an empty `<title>`, so tabs, history and the installed web app showed nothing. It now reads "Presupuesto · MyMoney" (screen · app) and follows the screen you are on, both in the static HTML and when navigating; in the *pre* environment it says "MyMoney (Pre)".
+
+### Changed
+- The adaptive Android icon uses the brand colour as a plain background instead of the default image layer, which is removed.
+
 ## [0.4.0] — 2026-11-04 — Beta
 
 > Budget release: an expense is written down once (from *Movimientos* or from the budget) and ticking a planned line registers the payment, plus budgets for future months.
