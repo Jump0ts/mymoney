@@ -16,7 +16,7 @@ import {
   updateItemSchema,
   updateMonthSchema,
 } from "./budgets.schema.js";
-import { compareYearMonth } from "./budgets.utils.js";
+import { compareYearMonth, isTooFarAhead, MAX_MONTHS_AHEAD } from "./budgets.utils.js";
 import type { YearMonth } from "./budgets.types.js";
 
 export const budgetsRouter = Router();
@@ -69,6 +69,9 @@ const checkRemainder = async <T extends { limit?: number | null; isRemainder?: b
 // el mes es anterior al primer presupuesto del usuario: no tiene sentido
 // rellenar con la plantilla de hoy meses que ya pasaron.
 const openMonth = async (userId: string, target: YearMonth): Promise<boolean> => {
+  if (isTooFarAhead(target)) {
+    throw badRequest(`Solo se pueden preparar presupuestos hasta ${MAX_MONTHS_AHEAD} meses por delante`);
+  }
   const existing = await prisma.budgetMonth.findUnique({
     where: { userId_year_month: { userId, ...target } },
   });

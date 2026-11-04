@@ -15,3 +15,7 @@ export const SCOPE_OPTIONS_EDIT: SegmentOption<BudgetScope>[] = [
   { label: 'Solo este mes', value: 'month' },
   { label: 'Este y los siguientes', value: 'template' },
 ];
+
+// Hasta cuantos meses por delante del actual se puede abrir el presupuesto (apuntar cobros futuros).
+// Debe coincidir con MAX_MONTHS_AHEAD del backend, que lo hace cumplir.
+export const MAX_MONTHS_AHEAD = 12;

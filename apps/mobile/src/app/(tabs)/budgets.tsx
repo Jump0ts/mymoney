@@ -14,6 +14,7 @@ import { BudgetNewGroup } from '@/features/budgets/BudgetNewGroup';
 import { BudgetSkeleton } from '@/features/budgets/BudgetSkeleton';
 import { BudgetSummary } from '@/features/budgets/BudgetSummary';
 import type { BudgetEntry, BudgetGroup } from '@/features/budgets/budgets.types';
+import { MAX_MONTHS_AHEAD } from '@/features/budgets/budgets.constants';
 import { getMonthTotals, getRemainderAvailable } from '@/features/budgets/budgets.utils';
 import {
   useBudgetMonth,
@@ -171,6 +172,7 @@ const BudgetsScreen = () => {
             year={selected.year}
             month={selected.month}
             onChange={changeMonth}
+            maxMonthsAhead={MAX_MONTHS_AHEAD}
           />
           <View>{renderContent()}</View>
         </ScrollView>

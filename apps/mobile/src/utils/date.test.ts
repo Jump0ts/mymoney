@@ -1,4 +1,4 @@
-import { compareYearMonth, formatDateKey, getCurrentYearMonth, getDayRange, getMonthRange } from './date';
+import { addMonths, compareYearMonth, formatDateKey, getCurrentYearMonth, getDayRange, getMonthRange } from './date';
 
 describe('getCurrentYearMonth', () => {
   it('devuelve el año y el mes (1-12) actuales', () => {
@@ -59,5 +59,21 @@ describe('getDayRange', () => {
     const { from, to } = getDayRange('2026-06-15');
     expect(from).toBe('2026-06-15T00:00:00.000Z');
     expect(to).toBe('2026-06-15T23:59:59.999Z');
+  });
+});
+
+describe('addMonths', () => {
+  it('suma meses dentro del mismo año', () => {
+    expect(addMonths({ year: 2026, month: 3 }, 4)).toEqual({ year: 2026, month: 7 });
+  });
+
+  it('cruza el fin de año hacia delante y hacia atras', () => {
+    expect(addMonths({ year: 2026, month: 11 }, 3)).toEqual({ year: 2027, month: 2 });
+    expect(addMonths({ year: 2026, month: 2 }, -3)).toEqual({ year: 2025, month: 11 });
+  });
+
+  it('con 0 deja el mes igual y con 12 salta un año exacto', () => {
+    expect(addMonths({ year: 2026, month: 12 }, 0)).toEqual({ year: 2026, month: 12 });
+    expect(addMonths({ year: 2026, month: 12 }, 12)).toEqual({ year: 2027, month: 12 });
   });
 });

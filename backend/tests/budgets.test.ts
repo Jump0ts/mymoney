@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { app, registerUser } from "./helpers.js";
+import { addMonths, isTooFarAhead, MAX_MONTHS_AHEAD } from "../src/modules/budgets/budgets.utils.js";
 
 const authedUser = async () => {
   const { res } = await registerUser();
@@ -540,5 +541,103 @@ describe("lineas del mes (entries)", () => {
     const res = await as(token).del(`/api/categories/${category.id}`);
 
     expect(res.status).toBe(204);
+  });
+});
+
+describe("presupuestos de meses futuros", () => {
+  const now = new Date();
+  const current = { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+  const monthUrl = (delta: number) => {
+    const { year, month } = addMonths(current, delta);
+    return `/api/budgets/months/${year}/${month}`;
+  };
+
+  it("apunta un cobro en un mes futuro sin tocar el mes actual", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token, "Coche");
+    await createItem(token, group.id, { name: "Gasolina", amount: 60 });
+    // La app abre siempre el mes actual primero: asi existe antes que cualquier mes futuro.
+    await as(token).get(monthUrl(0));
+
+    const created = await as(token).post(`${monthUrl(3)}/entries`, {
+      groupId: group.id,
+      name: "Seguro del coche",
+      amount: 380,
+      recurring: false,
+    });
+    const future = await as(token).get(monthUrl(3));
+    const present = await as(token).get(monthUrl(0));
+
+    expect(created.status).toBe(201);
+    expect(future.body.groups[0].entries.map((e: { name: string }) => e.name)).toEqual(["Gasolina", "Seguro del coche"]);
+    expect(present.body.groups[0].entries.map((e: { name: string }) => e.name)).toEqual(["Gasolina"]);
+  });
+
+  it("un mes futuro copia la plantilla y el sueldo del ultimo mes anterior", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token);
+    await createItem(token, group.id, { name: "Netflix", amount: 12 });
+    await as(token).patch(monthUrl(0), { income: 1500 });
+
+    const future = await as(token).get(monthUrl(2));
+
+    expect(Number(future.body.month.income)).toBe(1500);
+    expect(future.body.groups[0].entries.map((e: { name: string }) => e.name)).toEqual(["Netflix"]);
+    expect(future.body.groups[0].entries[0].paid).toBe(false);
+  });
+
+  it("permite fijar el sueldo previsto de un mes futuro", async () => {
+    const { token } = await authedUser();
+
+    const res = await as(token).patch(monthUrl(5), { income: 1800 });
+
+    expect(res.status).toBe(200);
+    expect(Number(res.body.month.income)).toBe(1800);
+  });
+
+  it("admite hasta el limite de meses por delante y rechaza lo que pasa de ahi", async () => {
+    const { token } = await authedUser();
+    const group = await createGroup(token);
+
+    expect((await as(token).get(monthUrl(MAX_MONTHS_AHEAD))).status).toBe(200);
+    expect((await as(token).get(monthUrl(MAX_MONTHS_AHEAD + 2))).status).toBe(400);
+    expect((await as(token).patch(monthUrl(MAX_MONTHS_AHEAD + 2), { income: 1 })).status).toBe(400);
+    const entry = await as(token).post(`${monthUrl(MAX_MONTHS_AHEAD + 2)}/entries`, {
+      groupId: group.id,
+      name: "Demasiado lejos",
+      amount: 10,
+      recurring: false,
+    });
+    expect(entry.status).toBe(400);
+  });
+
+  it("un rechazo por lejania no deja ningun mes creado", async () => {
+    const { token } = await authedUser();
+
+    await as(token).get(monthUrl(MAX_MONTHS_AHEAD + 5));
+    const near = await as(token).get(monthUrl(1));
+
+    expect(near.status).toBe(200);
+    expect(near.body.month).not.toBeNull();
+  });
+
+  describe("isTooFarAhead", () => {
+    const base = new Date(Date.UTC(2026, 10, 4));
+
+    it("el limite del servidor es uno mas que el de la app", () => {
+      // Base nov-2026: la app llega a nov-2027 (12 meses) y el servidor a dic-2027 (13).
+      expect(isTooFarAhead({ year: 2027, month: 11 }, base)).toBe(false);
+      expect(isTooFarAhead({ year: 2027, month: 12 }, base)).toBe(false);
+      expect(isTooFarAhead({ year: 2028, month: 1 }, base)).toBe(true);
+    });
+
+    it("no limita el pasado", () => {
+      expect(isTooFarAhead({ year: 2020, month: 1 }, base)).toBe(false);
+    });
+
+    it("cruza bien el cambio de año", () => {
+      expect(addMonths({ year: 2026, month: 12 }, 1)).toEqual({ year: 2027, month: 1 });
+      expect(addMonths({ year: 2026, month: 1 }, -1)).toEqual({ year: 2025, month: 12 });
+    });
   });
 });
