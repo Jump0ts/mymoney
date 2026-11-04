@@ -4,7 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
-## [Unreleased]
+## [0.4.0] — 2026-11-04 — Beta
+
+> Budget release: an expense is written down once (from *Movimientos* or from the budget) and ticking a planned line registers the payment, plus budgets for future months.
 
 ### Added
 - **One-off expenses no longer need to be written twice.** An expense that comes out of a budget group (for example a beer from *Deseos*) is now created once and shows up in both places.
@@ -23,6 +25,10 @@ author as a personal tool, and interfaces and data models may still change.
   - API: `GET /api/budgets/months/:year/:month` answers `preview: true` for a future month that is not saved (its lines carry a provisional `preview:` id and cannot be edited), and `POST .../open` saves it. The server accepts one month more than the app offers and answers `400` beyond that.
   - API: `BudgetEntry.edited` (new column with a default, no data changes) remembers the lines edited by hand for one month. `PATCH /api/budgets/entries/:id` and `DELETE /api/budgets/entries/:id?scope=template` take a `scope` (`month` by default, or `template`) and do the whole change in one transaction; the app no longer makes two requests for it.
   - In *Movimientos* the budget link of an expense dated in an unsaved future month offers no lines yet: edit that month in *Presupuesto* first.
+
+### Changed
+- Dependency updates: `zod` 3 → 4 in the backend (the only branch with the fix for the memory use when validating huge collections; same error format for the client), `vitest` 2 → 4 (clears the critical development-only alerts; tests only, it does not reach the production image) and the minor-and-patch group (`dotenv`, `tsx`, `supertest`, `typescript-eslint`, `@tanstack/react-query`, `react-hook-form`, `zustand`).
+- Database: this release applies two migrations, `BudgetEntry.edited` and `BudgetEntry.fromTransaction`. Both only **add a column with a default** (no data is touched).
 
 ### Fixed
 - Narrow phones (360-430 px): the legend of the category chart in the Overview no longer shrinks every category name to a single letter (it moves under the chart when it does not fit beside it); the date of a transaction is no longer split over three lines (category and date wrap onto two lines instead); and on the web the month selector and the calendar button of *Movimientos* no longer overlap (the "next month" arrow was hidden under the button).
@@ -124,6 +130,7 @@ author as a personal tool, and interfaces and data models may still change.
 - Automatic payment detection (Android only), multiple accounts/wallets, and recurring expenses outside the budget.
 - Screenshots and a public demo.
 
+[0.4.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.4.0-beta
 [0.3.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.3.0-beta
 [0.2.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.2.0-beta
 [0.1.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.1.0-beta
