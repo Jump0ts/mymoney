@@ -9,6 +9,8 @@ author as a personal tool, and interfaces and data models may still change.
 ### Added
 - **The app has its own icon.** The iOS and Android icons, the adaptive Android layers (foreground and monochrome, on the brand colour) and the splash image were still the Expo defaults; they are now the same white **M** on indigo as the installed web app. They are generated from that mark by `npm run icons` (`apps/mobile/scripts/generate-icons.js`, no image library needed), and a test checks that the committed PNGs are exactly that output, that the iOS icon has no transparency and that the Android foreground fits the adaptive safe zone.
 - **The browser tab has a title.** The web had an empty `<title>`, so tabs, history and the installed web app showed nothing. It now reads "Presupuesto · MyMoney" (screen · app) and follows the screen you are on, both in the static HTML and when navigating; in the *pre* environment it says "MyMoney (Pre)".
+- **Existing categories can be edited.** Every row of *Categorías* has a pencil button that turns the row into an editor where you change the **name** and the **colour** (with the new colour picker). Only what changed is sent, saving with nothing changed just closes it, and the type cannot be changed there. Movements, the overview chart and the budget show the new name and colour right away.
+  - API: `PATCH /api/categories/:id` now answers `400` when the new name already exists for that type (it used to end in a `500` from the database, also for two renames at the same time) and refuses to change the *type* of a category that already has movements.
 - **Any colour for a category or a budget group, and your own colours are saved.** The colour field was limited to 10 fixed colours. It now ends with a **+** button that opens a colour picker: a saturation/brightness square, a hue strip and a field to type the code (`#1A2B3C`, also `#ABC` and without the `#`). It is built with `react-native-svg` (no new dependency) and works the same on the web, iOS and Android; the hex field is also the way in for screen readers (the square and the strip can be moved with accessibility actions too).
   - **Your colours stay saved.** A colour chosen this way is saved to your account (up to 24) and appears after the palette the next time, on any device. When a saved colour is the selected one, a button removes it from your colours; categories and groups that use it keep their colour. Saving the same colour twice does nothing, and a full list still lets you use a new colour, it just does not save it.
   - **A colour that would disappear is adjusted only when it is drawn.** A near-white colour on a light card or a near-black one on a dark card is moved along its lightness until it reaches a 2:1 contrast (category pill, category list and the chart of the overview). The saved colour is not changed, and the palette colours are not touched.
@@ -16,6 +18,9 @@ author as a personal tool, and interfaces and data models may still change.
 
 ### Changed
 - The adaptive Android icon uses the brand colour as a plain background instead of the default image layer, which is removed.
+
+### Fixed
+- **Editing only the name of a category or a budget group no longer resets its colour** (and, for a category, its icon) to the default ones: the update schema inherited the defaults of the create schema, so any `PATCH` that left the colour out wrote the default colour. The app always sent every field, so it was not visible yet; the new category editor sends only what changed.
 
 ## [0.4.0] — 2026-11-04 — Beta
 

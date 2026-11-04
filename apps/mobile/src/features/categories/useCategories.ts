@@ -19,6 +19,22 @@ export const useCreateCategory = () => {
   });
 };
 
+// Cambiar el nombre o el color. Los movimientos, el resumen y el presupuesto llevan el nombre y el color de la
+// categoria dentro, asi que tambien se refrescan.
+export const useUpdateCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...changes }: { id: string; name?: string; color?: string }) =>
+      apiRequest<{ category: Category }>(`/api/categories/${id}`, { method: 'PATCH', body: changes }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['summary'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+    },
+  });
+};
+
 export const useDeleteCategory = () => {
   const queryClient = useQueryClient();
   return useMutation({
