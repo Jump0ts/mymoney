@@ -28,9 +28,9 @@ const config: ExpoConfig = {
   android: {
     package: `com.mymoney.app${bundleSuffix[APP_ENV] ?? ''}`,
     adaptiveIcon: {
-      backgroundColor: '#E6F4FE',
+      // Mismo color que la marca del PWA (Colors.light.primary): un fondo liso, sin capa de imagen.
+      backgroundColor: '#4F5DFF',
       foregroundImage: './assets/images/android-icon-foreground.png',
-      backgroundImage: './assets/images/android-icon-background.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
   },
