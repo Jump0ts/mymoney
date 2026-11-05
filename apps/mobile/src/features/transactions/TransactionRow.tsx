@@ -56,7 +56,7 @@ export const TransactionRow = memo(({ transaction, onEdit, onDelete, isDeleting 
             <View
               testID="transaction-row-budget"
               accessible
-              accessibilityLabel={`Cubre ${transaction.budgetEntry.name} del presupuesto, grupo ${transaction.budgetEntry.group.name}`}
+              accessibilityLabel={`${transaction.type === 'INCOME' ? 'Reembolso de' : 'Cubre'} ${transaction.budgetEntry.name} del presupuesto, grupo ${transaction.budgetEntry.group.name}`}
               style={styles.budgetMeta}>
               <Feather name="link" size={12} color={theme.textSecondary} />
               <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.budgetText}>

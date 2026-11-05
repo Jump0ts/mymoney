@@ -108,8 +108,9 @@ export const TransactionForm = ({
                     onPress={() => {
                       field.onChange(option);
                       setValue('categoryId', '');
-                      // Un ingreso no cubre ninguna linea del presupuesto ni sale de un grupo.
-                      if (option === 'INCOME') {
+                      // Otro tipo ya no encaja con la linea (un gasto con las de gasto, un ingreso con las de
+                      // reembolso) ni con el grupo: se quitan. Volver a tocar el mismo tipo no cambia nada.
+                      if (option !== field.value) {
                         setValue('budgetEntryId', null);
                         setValue('budgetGroupId', null);
                       }
@@ -210,42 +211,46 @@ export const TransactionForm = ({
           )}
         </View>
 
-        {type === 'EXPENSE' && (
-          <View style={styles.field}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Presupuesto
-            </ThemedText>
-            <BudgetLinkPicker
-              month={{ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 }}
-              value={budgetEntryId ?? null}
-              groupValue={budgetGroupId ?? null}
-              onGroupChange={(groupId) => {
-                // Un grupo crea una linea nueva: sustituye a enlazar una que ya existe.
-                setValue('budgetEntryId', null, { shouldDirty: true });
-                setValue('budgetGroupId', groupId, { shouldDirty: true });
-              }}
-              ownLineId={ownBudgetLineId}
-              onChange={(id, line) => {
-                setValue('budgetEntryId', id, { shouldDirty: true });
-                setValue('budgetGroupId', null, { shouldDirty: true });
-                // Un sobre recibe muchos gastos: su importe es el de todos juntos y su nombre no describe esta compra.
-                if (!id || !line || line.envelope) return;
-                // Enlazar rellena lo que este vacio con lo de la linea del presupuesto (importe previsto y nombre
-                // como descripcion); lo que ya este escrito no se toca.
-                const planned = Number(line.plannedAmount);
-                if (amountText.trim() === '' && planned > 0) {
-                  setAmountText(String(planned).replace('.', ','));
-                  setValue('amount', planned, { shouldValidate: false });
-                }
-                if ((getValues('description') ?? '').trim() === '') {
-                  setValue('description', line.name, { shouldDirty: true });
-                }
-              }}
-              ownTransactionId={ownTransactionId}
-              currentLabel={linkedBudgetLabel}
-            />
-          </View>
-        )}
+        <View style={styles.field}>
+          <ThemedText type="small" themeColor="textSecondary">
+            Presupuesto
+          </ThemedText>
+          <BudgetLinkPicker
+            type={type}
+            month={{ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 }}
+            value={budgetEntryId ?? null}
+            groupValue={budgetGroupId ?? null}
+            // Un ingreso solo cubre un reembolso ya existente: no crea lineas nuevas desde un grupo.
+            onGroupChange={
+              type === 'EXPENSE'
+                ? (groupId) => {
+                    // Un grupo crea una linea nueva: sustituye a enlazar una que ya existe.
+                    setValue('budgetEntryId', null, { shouldDirty: true });
+                    setValue('budgetGroupId', groupId, { shouldDirty: true });
+                  }
+                : undefined
+            }
+            ownLineId={ownBudgetLineId}
+            onChange={(id, line) => {
+              setValue('budgetEntryId', id, { shouldDirty: true });
+              setValue('budgetGroupId', null, { shouldDirty: true });
+              // Un sobre recibe muchos gastos: su importe es el de todos juntos y su nombre no describe esta compra.
+              if (!id || !line || line.envelope) return;
+              // Enlazar rellena lo que este vacio con lo de la linea del presupuesto (importe previsto y nombre
+              // como descripcion); lo que ya este escrito no se toca.
+              const planned = Number(line.plannedAmount);
+              if (amountText.trim() === '' && planned > 0) {
+                setAmountText(String(planned).replace('.', ','));
+                setValue('amount', planned, { shouldValidate: false });
+              }
+              if ((getValues('description') ?? '').trim() === '') {
+                setValue('description', line.name, { shouldDirty: true });
+              }
+            }}
+            ownTransactionId={ownTransactionId}
+            currentLabel={linkedBudgetLabel}
+          />
+        </View>
 
         <Controller
           control={control}

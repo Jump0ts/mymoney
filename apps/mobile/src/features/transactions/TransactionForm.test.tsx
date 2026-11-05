@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { useBudgetMonth } from '@/features/budgets/useBudgets';
 import { TransactionForm } from './TransactionForm';
 import type { AddTransactionFormValues } from './transactions.schema';
@@ -241,14 +241,142 @@ describe('TransactionForm - enlace con el presupuesto', () => {
     jest.mocked(useBudgetMonth).mockClear();
   });
 
-  it('solo se ofrece para un gasto: un ingreso no cubre lineas del presupuesto', () => {
+  it('un ingreso tambien ofrece el campo, pero solo con los reembolsos libres', () => {
     renderForm();
 
-    expect(screen.getByTestId('budget-link-toggle')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('transaction-type-INCOME'));
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+
+    expect(screen.getByTestId('budget-link-option-e-ivan')).toBeTruthy();
+    expect(screen.queryByTestId('budget-link-option-e-luz')).toBeNull();
+    expect(screen.queryByTestId('budget-link-option-e-agua')).toBeNull();
+    expect(screen.queryByTestId('budget-link-option-e-hipoteca')).toBeNull();
+  });
+
+  it('un ingreso no ofrece crear un gasto nuevo en un grupo', () => {
+    renderForm();
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+    expect(screen.getByTestId('budget-group-option-g1')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
 
     fireEvent.press(screen.getByTestId('transaction-type-INCOME'));
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
 
-    expect(screen.queryByTestId('budget-link-toggle')).toBeNull();
+    expect(screen.queryByTestId('budget-group-option-g1')).toBeNull();
+    expect(screen.queryByText('Gasto nuevo en un grupo')).toBeNull();
+  });
+
+  it('sin reembolsos libres en el mes lo explica', () => {
+    mockBudgetState.data = {
+      month: { year: 2026, month: 5, income: '0' },
+      groups: [{ ...mockBudgetGroups[0], entries: mockBudgetGroups[0].entries.filter((e) => e.id !== 'e-ivan') }],
+    };
+    renderForm();
+
+    fireEvent.press(screen.getByTestId('transaction-type-INCOME'));
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+
+    expect(screen.getByText('No hay reembolsos libres en el presupuesto de este mes.')).toBeTruthy();
+  });
+
+  it('un reembolso que ya tiene su ingreso no se ofrece, salvo al editar ese mismo ingreso', () => {
+    const covered = {
+      ...mockBudgetGroups[0].entries[2],
+      paid: true,
+      transactions: [{ id: 'in-own', amount: '30.00', occurredAt: '2026-05-03T10:00:00.000Z' }],
+    };
+    mockBudgetState.data = {
+      month: { year: 2026, month: 5, income: '0' },
+      groups: [{ ...mockBudgetGroups[0], entries: [covered] }],
+    };
+    const incomeValues: AddTransactionFormValues = { ...baseValues, type: 'INCOME', categoryId: 'cat-inc-1', amount: 30 };
+
+    const { unmount } = render(
+      <TransactionForm defaultValues={incomeValues} submitLabel="G" isSubmitting={false} submitError={null} onSubmit={jest.fn()} />,
+    );
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+    expect(screen.queryByTestId('budget-link-option-e-ivan')).toBeNull();
+    unmount();
+
+    render(
+      <TransactionForm
+        defaultValues={{ ...incomeValues, budgetEntryId: 'e-ivan' }}
+        ownTransactionId="in-own"
+        submitLabel="G"
+        isSubmitting={false}
+        submitError={null}
+        onSubmit={jest.fn()}
+      />,
+    );
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+    expect(screen.getByTestId('budget-link-option-e-ivan').props.accessibilityState).toMatchObject({ selected: true });
+  });
+
+  it('elegir un reembolso para un ingreso lo envia con el formulario y rellena el importe sin signo y el nombre', async () => {
+    const { onSubmit } = renderForm({ defaultValues: undefined });
+
+    fireEvent.press(screen.getByTestId('transaction-type-INCOME'));
+    fireEvent.press(screen.getByTestId('category-chip-cat-inc-1'));
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+    expect(screen.getByTestId('budget-link-option-e-ivan').props.accessibilityLabel).toBe(
+      'Luz Ivan, reembolso previsto 30,00\u00a0€',
+    );
+    fireEvent.press(screen.getByTestId('budget-link-option-e-ivan'));
+
+    expect(screen.getByTestId('transaction-amount-input').props.value).toBe('30');
+    expect(screen.getByDisplayValue('Luz Ivan')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('transaction-submit'));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(submittedValues(onSubmit)).toMatchObject({ type: 'INCOME', amount: 30, budgetEntryId: 'e-ivan' });
+  });
+
+  it('el importe del reembolso se muestra sin signo en la lista', () => {
+    renderForm();
+
+    fireEvent.press(screen.getByTestId('transaction-type-INCOME'));
+    fireEvent.press(screen.getByTestId('budget-link-toggle'));
+
+    const option = screen.getByTestId('budget-link-option-e-ivan');
+    expect(within(option).getByText(/30,00/)).toBeTruthy();
+    expect(within(option).queryByText(/-30,00/)).toBeNull();
+  });
+
+  it('un ingreso ya enlazado a un reembolso conserva la linea al guardar', async () => {
+    const { onSubmit } = renderForm({
+      defaultValues: { ...baseValues, type: 'INCOME', categoryId: 'cat-inc-1', amount: 30, budgetEntryId: 'e-ivan' },
+    });
+
+    expect(screen.getByText('Luz Ivan · Hogar')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('transaction-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(submittedValues(onSubmit).budgetEntryId).toBe('e-ivan');
+  });
+
+  it('volver a tocar el mismo tipo no quita el enlace', async () => {
+    const { onSubmit } = renderForm({
+      defaultValues: { ...baseValues, type: 'INCOME', categoryId: 'cat-inc-1', amount: 30, budgetEntryId: 'e-ivan' },
+    });
+
+    fireEvent.press(screen.getByTestId('transaction-type-INCOME'));
+    fireEvent.press(screen.getByTestId('category-chip-cat-inc-1'));
+    fireEvent.press(screen.getByTestId('transaction-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(submittedValues(onSubmit).budgetEntryId).toBe('e-ivan');
+  });
+
+  it('pasar de ingreso a gasto descarta el reembolso elegido', async () => {
+    const { onSubmit } = renderForm({
+      defaultValues: { ...baseValues, type: 'INCOME', categoryId: 'cat-inc-1', amount: 30, budgetEntryId: 'e-ivan' },
+    });
+
+    fireEvent.press(screen.getByTestId('transaction-type-EXPENSE'));
+    fireEvent.press(screen.getByTestId('category-chip-cat-exp-1'));
+    fireEvent.press(screen.getByTestId('transaction-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(submittedValues(onSubmit)).toMatchObject({ type: 'EXPENSE', budgetEntryId: null });
   });
 
   it('consulta el presupuesto del mes del gasto', () => {

@@ -10,6 +10,7 @@ import { useTheme } from '@/hooks/use-theme';
 import type { YearMonth } from '@/utils/date';
 import { formatMoney } from '@/utils/format';
 import { styles } from './BudgetLinkPicker.styles';
+import type { TransactionType } from './transactions.types';
 
 export interface LinkedLine {
   name: string;
@@ -19,6 +20,9 @@ export interface LinkedLine {
 }
 
 interface BudgetLinkPickerProps {
+  // Un gasto se enlaza con las lineas de gasto y un ingreso, con las de reembolso (lo que te devuelven por algo que
+  // pagas a medias). Por defecto, un gasto.
+  type?: TransactionType;
   // Mes del gasto: solo se ofrecen las lineas de su presupuesto.
   month: YearMonth;
   value: string | null;
@@ -38,8 +42,9 @@ interface BudgetLinkPickerProps {
 
 // Elige de donde sale este gasto en el presupuesto del mes: una linea que ya existe (solo salen lineas de gasto, no
 // reembolsos; una linea normal solo si no tiene ya otro gasto, un sobre siempre) o un grupo, para que el gasto cree su
-// propia linea puntual.
+// propia linea puntual. Con un ingreso salen solo los reembolsos que aun no tienen el suyo.
 export const BudgetLinkPicker = ({
+  type = 'EXPENSE',
   month,
   value,
   onChange,
@@ -50,6 +55,9 @@ export const BudgetLinkPicker = ({
   ownLineId,
 }: BudgetLinkPickerProps) => {
   const theme = useTheme();
+  const isIncome = type === 'INCOME';
+  // Un reembolso se guarda con importe negativo; al enlazar un ingreso se ofrece y se rellena lo que te devuelven, sin signo.
+  const plannedOf = (amount: string) => (isIncome ? amount.replace(/^-/, '') : amount);
   const [expanded, setExpanded] = useState(false);
   const { data, isLoading, isError, isFetching } = useBudgetMonth(month);
 
@@ -63,12 +71,12 @@ export const BudgetLinkPicker = ({
           ...group,
           entries: group.entries.filter(
             (entry) =>
-              Number(entry.amount) > 0 &&
+              (isIncome ? Number(entry.amount) < 0 : Number(entry.amount) > 0) &&
               (entry.envelope || entry.transactions.every((expense) => expense.id === ownTransactionId)),
           ),
         }))
         .filter((group) => group.entries.length > 0),
-    [data, isPreview, ownTransactionId],
+    [data, isPreview, ownTransactionId, isIncome],
   );
 
   const selected = useMemo(
@@ -137,7 +145,9 @@ export const BudgetLinkPicker = ({
             <ThemedText type="small" themeColor="textSecondary">
               {isPreview
                 ? 'Este mes aún no está preparado en Presupuesto: edítalo allí para poder enlazar.'
-                : 'No hay líneas de gasto libres en el presupuesto de este mes.'}
+                : isIncome
+                  ? 'No hay reembolsos libres en el presupuesto de este mes.'
+                  : 'No hay líneas de gasto libres en el presupuesto de este mes.'}
             </ThemedText>
           )}
 
@@ -202,20 +212,26 @@ export const BudgetLinkPicker = ({
                     accessibilityLabel={
                       entry.envelope
                         ? `${entry.name}, variable, gastado ${formatMoney(getEntryActual(entry))} de ${formatMoney(entry.amount)}`
-                        : `${entry.name}, previsto ${formatMoney(entry.amount)}`
+                        : isIncome
+                          ? `${entry.name}, reembolso previsto ${formatMoney(plannedOf(entry.amount))}`
+                          : `${entry.name}, previsto ${formatMoney(entry.amount)}`
                     }
                     accessibilityState={{ selected: active }}
                     testID={`budget-link-option-${entry.id}`}
                     hitSlop={0}
                     onPress={() =>
-                      choose(entry.id, { name: entry.name, plannedAmount: entry.amount, envelope: entry.envelope })
+                      choose(entry.id, {
+                        name: entry.name,
+                        plannedAmount: plannedOf(entry.amount),
+                        envelope: entry.envelope,
+                      })
                     }
                     style={[styles.option, active && { backgroundColor: theme.backgroundSelected }]}>
                     <ThemedText style={styles.optionName}>{entry.name}</ThemedText>
                     <ThemedText type="smallBold" themeColor="textSecondary" style={styles.optionAmount}>
                       {entry.envelope
                         ? `${formatMoney(getEntryActual(entry))} de ${formatMoney(entry.amount)}`
-                        : formatMoney(entry.amount)}
+                        : formatMoney(plannedOf(entry.amount))}
                     </ThemedText>
                     {active && <Feather name="check" size={18} color={theme.primary} />}
                   </AnimatedPressable>

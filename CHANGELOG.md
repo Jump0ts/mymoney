@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
+## [Unreleased]
+
+### Fixed
+- **Ticking a refund line now registers the money you get back.** A refund is a budget line with a negative amount: what another person pays you back for something you pay in full (half of the internet bill, for example). Ticking it only set a mark, so the expense of 40 € showed up in *Movimientos* and in the overview as paid entirely by you, with no +20 € to match. Ticking an unpaid refund of the current or a past month now opens the same sheet as paying a line, titled **Marcar como cobrada**: it offers the **income** categories, proposes the planned amount (without the minus sign, editable if they paid you back a different amount) and, on confirming, creates an **income** movement already linked to the line.
+  - **The refund counts with its own sign in the budget.** The income is positive in *Movimientos*, but the line (and the group and month totals) subtract it as before, so "paid" in the group is 40 − 20 = 20 €.
+  - **Linking from *Movimientos*.** The *Presupuesto* field is now shown for incomes too and lists only the refund lines of the month that have no income yet (without the minus sign), so an income that already exists (the Bizum you got) can be linked to its refund line; an expense still sees only the expense lines. Changing the type of a movement removes the line it was linked to, as they no longer match. A linked income reads "Reembolso de …" for screen readers instead of "Cubre …".
+  - API: `POST` and `PATCH /api/transactions` accept `budgetEntryId` for an **income** when the line is a refund (and the other way round: an income is refused with `400` on an expense line, an expense on a refund line). A refund line takes one income, like an expense line takes one expense (the row lock that serialises parallel requests is the same one; a test fires five at once). A line with linked movements cannot change between expense and refund. `budgetGroupId` (an expense born in a group) is still for expenses only. No migration.
+  - Without income categories the sheet says so and points to *Categorías* (and the same for expense categories when paying a line).
+
 ## [0.5.0] — 2026-11-05 — Beta
 
 > Budget and categories release: envelopes (variable budget lines that take several expenses), any colour for categories and groups, editable categories, and the app's own icon.

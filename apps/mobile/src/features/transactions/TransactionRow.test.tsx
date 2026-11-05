@@ -97,6 +97,19 @@ describe('TransactionRow - linea del presupuesto', () => {
     );
   });
 
+  it('un ingreso enlazado a un reembolso lo dice con otras palabras: no "cubre" la linea, la devuelve', () => {
+    const refund: Transaction = {
+      ...incomeTransaction,
+      budgetEntry: { id: 'r1', name: 'Internet (mitad)', group: { name: 'Hogar', color: '#6C5CE7' } },
+    };
+    render(<TransactionRow transaction={refund} onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+    expect(screen.getByText('Internet (mitad) · Hogar')).toBeTruthy();
+    expect(screen.getByTestId('transaction-row-budget').props.accessibilityLabel).toBe(
+      'Reembolso de Internet (mitad) del presupuesto, grupo Hogar',
+    );
+  });
+
   it('sin enlace no muestra nada del presupuesto', () => {
     render(<TransactionRow transaction={expenseTransaction} onEdit={jest.fn()} onDelete={jest.fn()} />);
     render(

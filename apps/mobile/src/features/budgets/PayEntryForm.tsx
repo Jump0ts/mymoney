@@ -22,6 +22,9 @@ interface PayEntryFormProps {
   // Solo en un sobre: lo gastado hasta ahora. La hoja apunta entonces un gasto nuevo (importe vacio) y muestra cuanto
   // queda del sobre, en vez de proponer el importe previsto.
   spentAmount?: string;
+  // Solo en un reembolso: la hoja registra el ingreso que te devuelven (categorias de ingreso, importe cobrado) en
+  // vez de un gasto. `plannedAmount` llega sin signo.
+  refund?: boolean;
   // Categoria sugerida (la del ultimo pago de esta misma linea); vacia la primera vez.
   defaultCategoryId?: string;
   isSubmitting: boolean;
@@ -36,6 +39,7 @@ export const PayEntryForm = ({
   entryName,
   plannedAmount,
   spentAmount,
+  refund = false,
   defaultCategoryId,
   isSubmitting,
   submitError,
@@ -53,8 +57,15 @@ export const PayEntryForm = ({
     defaultValues: { categoryId: defaultCategoryId ?? '', amount: isEnvelope ? '' : toInputText(plannedAmount) },
   });
 
-  // Solo gastos: la linea de un presupuesto se paga con un gasto.
-  const expenseCategories = useMemo(() => categories?.filter((c) => c.type === 'EXPENSE') ?? [], [categories]);
+  // Una linea de gasto se paga con un gasto y un reembolso se cobra con un ingreso.
+  const paymentType = refund ? 'INCOME' : 'EXPENSE';
+  const paymentCategories = useMemo(
+    () => categories?.filter((c) => c.type === paymentType) ?? [],
+    [categories, paymentType],
+  );
+
+  // Ya cargadas y ninguna del tipo que hace falta (mientras cargan no se avisa de nada).
+  const noCategories = Boolean(categories) && paymentCategories.length === 0;
 
   return (
     <ThemedView style={styles.container}>
@@ -67,7 +78,9 @@ export const PayEntryForm = ({
             <ThemedText type="small" themeColor="textSecondary">
               {isEnvelope
                 ? `Gastado ${formatMoney(spentAmount)} de ${formatMoney(plannedAmount)}`
-                : `Previsto ${formatMoney(plannedAmount)}`}
+                : refund
+                  ? `Reembolso previsto ${formatMoney(plannedAmount)}`
+                  : `Previsto ${formatMoney(plannedAmount)}`}
             </ThemedText>
           </View>
 
@@ -78,7 +91,9 @@ export const PayEntryForm = ({
               render={({ field }) => (
                 <Input
                   testID="pay-entry-amount"
-                  accessibilityLabel={isEnvelope ? 'Importe del gasto en euros' : 'Importe pagado en euros'}
+                  accessibilityLabel={
+                    isEnvelope ? 'Importe del gasto en euros' : refund ? 'Importe recibido en euros' : 'Importe pagado en euros'
+                  }
                   autoFocus={isEnvelope}
                   placeholder="0,00 €"
                   keyboardType="decimal-pad"
@@ -96,26 +111,35 @@ export const PayEntryForm = ({
             <ThemedText type="small" themeColor="textSecondary">
               Categoría
             </ThemedText>
-            <Controller
-              control={control}
-              name="categoryId"
-              render={({ field }) => (
-                <View accessibilityRole="radiogroup" style={styles.chipWrap}>
-                  {expenseCategories.map((category) => (
-                    <AnimatedPressable
-                      key={category.id}
-                      accessibilityRole="radio"
-                      accessibilityLabel={category.name}
-                      accessibilityState={{ selected: field.value === category.id }}
-                      testID={`pay-entry-category-${category.id}`}
-                      onPress={() => field.onChange(category.id)}
-                      style={[styles.chipTouchArea, { opacity: !field.value || field.value === category.id ? 1 : 0.4 }]}>
-                      <CategoryPill category={category} />
-                    </AnimatedPressable>
-                  ))}
-                </View>
-              )}
-            />
+            {noCategories ? (
+              // Sin categorias del tipo que toca no hay nada que elegir: el aviso va solo, no dentro de un grupo vacio.
+              <ThemedText type="small" themeColor="textSecondary">
+                {refund
+                  ? 'No tienes categorías de ingreso: crea una en Categorías para registrar el reembolso.'
+                  : 'No tienes categorías de gasto: crea una en Categorías para registrar el pago.'}
+              </ThemedText>
+            ) : (
+              <Controller
+                control={control}
+                name="categoryId"
+                render={({ field }) => (
+                  <View accessibilityRole="radiogroup" style={styles.chipWrap}>
+                    {paymentCategories.map((category) => (
+                      <AnimatedPressable
+                        key={category.id}
+                        accessibilityRole="radio"
+                        accessibilityLabel={category.name}
+                        accessibilityState={{ selected: field.value === category.id }}
+                        testID={`pay-entry-category-${category.id}`}
+                        onPress={() => field.onChange(category.id)}
+                        style={[styles.chipTouchArea, { opacity: !field.value || field.value === category.id ? 1 : 0.4 }]}>
+                        <CategoryPill category={category} />
+                      </AnimatedPressable>
+                    ))}
+                  </View>
+                )}
+              />
+            )}
             <FieldError message={errors.categoryId?.message} />
           </View>
 
@@ -123,7 +147,7 @@ export const PayEntryForm = ({
 
           <Button
             testID="pay-entry-submit"
-            label={isEnvelope ? 'Añadir gasto' : 'Marcar como pagada'}
+            label={isEnvelope ? 'Añadir gasto' : refund ? 'Marcar como cobrada' : 'Marcar como pagada'}
             loading={isSubmitting}
             onPress={handleSubmit(onSubmit)}
           />

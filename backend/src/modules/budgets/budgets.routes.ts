@@ -469,7 +469,13 @@ budgetsRouter.patch(
         "Esta línea está enlazada a un movimiento: desenlázalo desde Movimientos para marcarla como no pagada",
       );
     }
-    if (nextAmount <= 0 && linkedCount > 0) throw badRequest("Una línea enlazada a un gasto no puede pasar a reembolso");
+    // El signo decide que movimiento cubre la linea (gasto o ingreso): con movimientos enlazados no puede cambiar.
+    if (linkedCount > 0 && nextAmount <= 0 && Number(entry.amount) > 0) {
+      throw badRequest("Una línea enlazada a un gasto no puede pasar a reembolso");
+    }
+    if (linkedCount > 0 && nextAmount > 0 && Number(entry.amount) < 0) {
+      throw badRequest("Un reembolso enlazado a un ingreso no puede pasar a gasto");
+    }
 
     // Un sobre solo recibe gastos: no es un reembolso, no nace de un gasto (esa linea sigue a su gasto) y no se
     // marca como pagado (lo gastado es la suma de sus gastos).

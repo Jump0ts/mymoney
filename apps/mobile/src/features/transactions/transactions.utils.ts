@@ -11,9 +11,9 @@ const baseInput = (values: AddTransactionFormValues): Omit<TransactionInput, 'bu
   occurredAt: values.occurredAt.toISOString(),
 });
 
-// Solo un gasto puede estar enlazado con una linea del presupuesto o salir de un grupo.
-const linkOf = (values: AddTransactionFormValues): string | null =>
-  values.type === 'EXPENSE' ? (values.budgetEntryId ?? null) : null;
+// Un gasto se enlaza con una linea de gasto del presupuesto y un ingreso, con un reembolso (el formulario ya quita el
+// enlace cuando cambia el tipo). Solo un gasto puede salir de un grupo.
+const linkOf = (values: AddTransactionFormValues): string | null => values.budgetEntryId ?? null;
 
 const groupOf = (values: AddTransactionFormValues): string | null =>
   values.type === 'EXPENSE' ? (values.budgetGroupId ?? null) : null;

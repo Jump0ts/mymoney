@@ -27,8 +27,15 @@ describe('toCreateInput', () => {
     expect(toCreateInput({ ...expense, budgetEntryId: undefined })).not.toHaveProperty('budgetEntryId');
   });
 
-  it('un ingreso nunca manda linea del presupuesto', () => {
-    expect(toCreateInput({ ...expense, type: 'INCOME' })).not.toHaveProperty('budgetEntryId');
+  it('un ingreso manda su linea de reembolso: es lo que lo enlaza con el presupuesto', () => {
+    expect(toCreateInput({ ...expense, type: 'INCOME', budgetEntryId: 'refund-1' })).toMatchObject({
+      type: 'INCOME',
+      budgetEntryId: 'refund-1',
+    });
+  });
+
+  it('un ingreso sin linea omite el campo', () => {
+    expect(toCreateInput({ ...expense, type: 'INCOME', budgetEntryId: null })).not.toHaveProperty('budgetEntryId');
   });
 
   it('una descripcion vacia se omite', () => {
@@ -46,8 +53,12 @@ describe('toUpdateInput', () => {
     expect(toUpdateInput({ ...expense, budgetEntryId: undefined })).toHaveProperty('budgetEntryId', null);
   });
 
-  it('si el gasto pasa a ingreso manda null aunque hubiera una linea', () => {
-    expect(toUpdateInput({ ...expense, type: 'INCOME' }).budgetEntryId).toBeNull();
+  it('un ingreso enlazado a un reembolso conserva su linea al guardar (null la quitaria)', () => {
+    expect(toUpdateInput({ ...expense, type: 'INCOME', budgetEntryId: 'refund-1' }).budgetEntryId).toBe('refund-1');
+  });
+
+  it('un ingreso sin linea manda null explicito', () => {
+    expect(toUpdateInput({ ...expense, type: 'INCOME', budgetEntryId: null }).budgetEntryId).toBeNull();
   });
 });
 
