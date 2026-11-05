@@ -23,12 +23,11 @@ export const isEntryLinked = (entry: BudgetEntry): boolean => entry.transactions
 export const isRefundEntry = (entry: BudgetEntry): boolean => Number(entry.amount) < 0;
 
 // Lo "pagado" de una linea es el importe real de sus movimientos enlazados (uno, o la suma de los de un sobre) o, si se
-// marco a mano, su importe previsto. Un sobre sin gastos no ha gastado nada. Un reembolso se cubre con un ingreso
-// (importe positivo), pero en el presupuesto cuenta con el signo de su linea, negativo, como cuando se marca a mano.
+// marco a mano, su importe previsto. Un sobre sin gastos no ha gastado nada. Un reembolso se cubre con un gasto de
+// importe negativo, asi que suma con el mismo signo que su linea.
 export const getEntryActual = (entry: BudgetEntry): number => {
   if (entry.transactions.length > 0) {
-    const total = roundMoney(entry.transactions.reduce((sum, expense) => sum + Number(expense.amount), 0));
-    return isRefundEntry(entry) ? -total : total;
+    return roundMoney(entry.transactions.reduce((sum, expense) => sum + Number(expense.amount), 0));
   }
   return entry.paid && !entry.envelope ? Number(entry.amount) : 0;
 };
@@ -180,8 +179,9 @@ export const canAddExpenseIn = (target: YearMonth, now: YearMonth = getCurrentYe
 export const expenseDateFor = (target: YearMonth, now: YearMonth = getCurrentYearMonth()): string | undefined =>
   compareYearMonth(target, now) >= 0 ? undefined : formatDateKey(new Date(target.year, target.month, 0, 12));
 
-// Marcar como pagada una linea sin enlazar de un mes actual o pasado registra el pago: crea el gasto, o el ingreso si
-// es un reembolso (el dinero que te devuelven tambien tiene que verse en Movimientos). No aplica a un mes futuro (aun
+// Marcar como pagada una linea sin enlazar de un mes actual o pasado registra el pago: crea el gasto, o el reembolso
+// (un gasto de importe negativo) si la linea lo es: el dinero que te devuelven tambien tiene que verse en Movimientos
+// y restar de su categoria. No aplica a un mes futuro (aun
 // no se ha pagado nada), a lo que ya esta pagado (ahi solo se desmarca) ni a un sobre (ahi se apuntan gastos, no se
 // marca).
 export const shouldRegisterPayment = (
@@ -210,7 +210,8 @@ export type PayEntryParams = {
   // `amount` es lo previsto para todo el sobre.
   envelope?: string;
   spent?: string;
-  // Solo en un reembolso: '1'. La hoja registra entonces un ingreso, y `amount` viaja sin signo (lo que te devuelven).
+  // Solo en un reembolso: '1'. La hoja registra entonces un gasto de importe negativo, y `amount` viaja sin signo (lo
+  // que te devuelven).
   refund?: string;
 };
 
@@ -231,15 +232,16 @@ export const payEntryParams = (
   };
 };
 
-// El movimiento que crea la hoja de pago: un gasto, o un ingreso si la linea es un reembolso. Va enlazado a la linea,
-// con su nombre como descripcion y la fecha de hoy (o el ultimo dia del mes si la linea es de un mes pasado).
+// El movimiento que crea la hoja de pago: un gasto o, si la linea es un reembolso, un gasto de importe negativo. Va
+// enlazado a la linea, con su nombre como descripcion y la fecha de hoy (o el ultimo dia del mes si la linea es de un
+// mes pasado).
 export const toPaymentInput = (
   params: Pick<PayEntryParams, 'entryId' | 'name' | 'date' | 'refund'>,
   values: { categoryId: string; amount: string },
 ): TransactionInput => ({
-  type: params.refund ? 'INCOME' : 'EXPENSE',
+  type: 'EXPENSE',
   categoryId: values.categoryId,
-  amount: parseAmountInput(values.amount) ?? 0,
+  amount: (parseAmountInput(values.amount) ?? 0) * (params.refund ? -1 : 1),
   description: params.name,
   occurredAt: ((params.date && parseDateKey(params.date)) || new Date()).toISOString(),
   budgetEntryId: params.entryId,

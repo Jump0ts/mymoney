@@ -13,21 +13,21 @@ export const transactionInclude = {
   },
 } satisfies Prisma.TransactionInclude;
 
-export const GROUP_ONLY_EXPENSE = "Solo un gasto puede salir de un grupo del presupuesto";
+export const LINK_ONLY_EXPENSE = "Solo un gasto o un reembolso se puede enlazar con una línea del presupuesto";
 
-// El signo de la linea decide que movimiento la cubre: una linea de gasto (importe positivo) la paga un gasto y un
-// reembolso (importe negativo) lo cubre un ingreso, que es el dinero que devuelve la otra persona.
-export const coversEntry = (type: "EXPENSE" | "INCOME", entryAmount: number | Prisma.Decimal): boolean =>
-  type === "EXPENSE" ? Number(entryAmount) > 0 : Number(entryAmount) < 0;
+// El signo del movimiento tiene que ser el de la linea: un gasto (importe positivo) paga una linea de gasto y un
+// reembolso (importe negativo, lo que te devuelve otra persona) cubre una linea de reembolso.
+export const coversEntry = (amount: number | Prisma.Decimal, entryAmount: number | Prisma.Decimal): boolean =>
+  Number(amount) > 0 ? Number(entryAmount) > 0 : Number(entryAmount) < 0;
 
-// Una linea admite un movimiento si es del usuario y su tipo encaja con el de la linea (un gasto con una linea de
-// gasto, un ingreso con un reembolso). Una linea normal admite uno solo; un sobre, los que sean.
-// `ownTransactionId` permite conservar el enlace propio. Devuelve la linea para que quien enlaza sepa si es un sobre.
+// Una linea admite un movimiento si es del usuario y su signo encaja con el de la linea. Una linea normal admite uno
+// solo; un sobre, los que sean. `ownTransactionId` permite conservar el enlace propio. Devuelve la linea para que
+// quien enlaza sepa si es un sobre.
 export const assertLinkable = async (
   db: Db,
   userId: string,
   budgetEntryId: string,
-  type: "EXPENSE" | "INCOME",
+  amount: number,
   ownTransactionId?: string,
 ) => {
   // Bloquea la linea hasta el final de la transaccion: dos enlaces a la vez a una linea normal se atienden de
@@ -36,11 +36,11 @@ export const assertLinkable = async (
 
   const entry = await db.budgetEntry.findFirst({ where: { id: budgetEntryId, userId } });
   if (!entry) throw notFound("Línea del presupuesto no encontrada");
-  if (!coversEntry(type, entry.amount)) {
+  if (!coversEntry(amount, entry.amount)) {
     throw badRequest(
-      type === "EXPENSE"
+      amount > 0
         ? "Un reembolso no se enlaza con un gasto"
-        : "Un ingreso solo se enlaza con una línea de reembolso",
+        : "Un reembolso solo se enlaza con una línea de reembolso",
     );
   }
   if (!entry.envelope) {

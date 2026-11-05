@@ -5,6 +5,7 @@ import { requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { badRequest, notFound } from "../../utils/errors.js";
 import {
+  INCOME_POSITIVE,
   createTransactionSchema,
   listTransactionsQuerySchema,
   summaryQuerySchema,
@@ -14,7 +15,7 @@ import type { MonthlyBreakdownRow } from "./transactions.types.js";
 import { ensureMonth, findOwnedGroup } from "../budgets/budgets.service.js";
 import {
   LINK_EXCLUSIVE,
-  GROUP_ONLY_EXPENSE,
+  LINK_ONLY_EXPENSE,
   assertLinkable,
   coversEntry,
   createEntryForExpense,
@@ -154,7 +155,7 @@ transactionsRouter.post(
       where: { id: body.categoryId, userId },
     });
     if (!category) throw notFound("Categoría no encontrada");
-    if (budgetGroupId && body.type !== "EXPENSE") throw badRequest(GROUP_ONLY_EXPENSE);
+    if ((budgetEntryId || budgetGroupId) && body.type !== "EXPENSE") throw badRequest(LINK_ONLY_EXPENSE);
     if (budgetEntryId && budgetGroupId) throw badRequest(LINK_EXCLUSIVE);
 
     // Con grupo, el gasto crea su propia linea puntual: el mes se guarda antes (puede generarse desde la plantilla).
@@ -176,7 +177,7 @@ transactionsRouter.post(
         });
         linkId = entry.id;
       } else if (linkId) {
-        linkedToEnvelope = (await assertLinkable(db, userId, linkId, body.type)).envelope;
+        linkedToEnvelope = (await assertLinkable(db, userId, linkId, body.amount)).envelope;
       }
       const created = await db.transaction.create({
         data: { ...body, userId, budgetEntryId: linkId },
@@ -208,17 +209,24 @@ transactionsRouter.patch(
     const description = body.description !== undefined ? body.description : existing.description;
     const occurredAt = body.occurredAt ?? existing.occurredAt;
     if (budgetGroupId && requestedLink) throw badRequest(LINK_EXCLUSIVE);
-    if (budgetGroupId && type !== "EXPENSE") throw badRequest(GROUP_ONLY_EXPENSE);
+    if (budgetGroupId && type !== "EXPENSE") throw badRequest(LINK_ONLY_EXPENSE);
+    if (type === "INCOME" && amount <= 0) throw badRequest(INCOME_POSITIVE);
 
     const category = await prisma.category.findFirst({
       where: { id: body.categoryId ?? existing.categoryId, userId },
     });
     if (!category) throw notFound("Categoría no encontrada");
 
-    // undefined = no tocar el enlace; null = quitarlo. Si el movimiento cambia de tipo y ya no encaja con su
-    // linea (un gasto que pasa a ingreso, o al reves), pierde el enlace; un enlace pedido se valida al guardar.
+    // undefined = no tocar el enlace; null = quitarlo. Un ingreso no puede estar enlazado: si el gasto pasa a
+    // ingreso, pierde el enlace; pedir a la vez un enlace y un ingreso es un error. Si el importe cambia de signo
+    // (un gasto que pasa a reembolso, o al reves) ya no encaja con su linea y tambien la pierde; un enlace pedido se
+    // valida al guardar.
     let nextLink = requestedLink !== undefined ? requestedLink : existing.budgetEntryId;
-    if (requestedLink === undefined && existing.budgetEntry && !coversEntry(type, existing.budgetEntry.amount)) {
+    if (nextLink && type !== "EXPENSE") {
+      if (requestedLink) throw badRequest(LINK_ONLY_EXPENSE);
+      nextLink = null;
+    }
+    if (nextLink && requestedLink === undefined && existing.budgetEntry && !coversEntry(amount, existing.budgetEntry.amount)) {
       nextLink = null;
     }
 
@@ -247,7 +255,7 @@ transactionsRouter.patch(
         });
         linkId = entry.id;
       } else if (linkId && linkId !== existing.budgetEntryId) {
-        linkedToEnvelope = (await assertLinkable(db, userId, linkId, type, existing.id)).envelope;
+        linkedToEnvelope = (await assertLinkable(db, userId, linkId, amount, existing.id)).envelope;
       }
 
       await db.transaction.update({

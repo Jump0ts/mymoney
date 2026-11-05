@@ -22,8 +22,8 @@ interface PayEntryFormProps {
   // Solo en un sobre: lo gastado hasta ahora. La hoja apunta entonces un gasto nuevo (importe vacio) y muestra cuanto
   // queda del sobre, en vez de proponer el importe previsto.
   spentAmount?: string;
-  // Solo en un reembolso: la hoja registra el ingreso que te devuelven (categorias de ingreso, importe cobrado) en
-  // vez de un gasto. `plannedAmount` llega sin signo.
+  // Solo en un reembolso: la hoja registra lo que te devuelven (importe cobrado) en vez de un pago. Va en una
+  // categoria de gasto, la del gasto que compensa. `plannedAmount` llega sin signo.
   refund?: boolean;
   // Categoria sugerida (la del ultimo pago de esta misma linea); vacia la primera vez.
   defaultCategoryId?: string;
@@ -57,12 +57,8 @@ export const PayEntryForm = ({
     defaultValues: { categoryId: defaultCategoryId ?? '', amount: isEnvelope ? '' : toInputText(plannedAmount) },
   });
 
-  // Una linea de gasto se paga con un gasto y un reembolso se cobra con un ingreso.
-  const paymentType = refund ? 'INCOME' : 'EXPENSE';
-  const paymentCategories = useMemo(
-    () => categories?.filter((c) => c.type === paymentType) ?? [],
-    [categories, paymentType],
-  );
+  // Un pago y un reembolso van en categorias de gasto: el reembolso resta de la del gasto que compensa.
+  const paymentCategories = useMemo(() => categories?.filter((c) => c.type === 'EXPENSE') ?? [], [categories]);
 
   // Ya cargadas y ninguna del tipo que hace falta (mientras cargan no se avisa de nada).
   const noCategories = Boolean(categories) && paymentCategories.length === 0;
@@ -115,7 +111,7 @@ export const PayEntryForm = ({
               // Sin categorias del tipo que toca no hay nada que elegir: el aviso va solo, no dentro de un grupo vacio.
               <ThemedText type="small" themeColor="textSecondary">
                 {refund
-                  ? 'No tienes categorías de ingreso: crea una en Categorías para registrar el reembolso.'
+                  ? 'No tienes categorías de gasto: crea una en Categorías para registrar el reembolso.'
                   : 'No tienes categorías de gasto: crea una en Categorías para registrar el pago.'}
               </ThemedText>
             ) : (

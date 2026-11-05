@@ -97,9 +97,10 @@ describe('TransactionRow - linea del presupuesto', () => {
     );
   });
 
-  it('un ingreso enlazado a un reembolso lo dice con otras palabras: no "cubre" la linea, la devuelve', () => {
+  it('un reembolso (gasto de importe negativo) enlazado lo dice con otras palabras: no "cubre" la linea, la devuelve', () => {
     const refund: Transaction = {
-      ...incomeTransaction,
+      ...expenseTransaction,
+      amount: '-25',
       budgetEntry: { id: 'r1', name: 'Internet (mitad)', group: { name: 'Hogar', color: '#6C5CE7' } },
     };
     render(<TransactionRow transaction={refund} onEdit={jest.fn()} onDelete={jest.fn()} />);
@@ -136,5 +137,31 @@ describe('TransactionRow - pantallas estrechas', () => {
     expect(StyleSheet.flatten(styles.date).flexShrink).toBe(0);
     // minWidth 0 deja que la informacion encoja en vez de empujar el importe y los botones.
     expect(info.minWidth).toBe(0);
+  });
+});
+
+describe('TransactionRow - reembolso', () => {
+  const refund: Transaction = { ...expenseTransaction, id: 'tx-refund', amount: '-25' };
+  const normalized = (text: string) => text.replace(/\u00a0/g, ' ');
+
+  it('se ve en positivo y en el color de los ingresos, sin el signo menos del gasto', () => {
+    render(<TransactionRow transaction={refund} onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+    expect(screen.getByText(/^\+/)).toBeTruthy();
+    expect(screen.queryByText(/^-/)).toBeNull();
+    expect(normalized(screen.getByLabelText(/^Reembolso de 25/).props.accessibilityLabel)).toBe('Reembolso de 25,00 €');
+  });
+
+  it('sigue en su categoria de gasto', () => {
+    render(<TransactionRow transaction={refund} onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+    expect(screen.getByText(expenseTransaction.category.name)).toBeTruthy();
+  });
+
+  it('un gasto normal sigue con su signo menos y sin etiqueta de reembolso', () => {
+    render(<TransactionRow transaction={expenseTransaction} onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+    expect(screen.getByText(/^-/)).toBeTruthy();
+    expect(screen.queryByLabelText(/^Reembolso de/)).toBeNull();
   });
 });

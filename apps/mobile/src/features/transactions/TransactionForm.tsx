@@ -20,6 +20,10 @@ import { BudgetLinkPicker } from './BudgetLinkPicker';
 import { addTransactionSchema, type AddTransactionFormValues } from './transactions.schema';
 import { styles } from './TransactionForm.styles';
 
+type TransactionKind = 'EXPENSE' | 'INCOME' | 'REFUND';
+
+const KIND_LABELS: Record<TransactionKind, string> = { EXPENSE: 'Gasto', INCOME: 'Ingreso', REFUND: 'Reembolso' };
+
 interface TransactionFormProps {
   defaultValues?: AddTransactionFormValues;
   submitLabel: string;
@@ -77,6 +81,9 @@ export const TransactionForm = ({
   });
 
   const type = watch('type');
+  const refund = Boolean(watch('refund'));
+  // Gasto, ingreso o reembolso (un gasto de importe negativo: lo que te devuelven por un gasto).
+  const kind: TransactionKind = type === 'INCOME' ? 'INCOME' : refund ? 'REFUND' : 'EXPENSE';
   const categoryId = watch('categoryId');
   const occurredAt = watch('occurredAt');
   const budgetEntryId = watch('budgetEntryId');
@@ -91,43 +98,40 @@ export const TransactionForm = ({
     <ThemedView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Controller
-          control={control}
-          name="type"
-          render={({ field }) => (
-            <View accessibilityRole="radiogroup" style={styles.segmentRow}>
-              {(['EXPENSE', 'INCOME'] as const).map((option) => {
-                const active = field.value === option;
-                return (
-                  <AnimatedPressable
-                    key={option}
-                    accessibilityRole="radio"
-                    accessibilityLabel={option === 'EXPENSE' ? 'Gasto' : 'Ingreso'}
-                    accessibilityState={{ selected: active }}
-                    testID={`transaction-type-${option}`}
-                    onPress={() => {
-                      field.onChange(option);
-                      setValue('categoryId', '');
-                      // Otro tipo ya no encaja con la linea (un gasto con las de gasto, un ingreso con las de
-                      // reembolso) ni con el grupo: se quitan. Volver a tocar el mismo tipo no cambia nada.
-                      if (option !== field.value) {
-                        setValue('budgetEntryId', null);
-                        setValue('budgetGroupId', null);
-                      }
-                    }}
-                    style={[
-                      styles.segment,
-                      { backgroundColor: active ? theme.primary : theme.backgroundElement },
-                    ]}>
-                    <ThemedText style={{ color: active ? theme.primaryText : theme.text }}>
-                      {option === 'EXPENSE' ? 'Gasto' : 'Ingreso'}
-                    </ThemedText>
-                  </AnimatedPressable>
-                );
-              })}
-            </View>
-          )}
-        />
+        <View accessibilityRole="radiogroup" style={styles.segmentRow}>
+          {(['EXPENSE', 'INCOME', 'REFUND'] as const).map((option) => {
+            const active = kind === option;
+            return (
+              <AnimatedPressable
+                key={option}
+                accessibilityRole="radio"
+                accessibilityLabel={KIND_LABELS[option]}
+                accessibilityState={{ selected: active }}
+                testID={`transaction-type-${option}`}
+                onPress={() => {
+                  if (option === kind) return;
+                  const nextType = option === 'INCOME' ? 'INCOME' : 'EXPENSE';
+                  // Las categorias de gasto sirven para un gasto y un reembolso; un ingreso tiene las suyas.
+                  if (nextType !== type) setValue('categoryId', '');
+                  setValue('type', nextType);
+                  setValue('refund', option === 'REFUND');
+                  // La linea elegida ya no encaja (un gasto con las de gasto, un reembolso con las de reembolso) y un
+                  // ingreso no cubre ninguna ni sale de un grupo. Un grupo vale para un gasto y para un reembolso.
+                  setValue('budgetEntryId', null);
+                  if (nextType === 'INCOME') setValue('budgetGroupId', null);
+                }}
+                style={[styles.segment, { backgroundColor: active ? theme.primary : theme.backgroundElement }]}>
+                <ThemedText style={{ color: active ? theme.primaryText : theme.text }}>{KIND_LABELS[option]}</ThemedText>
+              </AnimatedPressable>
+            );
+          })}
+        </View>
+        {kind === 'REFUND' && (
+          <ThemedText type="small" themeColor="textSecondary">
+            Lo que te devuelven por un gasto (la mitad de una cena): resta de su categoría en los resúmenes y no cuenta
+            como ingreso. Elige la categoría del gasto.
+          </ThemedText>
+        )}
 
         <Input
           testID="transaction-amount-input"
@@ -211,46 +215,43 @@ export const TransactionForm = ({
           )}
         </View>
 
-        <View style={styles.field}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Presupuesto
-          </ThemedText>
-          <BudgetLinkPicker
-            type={type}
-            month={{ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 }}
-            value={budgetEntryId ?? null}
-            groupValue={budgetGroupId ?? null}
-            // Un ingreso solo cubre un reembolso ya existente: no crea lineas nuevas desde un grupo.
-            onGroupChange={
-              type === 'EXPENSE'
-                ? (groupId) => {
-                    // Un grupo crea una linea nueva: sustituye a enlazar una que ya existe.
-                    setValue('budgetEntryId', null, { shouldDirty: true });
-                    setValue('budgetGroupId', groupId, { shouldDirty: true });
-                  }
-                : undefined
-            }
-            ownLineId={ownBudgetLineId}
-            onChange={(id, line) => {
-              setValue('budgetEntryId', id, { shouldDirty: true });
-              setValue('budgetGroupId', null, { shouldDirty: true });
-              // Un sobre recibe muchos gastos: su importe es el de todos juntos y su nombre no describe esta compra.
-              if (!id || !line || line.envelope) return;
-              // Enlazar rellena lo que este vacio con lo de la linea del presupuesto (importe previsto y nombre
-              // como descripcion); lo que ya este escrito no se toca.
-              const planned = Number(line.plannedAmount);
-              if (amountText.trim() === '' && planned > 0) {
-                setAmountText(String(planned).replace('.', ','));
-                setValue('amount', planned, { shouldValidate: false });
-              }
-              if ((getValues('description') ?? '').trim() === '') {
-                setValue('description', line.name, { shouldDirty: true });
-              }
-            }}
-            ownTransactionId={ownTransactionId}
-            currentLabel={linkedBudgetLabel}
-          />
-        </View>
+        {type === 'EXPENSE' && (
+          <View style={styles.field}>
+            <ThemedText type="small" themeColor="textSecondary">
+              Presupuesto
+            </ThemedText>
+            <BudgetLinkPicker
+              refund={refund}
+              month={{ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 }}
+              value={budgetEntryId ?? null}
+              groupValue={budgetGroupId ?? null}
+              onGroupChange={(groupId) => {
+                // Un grupo crea una linea nueva: sustituye a enlazar una que ya existe.
+                setValue('budgetEntryId', null, { shouldDirty: true });
+                setValue('budgetGroupId', groupId, { shouldDirty: true });
+              }}
+              ownLineId={ownBudgetLineId}
+              onChange={(id, line) => {
+                setValue('budgetEntryId', id, { shouldDirty: true });
+                setValue('budgetGroupId', null, { shouldDirty: true });
+                // Un sobre recibe muchos gastos: su importe es el de todos juntos y su nombre no describe esta compra.
+                if (!id || !line || line.envelope) return;
+                // Enlazar rellena lo que este vacio con lo de la linea del presupuesto (importe previsto y nombre
+                // como descripcion); lo que ya este escrito no se toca.
+                const planned = Number(line.plannedAmount);
+                if (amountText.trim() === '' && planned > 0) {
+                  setAmountText(String(planned).replace('.', ','));
+                  setValue('amount', planned, { shouldValidate: false });
+                }
+                if ((getValues('description') ?? '').trim() === '') {
+                  setValue('description', line.name, { shouldDirty: true });
+                }
+              }}
+              ownTransactionId={ownTransactionId}
+              currentLabel={linkedBudgetLabel}
+            />
+          </View>
+        )}
 
         <Controller
           control={control}

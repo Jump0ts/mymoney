@@ -17,10 +17,11 @@ export const MonthlyBarChart = ({ data, height = 140, selectedMonth, onSelectMon
   const theme = useTheme();
 
   const months = Array.from(new Set(data.map((d) => d.month))).sort();
+  // Un mes con mas reembolsos que gastos suma en negativo: la barra se queda en 0 en vez de salirse.
   const rows = months.map((month) => ({
     month,
-    income: data.find((d) => d.month === month && d.type === 'INCOME')?.total ?? 0,
-    expense: data.find((d) => d.month === month && d.type === 'EXPENSE')?.total ?? 0,
+    income: Math.max(0, data.find((d) => d.month === month && d.type === 'INCOME')?.total ?? 0),
+    expense: Math.max(0, data.find((d) => d.month === month && d.type === 'EXPENSE')?.total ?? 0),
   }));
 
   const max = Math.max(1, ...rows.flatMap((r) => [r.income, r.expense]));
@@ -45,12 +46,14 @@ export const MonthlyBarChart = ({ data, height = 140, selectedMonth, onSelectMon
           <>
             <View style={styles.bars}>
               <View
+                testID={`monthly-bar-income-${row.month}`}
                 style={[
                   styles.bar,
                   { height: `${(row.income / max) * 100}%`, backgroundColor: theme.income, opacity: dimmed ? 0.4 : 1 },
                 ]}
               />
               <View
+                testID={`monthly-bar-expense-${row.month}`}
                 style={[
                   styles.bar,
                   { height: `${(row.expense / max) * 100}%`, backgroundColor: theme.expense, opacity: dimmed ? 0.4 : 1 },

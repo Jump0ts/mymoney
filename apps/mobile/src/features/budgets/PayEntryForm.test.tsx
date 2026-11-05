@@ -189,13 +189,13 @@ describe('PayEntryForm (reembolso)', () => {
     expect(screen.getByTestId('pay-entry-amount').props.accessibilityLabel).toBe('Importe recibido en euros');
   });
 
-  it('ofrece solo categorias de ingreso: el reembolso es dinero que entra', () => {
+  it('ofrece categorias de gasto: el reembolso resta de la del gasto que compensa', () => {
     renderRefund();
 
-    expect(screen.getByTestId('pay-entry-category-cat-nomina')).toBeTruthy();
-    expect(screen.getByTestId('pay-entry-category-cat-bizum')).toBeTruthy();
-    expect(screen.queryByTestId('pay-entry-category-cat-ocio')).toBeNull();
-    expect(screen.queryByTestId('pay-entry-category-cat-casa')).toBeNull();
+    expect(screen.getByTestId('pay-entry-category-cat-ocio')).toBeTruthy();
+    expect(screen.getByTestId('pay-entry-category-cat-casa')).toBeTruthy();
+    expect(screen.queryByTestId('pay-entry-category-cat-nomina')).toBeNull();
+    expect(screen.queryByTestId('pay-entry-category-cat-bizum')).toBeNull();
   });
 
   it('el boton dice "Marcar como cobrada"', () => {
@@ -206,17 +206,17 @@ describe('PayEntryForm (reembolso)', () => {
   });
 
   it('con la categoria sugerida llega elegida y confirmar manda categoria e importe', async () => {
-    const { onSubmit } = renderRefund({ defaultCategoryId: 'cat-bizum' });
+    const { onSubmit } = renderRefund({ defaultCategoryId: 'cat-casa' });
 
-    expect(screen.getByTestId('pay-entry-category-cat-bizum').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('pay-entry-category-cat-casa').props.accessibilityState.selected).toBe(true);
     submit();
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0]).toEqual({ categoryId: 'cat-bizum', amount: '20' });
+    expect(onSubmit.mock.calls[0][0]).toEqual({ categoryId: 'cat-casa', amount: '20' });
   });
 
   it('se puede corregir el importe si te devolvieron otra cantidad', async () => {
-    const { onSubmit } = renderRefund({ defaultCategoryId: 'cat-bizum' });
+    const { onSubmit } = renderRefund({ defaultCategoryId: 'cat-casa' });
 
     fireEvent.changeText(screen.getByTestId('pay-entry-amount'), '18,50');
     submit();
@@ -234,11 +234,11 @@ describe('PayEntryForm (reembolso)', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('sin categorias de ingreso lo explica y manda crear una', () => {
-    mockCategoryData = mockCategories.filter((c) => c.type === 'EXPENSE');
+  it('sin categorias de gasto lo explica y manda crear una', () => {
+    mockCategoryData = mockCategories.filter((c) => c.type === 'INCOME');
     renderRefund();
 
-    expect(screen.getByText(/No tienes categorías de ingreso/)).toBeTruthy();
+    expect(screen.getByText(/No tienes categorías de gasto: crea una en Categorías para registrar el reembolso/)).toBeTruthy();
     // El aviso va solo: un grupo de opciones vacio lo leeria el lector de pantalla como "grupo de radio" sin nada.
     expect(screen.queryByRole('radiogroup')).toBeNull();
   });

@@ -58,26 +58,33 @@ describe('getEntryActual', () => {
     expect(getEntryActual(fixed('a', '-50.00', true))).toBe(-50);
   });
 
-  describe('reembolso cubierto por un ingreso', () => {
-    const income = (amount: string) => ({ id: 'in1', amount, occurredAt: '2026-11-02T10:00:00.000Z' });
+  describe('reembolso cubierto por un gasto de importe negativo', () => {
+    const movement = (amount: string) => ({ id: 'm1', amount, occurredAt: '2026-11-02T10:00:00.000Z' });
 
-    it('cuenta con el signo de la linea (negativo) aunque el ingreso sea positivo', () => {
-      expect(getEntryActual({ ...fixed('r', '-20.00', true), transactions: [income('20.00')] })).toBe(-20);
+    it('suma con el signo de su linea: un reembolso de 20 cuenta -20', () => {
+      expect(getEntryActual({ ...fixed('r', '-20.00', true), transactions: [movement('-20.00')] })).toBe(-20);
     });
 
     it('usa lo que se cobro de verdad, no lo previsto', () => {
-      expect(getEntryActual({ ...fixed('r', '-20.00', true), transactions: [income('18.50')] })).toBe(-18.5);
+      expect(getEntryActual({ ...fixed('r', '-20.00', true), transactions: [movement('-18.50')] })).toBe(-18.5);
     });
 
     it('en un grupo resta lo cobrado del total pagado: el gasto de 40 y el reembolso de 20 dejan 20', () => {
-      const bill = { ...fixed('internet', '40.00', true), transactions: [income('40.00')] };
-      const refund = { ...fixed('mitad', '-20.00', true), transactions: [income('20.00')] };
+      const bill = { ...fixed('internet', '40.00', true), transactions: [movement('40.00')] };
+      const refund = { ...fixed('mitad', '-20.00', true), transactions: [movement('-20.00')] };
 
       expect(getGroupTotals([bill, refund])).toEqual({ planned: 20, paid: 20 });
     });
 
+    it('la cena de 50 con 25 de vuelta deja 25', () => {
+      const dinner = { ...fixed('cena', '50.00', true), transactions: [movement('50.00')] };
+      const back = { ...fixed('cena-mitad', '-25.00', true), transactions: [movement('-25.00')] };
+
+      expect(getGroupTotals([dinner, back]).paid).toBe(25);
+    });
+
     it('un gasto enlazado sigue contando en positivo', () => {
-      expect(getEntryActual({ ...fixed('g', '40.00', true), transactions: [income('38.00')] })).toBe(38);
+      expect(getEntryActual({ ...fixed('g', '40.00', true), transactions: [movement('38.00')] })).toBe(38);
     });
   });
 });
@@ -611,16 +618,22 @@ describe('toPaymentInput', () => {
     expect(input).not.toHaveProperty('budgetGroupId');
   });
 
-  it('en un reembolso crea un ingreso enlazado a la linea', () => {
-    const input = toPaymentInput({ entryId: 'r1', name: 'Internet (mitad)', refund: '1' }, { categoryId: 'cat-bizum', amount: '20' });
+  it('en un reembolso crea un gasto de importe negativo enlazado a la linea', () => {
+    const input = toPaymentInput({ entryId: 'r1', name: 'Internet (mitad)', refund: '1' }, { categoryId: 'cat-casa', amount: '20' });
 
     expect(input).toMatchObject({
-      type: 'INCOME',
-      categoryId: 'cat-bizum',
-      amount: 20,
+      type: 'EXPENSE',
+      categoryId: 'cat-casa',
+      amount: -20,
       description: 'Internet (mitad)',
       budgetEntryId: 'r1',
     });
+  });
+
+  it('un reembolso con decimales conserva el importe corregido, en negativo', () => {
+    const input = toPaymentInput({ entryId: 'r1', name: 'Cena (mitad)', refund: '1' }, { categoryId: 'cat-ocio', amount: '18,50' });
+
+    expect(input.amount).toBe(-18.5);
   });
 
   it('sin fecha usa ahora', () => {
