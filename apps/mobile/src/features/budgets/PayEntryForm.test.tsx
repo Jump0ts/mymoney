@@ -118,3 +118,52 @@ describe('PayEntryForm', () => {
     expect(screen.getByText('La línea ya está pagada')).toBeTruthy();
   });
 });
+
+describe('PayEntryForm (sobre)', () => {
+  const envelopeProps = { entryName: 'Supermercado', plannedAmount: '300.00', spentAmount: '137.5' };
+
+  it('apunta un gasto nuevo: importe vacio, lo gastado y lo previsto a la vista', () => {
+    renderForm(envelopeProps);
+
+    expect(screen.getByRole('header', { name: 'Supermercado' })).toBeTruthy();
+    expect(screen.getByText('Gastado 137,50 € de 300,00 €')).toBeTruthy();
+    expect(screen.queryByText(/Previsto/)).toBeNull();
+    // No se propone el importe del sobre entero: cada compra es un gasto distinto.
+    expect(screen.getByTestId('pay-entry-amount').props.value).toBe('');
+    expect(screen.getByLabelText('Importe del gasto en euros')).toBeTruthy();
+  });
+
+  it('el boton dice "Añadir gasto" en vez de "Marcar como pagada"', () => {
+    renderForm(envelopeProps);
+
+    expect(screen.getByText('Añadir gasto')).toBeTruthy();
+    expect(screen.queryByText('Marcar como pagada')).toBeNull();
+  });
+
+  it('sin importe no deja enviar', async () => {
+    const { onSubmit } = renderForm({ ...envelopeProps, defaultCategoryId: 'cat-casa' });
+
+    submit();
+
+    expect(await screen.findByText('El importe es obligatorio')).toBeTruthy();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('envia el importe escrito y la categoria sugerida', async () => {
+    const { onSubmit } = renderForm({ ...envelopeProps, defaultCategoryId: 'cat-casa' });
+
+    fireEvent.changeText(screen.getByTestId('pay-entry-amount'), '32,50');
+    submit();
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toEqual({ categoryId: 'cat-casa', amount: '32,50' });
+  });
+
+  it('una linea normal sigue proponiendo su importe y su boton de siempre', () => {
+    renderForm();
+
+    expect(screen.getByTestId('pay-entry-amount').props.value).toBe('21,99');
+    expect(screen.getByText('Marcar como pagada')).toBeTruthy();
+    expect(screen.queryByText(/Gastado/)).toBeNull();
+  });
+});

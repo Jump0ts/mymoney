@@ -228,7 +228,8 @@ export const TransactionForm = ({
               onChange={(id, line) => {
                 setValue('budgetEntryId', id, { shouldDirty: true });
                 setValue('budgetGroupId', null, { shouldDirty: true });
-                if (!id || !line) return;
+                // Un sobre recibe muchos gastos: su importe es el de todos juntos y su nombre no describe esta compra.
+                if (!id || !line || line.envelope) return;
                 // Enlazar rellena lo que este vacio con lo de la linea del presupuesto (importe previsto y nombre
                 // como descripcion); lo que ya este escrito no se toca.
                 const planned = Number(line.plannedAmount);

@@ -11,13 +11,15 @@ import { ThemedText } from '@/components/themed-text';
 import { ApiError } from '@/lib/api';
 import { confirmAsync } from '@/utils/alert';
 import { budgetLineSchema, type BudgetLineFormValues } from './budgets.schema';
-import { LINE_TYPE_OPTIONS } from './budgets.constants';
-import type { BudgetScope } from './budgets.types';
+import { ENVELOPE_HINT, LINE_TYPE_OPTIONS } from './budgets.constants';
+import type { BudgetLineType, BudgetScope } from './budgets.types';
 import { useReportDirty } from './useEditGuard';
 import { styles } from './BudgetLineForm.styles';
 
 interface BudgetLineFormProps {
   defaultValues: BudgetLineFormValues;
+  // Tipos de linea que se pueden elegir (por defecto todos).
+  lineTypeOptions?: SegmentOption<BudgetLineType>[];
   // null = sin selector de alcance (la linea no esta en la plantilla).
   scopeOptions: SegmentOption<BudgetScope>[] | null;
   submitLabel: string;
@@ -31,6 +33,7 @@ const messageOf = (error: unknown) => (error instanceof ApiError ? error.message
 
 export const BudgetLineForm = ({
   defaultValues,
+  lineTypeOptions = LINE_TYPE_OPTIONS,
   scopeOptions,
   submitLabel,
   onSubmit,
@@ -49,6 +52,7 @@ export const BudgetLineForm = ({
     defaultValues,
   });
   const scope = watch('scope');
+  const lineType = watch('lineType');
   useReportDirty(isDirty);
   // Con una peticion en curso no se puede cancelar, borrar ni volver a enviar.
   const busy = isSubmitting || deleting;
@@ -122,12 +126,17 @@ export const BudgetLineForm = ({
         render={({ field }) => (
           <SegmentedControl
             accessibilityLabel="Tipo de línea"
-            options={LINE_TYPE_OPTIONS}
+            options={lineTypeOptions}
             value={field.value}
             onChange={field.onChange}
           />
         )}
       />
+      {lineType === 'ENVELOPE' && (
+        <ThemedText type="small" themeColor="textSecondary">
+          {ENVELOPE_HINT}
+        </ThemedText>
+      )}
 
       <Controller
         control={control}

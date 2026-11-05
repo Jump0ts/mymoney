@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
+## [0.5.0] — 2026-11-05 — Beta
+
+> Budget and categories release: envelopes (variable budget lines that take several expenses), any colour for categories and groups, editable categories, and the app's own icon.
+
+### Added
+- **Envelopes: a budget line that takes several expenses.** A line such as *Supermercado* or *Gasolina* is not paid in one go: it is spent in many purchases over the month, and until now a line could be linked to only one expense, so the budget said "paid" after the first purchase and ignored the rest. A line can now be of type **Variable** (new option next to *Gasto* and *Reembolso* in the line form, with a short explanation): its amount is what you plan to spend in total, you can link **as many expenses as you want** to it, and the row shows what you have spent, what is left and a bar (*"Quedan 190,00 € de 300,00 €"*, or *"Te pasas 5,00 €"* in the expense colour when you go over).
+  - **Adding an expense to an envelope.** Tapping the row (current or past month) opens the same sheet as paying a line, titled **Añadir gasto**: the amount starts empty (each purchase is a different amount), it shows what has been spent so far, and the category is the one of the last expense of that line. In a future month a tap just explains that nothing has been spent yet.
+  - **Linking from *Movimientos*.** The *Presupuesto* field lists an envelope even when it already has expenses, with *"gastado X de Y"*; choosing one does not fill the amount or the description with the envelope's. A normal line is still offered only while it has no expense.
+  - **An envelope is never "paid".** What it has spent is the sum of its expenses (the group totals and the month totals add them up) and it is not ticked. Unlinking or deleting one of its expenses leaves the others, and deleting the line leaves all of them as loose movements.
+  - **Changing a line to or from an envelope.** From the line editor, also with *this and the following months*: a line with its single expense keeps it when it becomes an envelope; an envelope with one expense goes back to a normal paid line, with none to a normal unpaid one, and with several the server refuses and says how many to unlink first. A refund cannot be an envelope, and neither can a line that was born with an expense (it follows that expense).
+  - API: `BudgetItem` and `BudgetEntry` have a new `envelope` flag (default `false`; on `POST`/`PATCH` of items and entries, also part of the template that new months copy). The entries of `GET /api/budgets/months/:year/:month` now carry **`transactions`** (a list, ordered by date) instead of `transaction`, and the `budgetEntry` of a movement includes `envelope`. **Migration** `20261107100000_budget_envelopes`: adds the two columns and replaces the unique index on `Transaction.budgetEntryId` with a plain one; it touches no data. Since the database no longer enforces "one expense per line", linking now locks the line's row inside the transaction (tests fire parallel requests at a normal line and at an envelope).
+- **The app has its own icon.** The iOS and Android icons, the adaptive Android layers (foreground and monochrome, on the brand colour) and the splash image were still the Expo defaults; they are now the same white **M** on indigo as the installed web app. They are generated from that mark by `npm run icons` (`apps/mobile/scripts/generate-icons.js`, no image library needed), and a test checks that the committed PNGs are exactly that output, that the iOS icon has no transparency and that the Android foreground fits the adaptive safe zone.
+- **The browser tab has a title.** The web had an empty `<title>`, so tabs, history and the installed web app showed nothing. It now reads "Presupuesto · MyMoney" (screen · app) and follows the screen you are on, both in the static HTML and when navigating; in the *pre* environment it says "MyMoney (Pre)". The sheet that adds an expense to an envelope is titled "Añadir gasto" (the one that pays a normal line stays "Marcar como pagada").
+- **Existing categories can be edited.** Every row of *Categorías* has a pencil button that turns the row into an editor where you change the **name** and the **colour** (with the new colour picker). Only what changed is sent, saving with nothing changed just closes it, and the type cannot be changed there. Movements, the overview chart and the budget show the new name and colour right away.
+  - API: `PATCH /api/categories/:id` now answers `400` when the new name already exists for that type (it used to end in a `500` from the database, also for two renames at the same time) and refuses to change the *type* of a category that already has movements.
+- **Any colour for a category or a budget group, and your own colours are saved.** The colour field was limited to 10 fixed colours. It now ends with a **+** button that opens a colour picker: a saturation/brightness square, a hue strip and a field to type the code (`#1A2B3C`, also `#ABC` and without the `#`). It is built with `react-native-svg` (no new dependency) and works the same on the web, iOS and Android; the hex field is also the way in for screen readers (the square and the strip can be moved with accessibility actions too).
+  - **Your colours stay saved.** A colour chosen this way is saved to your account (up to 24) and appears after the palette the next time, on any device. When a saved colour is the selected one, a button removes it from your colours; categories and groups that use it keep their colour. Saving the same colour twice does nothing, and a full list still lets you use a new colour, it just does not save it.
+  - **A colour that would disappear is adjusted only when it is drawn.** A near-white colour on a light card or a near-black one on a dark card is moved along its lightness until it reaches a 2:1 contrast (category pill, category list and the chart of the overview). The saved colour is not changed, and the palette colours are not touched.
+  - API: `GET /api/colors`, `POST /api/colors` (`{ hex }`, idempotent, stored upper case, `400` over the limit or for something that is not `#RRGGBB`) and `DELETE /api/colors/:id` (`404` for another user's colour). New table `SavedColor` (private to each user, unique per user and colour); the migration only creates the table, it touches no data.
+
+### Changed
+- Database: this release applies two migrations, `SavedColor` (creates the table of each user's own colours) and `budget_envelopes` (two columns with a default and the unique index on `Transaction.budgetEntryId` replaced by a plain one). Neither touches existing data. The web app and the API must be deployed together: the budget endpoint now returns `transactions` instead of `transaction`, so a browser tab left open on the previous web version has to be reloaded.
+- The adaptive Android icon uses the brand colour as a plain background instead of the default image layer, which is removed.
+
+### Fixed
+- **Editing only the name of a category or a budget group no longer resets its colour** (and, for a category, its icon) to the default ones: the update schema inherited the defaults of the create schema, so any `PATCH` that left the colour out wrote the default colour. The app always sent every field, so it was not visible yet; the new category editor sends only what changed.
+
 ## [0.4.0] — 2026-11-04 — Beta
 
 > Budget release: an expense is written down once (from *Movimientos* or from the budget) and ticking a planned line registers the payment, plus budgets for future months.
@@ -130,6 +157,7 @@ author as a personal tool, and interfaces and data models may still change.
 - Automatic payment detection (Android only), multiple accounts/wallets, and recurring expenses outside the budget.
 - Screenshots and a public demo.
 
+[0.5.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.5.0-beta
 [0.4.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.4.0-beta
 [0.3.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.3.0-beta
 [0.2.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.2.0-beta

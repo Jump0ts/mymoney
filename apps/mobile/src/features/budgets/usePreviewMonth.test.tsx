@@ -13,6 +13,8 @@ const target = { year: 2027, month: 1 };
 const entry = (id: string, itemId: string | null): BudgetEntry => ({
   id,
   groupId: 'g1',
+  envelope: false,
+  transactions: [],
   itemId,
   name: 'Seguro',
   amount: '380.00',
