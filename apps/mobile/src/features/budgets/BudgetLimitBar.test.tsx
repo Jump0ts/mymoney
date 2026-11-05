@@ -5,6 +5,8 @@ import { BudgetLimitBar } from './BudgetLimitBar';
 const entry = (id: string, amount: string): BudgetEntry => ({
   id,
   groupId: 'g1',
+  envelope: false,
+  transactions: [],
   itemId: null,
   name: id,
   amount,

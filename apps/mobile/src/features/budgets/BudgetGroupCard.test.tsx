@@ -6,6 +6,8 @@ import { BudgetGroupCard } from './BudgetGroupCard';
 const entry = (id: string, amount: string, paid: boolean): BudgetEntry => ({
   id,
   groupId: 'g1',
+  envelope: false,
+  transactions: [],
   itemId: null,
   name: `Linea ${id}`,
   amount,

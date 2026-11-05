@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { ApiError } from '@/lib/api';
 import { confirmAsync } from '@/utils/alert';
-import { SCOPE_OPTIONS_CREATE } from './budgets.constants';
+import { LINE_TYPE_OPTIONS_NO_ENVELOPE, SCOPE_OPTIONS_CREATE } from './budgets.constants';
 import type { BudgetLineFormValues } from './budgets.schema';
 import { BudgetLineForm } from './BudgetLineForm';
 
@@ -40,10 +40,11 @@ const fill = (name: string, amount: string) => {
 };
 
 describe('BudgetLineForm', () => {
-  it('ofrece los tipos Gasto y Reembolso (no "Fijo", que no se entendia como opuesto de un reembolso)', () => {
+  it('ofrece los tipos Gasto, Variable y Reembolso (no "Fijo", que no se entendia como opuesto de un reembolso)', () => {
     renderForm();
 
     expect(screen.getByText('Gasto')).toBeTruthy();
+    expect(screen.getByText('Variable')).toBeTruthy();
     expect(screen.getByText('Reembolso')).toBeTruthy();
     expect(screen.queryByText('Fijo')).toBeNull();
   });
@@ -248,5 +249,45 @@ describe('BudgetLineForm', () => {
 
       expect(await screen.findByText('Línea no encontrada')).toBeTruthy();
     });
+  });
+});
+
+describe('BudgetLineForm (linea variable)', () => {
+  it('al elegir Variable explica como funciona el sobre; con Gasto no hay explicacion', () => {
+    renderForm();
+    expect(screen.queryByText(/varias compras/)).toBeNull();
+
+    fireEvent.press(screen.getByText('Variable'));
+
+    expect(screen.getByText(/varias compras/)).toBeTruthy();
+
+    fireEvent.press(screen.getByText('Gasto'));
+    expect(screen.queryByText(/varias compras/)).toBeNull();
+  });
+
+  it('envia el tipo Variable al guardar', async () => {
+    const { onSubmit } = renderForm();
+
+    fill('Supermercado', '300');
+    fireEvent.press(screen.getByText('Variable'));
+    fireEvent.press(screen.getByTestId('budget-line-submit'));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ name: 'Supermercado', lineType: 'ENVELOPE', amount: '300' });
+  });
+
+  it('precarga una linea que ya es variable', () => {
+    renderForm({ defaultValues: { name: 'Gasolina', lineType: 'ENVELOPE', amount: '120', scope: 'month' } });
+
+    expect(screen.getByText(/varias compras/)).toBeTruthy();
+    expect(screen.getByDisplayValue('Gasolina')).toBeTruthy();
+  });
+
+  it('con los tipos restringidos no ofrece Variable', () => {
+    renderForm({ lineTypeOptions: LINE_TYPE_OPTIONS_NO_ENVELOPE });
+
+    expect(screen.getByText('Gasto')).toBeTruthy();
+    expect(screen.getByText('Reembolso')).toBeTruthy();
+    expect(screen.queryByText('Variable')).toBeNull();
   });
 });

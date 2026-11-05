@@ -129,7 +129,7 @@ export const useUpdateEntry = () => {
       apiRequest(`/api/budgets/entries/${entry.id}`, {
         method: 'PATCH',
         // Una linea puntual (sin plantilla) solo puede ser de su mes.
-        body: { name: line.name, amount: line.amount, scope: entry.itemId ? scope : 'month' },
+        body: { name: line.name, amount: line.amount, envelope: line.envelope, scope: entry.itemId ? scope : 'month' },
       }),
     onSettled: refresh,
   });

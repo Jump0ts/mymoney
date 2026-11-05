@@ -4,6 +4,7 @@ import {
   expenseDateFor,
   formatAmountForInput,
   getEntryActual,
+  getEnvelopeStatus,
   isEntryLinked,
   getGroupTotals,
   getLimitStatus,
@@ -17,6 +18,7 @@ import {
   parseAmountInput,
   payEntryParams,
   setEntryPaid,
+  shouldAddToEnvelope,
   shouldRegisterPayment,
   toGroupPayload,
   toLinePayload,
@@ -26,6 +28,8 @@ import {
 const fixed = (id: string, amount: string, paid: boolean): BudgetEntry => ({
   id,
   groupId: 'g1',
+  envelope: false,
+  transactions: [],
   itemId: null,
   name: id,
   amount,
@@ -307,6 +311,7 @@ describe('toLinePayload', () => {
     expect(toLinePayload({ name: '  Netflix ', lineType: 'EXPENSE', amount: '21,99' })).toEqual({
       name: 'Netflix',
       amount: 21.99,
+      envelope: false,
     });
   });
 
@@ -314,6 +319,7 @@ describe('toLinePayload', () => {
     expect(toLinePayload({ name: 'Luz Ivan', lineType: 'REFUND', amount: '50' })).toEqual({
       name: 'Luz Ivan',
       amount: -50,
+      envelope: false,
     });
   });
 
@@ -403,7 +409,7 @@ describe('setEntryPaid', () => {
 describe('lineas enlazadas a un gasto de Movimientos', () => {
   const linked = (amount: string, real: string): BudgetEntry => ({
     ...fixed('l', amount, true),
-    transaction: { id: 'tx', amount: real, occurredAt: '2026-10-12T10:00:00.000Z' },
+    transactions: [{ id: 'tx', amount: real, occurredAt: '2026-10-12T10:00:00.000Z' }],
   });
 
   it('lo real de una linea enlazada es el importe del gasto, no el previsto', () => {
@@ -418,7 +424,7 @@ describe('lineas enlazadas a un gasto de Movimientos', () => {
   it('isEntryLinked distingue las enlazadas', () => {
     expect(isEntryLinked(linked('60.00', '62.30'))).toBe(true);
     expect(isEntryLinked(fixed('a', '10.00', true))).toBe(false);
-    expect(isEntryLinked({ ...fixed('a', '10.00', false), transaction: null })).toBe(false);
+    expect(isEntryLinked({ ...fixed('a', '10.00', false), transactions: [] })).toBe(false);
   });
 
   it('los totales del grupo usan lo real en las enlazadas y lo previsto en el resto', () => {
@@ -487,7 +493,7 @@ describe('shouldRegisterPayment', () => {
   });
 
   it('una linea ya enlazada a un gasto no', () => {
-    const linked = { ...unpaid, paid: false, transaction: { id: 't1', amount: '120.00', occurredAt: '2026-11-02T10:00:00.000Z' } };
+    const linked = { ...unpaid, paid: false, transactions: [{ id: 't1', amount: '120.00', occurredAt: '2026-11-02T10:00:00.000Z' }] };
     expect(shouldRegisterPayment(linked, { year: 2026, month: 11 }, now)).toBe(false);
   });
 });
@@ -554,5 +560,144 @@ describe('toPaymentInput', () => {
 
   it('entiende los importes con separador de miles', () => {
     expect(toPaymentInput({ entryId: 'e1', name: 'Hipoteca' }, { ...values, amount: '1.250,50' }).amount).toBe(1250.5);
+  });
+});
+
+describe('sobres (lineas variables)', () => {
+  const expense = (id: string, amount: string) => ({ id, amount, occurredAt: '2026-11-02T10:00:00.000Z' });
+  const envelope = (amount: string, spent: string[] = [], overrides: Partial<BudgetEntry> = {}): BudgetEntry => ({
+    ...fixed('super', amount, false),
+    name: 'Supermercado',
+    envelope: true,
+    transactions: spent.map((value, index) => expense(`t${index}`, value)),
+    ...overrides,
+  });
+
+  describe('getEntryActual', () => {
+    it('lo real de un sobre es la suma de sus gastos', () => {
+      expect(getEntryActual(envelope('300.00', ['45.00', '32.50', '60.00']))).toBe(137.5);
+    });
+
+    it('evita errores de coma flotante al sumar', () => {
+      expect(getEntryActual(envelope('300.00', ['0.10', '0.20']))).toBe(0.3);
+    });
+
+    it('un sobre sin gastos no ha gastado nada', () => {
+      expect(getEntryActual(envelope('300.00'))).toBe(0);
+    });
+
+    it('un sobre nunca cuenta su importe previsto por estar marcado como pagado', () => {
+      expect(getEntryActual(envelope('300.00', [], { paid: true }))).toBe(0);
+    });
+
+    it('una linea normal con su gasto sigue contando el importe real de ese gasto', () => {
+      const linked = { ...fixed('luz', '60.00', true), transactions: [expense('t1', '62.30')] };
+      expect(getEntryActual(linked)).toBe(62.3);
+    });
+  });
+
+  describe('getEnvelopeStatus', () => {
+    it('cuanto lleva gastado, cuanto queda y la proporcion para la barra', () => {
+      expect(getEnvelopeStatus(envelope('300.00', ['45.00', '32.50', '60.00']))).toEqual({
+        planned: 300,
+        spent: 137.5,
+        remaining: 162.5,
+        ratio: 137.5 / 300,
+        isOver: false,
+      });
+    });
+
+    it('sin gastos: todo por gastar y barra vacia', () => {
+      expect(getEnvelopeStatus(envelope('300.00'))).toMatchObject({ spent: 0, remaining: 300, ratio: 0, isOver: false });
+    });
+
+    it('gastar justo lo previsto no es pasarse', () => {
+      expect(getEnvelopeStatus(envelope('100.00', ['60.00', '40.00']))).toMatchObject({
+        remaining: 0,
+        ratio: 1,
+        isOver: false,
+      });
+    });
+
+    it('pasarse deja un restante negativo, la barra llena (tope en 1) y isOver', () => {
+      expect(getEnvelopeStatus(envelope('120.00', ['40.00', '35.00', '42.00', '10.00']))).toEqual({
+        planned: 120,
+        spent: 127,
+        remaining: -7,
+        ratio: 1,
+        isOver: true,
+      });
+    });
+  });
+
+  it('los totales del grupo suman lo gastado en el sobre como pagado y su importe como previsto', () => {
+    const totals = getGroupTotals([envelope('300.00', ['45.00', '32.50']), fixed('b', '20.00', true)]);
+
+    expect(totals).toEqual({ planned: 320, paid: 97.5 });
+  });
+
+  it('un sobre cuenta como enlazado en cuanto tiene un gasto', () => {
+    expect(isEntryLinked(envelope('300.00'))).toBe(false);
+    expect(isEntryLinked(envelope('300.00', ['10.00']))).toBe(true);
+  });
+
+  describe('getLineType y toLinePayload', () => {
+    it('una linea con envelope es de tipo ENVELOPE; un importe negativo sigue siendo un reembolso', () => {
+      expect(getLineType(envelope('300.00'))).toBe('ENVELOPE');
+      expect(getLineType(fixed('a', '10.00', false))).toBe('EXPENSE');
+      expect(getLineType({ ...fixed('a', '-10.00', false), envelope: false })).toBe('REFUND');
+    });
+
+    it('el tipo Variable se envia como sobre con importe positivo', () => {
+      expect(toLinePayload({ name: ' Supermercado ', lineType: 'ENVELOPE', amount: '300' })).toEqual({
+        name: 'Supermercado',
+        amount: 300,
+        envelope: true,
+      });
+    });
+
+    it('Gasto y Reembolso no son sobres', () => {
+      expect(toLinePayload({ name: 'Luz', lineType: 'EXPENSE', amount: '60' }).envelope).toBe(false);
+      expect(toLinePayload({ name: 'Luz Ivan', lineType: 'REFUND', amount: '30' }).envelope).toBe(false);
+    });
+  });
+
+  describe('apuntar un gasto en el sobre', () => {
+    const now = { year: 2026, month: 11 };
+
+    it('en el mes actual y en uno pasado se apunta un gasto, aunque ya tenga otros', () => {
+      expect(shouldAddToEnvelope(envelope('300.00'), { year: 2026, month: 11 }, now)).toBe(true);
+      expect(shouldAddToEnvelope(envelope('300.00', ['45.00']), { year: 2026, month: 11 }, now)).toBe(true);
+      expect(shouldAddToEnvelope(envelope('300.00'), { year: 2026, month: 9 }, now)).toBe(true);
+    });
+
+    it('en un mes futuro no: aun no se ha gastado nada', () => {
+      expect(shouldAddToEnvelope(envelope('300.00'), { year: 2026, month: 12 }, now)).toBe(false);
+    });
+
+    it('una linea normal no es un sobre', () => {
+      expect(shouldAddToEnvelope(fixed('luz', '60.00', false), { year: 2026, month: 11 }, now)).toBe(false);
+    });
+
+    it('un sobre nunca "registra un pago" como una linea normal', () => {
+      expect(shouldRegisterPayment(envelope('300.00'), { year: 2026, month: 11 }, now)).toBe(false);
+    });
+
+    it('los parametros de la hoja marcan el sobre y llevan lo gastado hasta ahora', () => {
+      expect(payEntryParams(envelope('300.00', ['45.00', '32.50']), { year: 2026, month: 11 }, now)).toEqual({
+        entryId: 'super',
+        name: 'Supermercado',
+        amount: '300.00',
+        envelope: '1',
+        spent: '77.5',
+      });
+    });
+
+    it('una linea normal no manda parametros de sobre', () => {
+      const params = payEntryParams(fixed('luz', '60.00', false), { year: 2026, month: 11 }, now);
+
+      expect(params).not.toHaveProperty('envelope');
+      expect(params).not.toHaveProperty('spent');
+    });
   });
 });

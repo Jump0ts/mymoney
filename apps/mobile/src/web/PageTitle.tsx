@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import { usePathname } from 'expo-router';
+import { useGlobalSearchParams, usePathname } from 'expo-router';
 import Head from 'expo-router/head';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
@@ -14,7 +14,8 @@ import { DEFAULT_APP_NAME, pageTitle } from './documentTitle';
 //    titulo se quedaba en el de la primera.
 const PageTitle = () => {
   const pathname = usePathname();
-  const title = pageTitle(pathname, Constants.expoConfig?.name ?? DEFAULT_APP_NAME);
+  const params = useGlobalSearchParams();
+  const title = pageTitle(pathname, Constants.expoConfig?.name ?? DEFAULT_APP_NAME, params);
 
   useEffect(() => {
     if (Platform.OS === 'web') document.title = title;

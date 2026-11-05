@@ -4,9 +4,11 @@ import { Platform } from 'react-native';
 import PageTitle from './PageTitle';
 
 let mockPathname = '/budgets';
+let mockParams: Record<string, string> = {};
 
 jest.mock('expo-router', () => ({
   usePathname: () => mockPathname,
+  useGlobalSearchParams: () => mockParams,
 }));
 
 // El Head real necesita el contexto de navegacion y de Helmet: aqui solo importa lo que se le pasa dentro.
@@ -36,6 +38,7 @@ beforeEach(() => {
 afterEach(() => {
   setOS(originalOS);
   mockPathname = '/budgets';
+  mockParams = {};
 });
 
 describe('PageTitle', () => {
@@ -71,6 +74,18 @@ describe('PageTitle', () => {
     screen.rerender(<PageTitle />);
 
     expect(fakeDocument.title).toBe('Ajustes · MyMoney (Pre)');
+  });
+
+  it('la hoja de un sobre se llama "Añadir gasto", y la de una linea normal "Marcar como pagada"', () => {
+    setOS('web');
+    mockPathname = '/pay-entry';
+    mockParams = { entryId: 'e1', envelope: '1' };
+    const screen = render(<PageTitle />);
+    expect(fakeDocument.title).toBe('Añadir gasto · MyMoney (Pre)');
+
+    mockParams = { entryId: 'e1' };
+    screen.rerender(<PageTitle />);
+    expect(fakeDocument.title).toBe('Marcar como pagada · MyMoney (Pre)');
   });
 
   it('en el movil no pinta nada', () => {

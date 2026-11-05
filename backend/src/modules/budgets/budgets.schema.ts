@@ -43,23 +43,29 @@ export const reorderSchema = z.object({
 
 export const entriesOrderParamsSchema = monthParamsSchema.extend({ groupId: z.string().min(1) });
 
-export const createItemSchema = z.object({
+export const ENVELOPE_REFUND = "Un sobre es un gasto: un reembolso (importe negativo) no puede serlo";
+
+const itemFields = {
   groupId: z.string().min(1),
   name: z.string().trim().min(1).max(60),
   amount: amountSchema,
-});
+  // Sobre: gasto variable al que se enlazan varios gastos (supermercado, gasolina). Sin esto, la linea se paga de una vez.
+  envelope: z.boolean(),
+};
 
-export const updateItemSchema = z.object({
-  groupId: z.string().min(1).optional(),
-  name: z.string().trim().min(1).max(60).optional(),
-  amount: amountSchema.optional(),
+export const createItemSchema = z
+  .object({ ...itemFields, envelope: itemFields.envelope.default(false) })
+  .refine((item) => !item.envelope || item.amount > 0, { message: ENVELOPE_REFUND, path: ["envelope"] });
+
+// Al editar, lo que no se manda no se toca (ni "envelope" vuelve a false por un valor por defecto).
+export const updateItemSchema = z.object(itemFields).partial().extend({
   position: z.number().int().min(0).optional(),
 });
 
 // recurring=true ademas de la linea del mes crea el item en la plantilla.
-export const createEntrySchema = createItemSchema.extend({
-  recurring: z.boolean().default(false),
-});
+export const createEntrySchema = z
+  .object({ ...itemFields, envelope: itemFields.envelope.default(false), recurring: z.boolean().default(false) })
+  .refine((entry) => !entry.envelope || entry.amount > 0, { message: ENVELOPE_REFUND, path: ["envelope"] });
 
 // "month": el cambio es solo de este mes (y la linea queda marcada como editada a mano); "template": tambien
 // cambia la plantilla y los meses posteriores ya guardados que no se hayan tocado a mano.
@@ -69,6 +75,7 @@ export const updateEntrySchema = z.object({
   groupId: z.string().min(1).optional(),
   name: z.string().trim().min(1).max(60).optional(),
   amount: amountSchema.optional(),
+  envelope: z.boolean().optional(),
   paid: z.boolean().optional(),
   position: z.number().int().min(0).optional(),
   scope: entryScopeSchema,

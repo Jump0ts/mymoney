@@ -114,7 +114,7 @@ Branches follow a documented flow (`feature/*` → `pre` → `release/x.y.z` →
 
 - **Tenant isolation as an invariant.** Every query is scoped to the authenticated user, and tests assert that one user cannot read or modify another's data — including when linking an expense to a budget line that belongs to someone else.
 - **Lazily generated, idempotent months.** Opening a month creates it from the recurring template and the previous salary; concurrent requests are tolerated and months before the first budget are never back-filled with today's template.
-- **Linking enforced where it cannot be bypassed.** "One expense per budget line" is a unique database index, not just a check in the code, so two simultaneous requests cannot both win (one gets a `409`). Linking, unlinking, deleting and changing the type of an expense update the line's *paid* state in the same database transaction.
+- **Linking enforced where it cannot be bypassed.** A normal budget line takes one expense and an *envelope* (a variable line such as groceries) takes as many as you like. Because no unique index can express "one, unless the line is an envelope", linking locks the line's row (`SELECT … FOR UPDATE`) inside the transaction, so two simultaneous requests are served one after the other and the second one gets a `409` (a test fires them in parallel and fails if the lock is removed). Linking, unlinking, deleting and changing the type of an expense update the line's *paid* state in the same database transaction.
 - **Predictable money handling.** Amounts are stored as fixed-precision decimals and totals are rounded to cents in one place.
 - **Optimistic UI with rollback.** Ticking a line as paid or reordering is instant on screen and is undone with a notice if the server refuses it.
 - **Safe two-step operations.** Changes that touch both the template and the current month are retryable: a missing item counts as already done, so a half-failed request can be finished.
@@ -164,7 +164,7 @@ npm run lint --workspace=backend && npm run lint --workspace=apps/mobile
 
 ## Status and roadmap
 
-**Beta (v0.4.0).** The core features are complete and tested; the [changelog](./CHANGELOG.md) lists what each release contains. The web app is live and installable; native iOS and Android builds run in Expo Go (store builds are not published yet). Not built yet: an installable Android APK, automatic payment detection (Android), multiple accounts/wallets, and several expenses per budget line.
+**Beta (v0.4.0).** The core features are complete and tested; the [changelog](./CHANGELOG.md) lists what each release contains. The web app is live and installable; native iOS and Android builds run in Expo Go (store builds are not published yet). Not built yet: an installable Android APK, automatic payment detection (Android) and multiple accounts/wallets.
 
 ## Documentation
 

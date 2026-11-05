@@ -659,7 +659,7 @@ describe("presupuestos de meses futuros", () => {
       expect(first.body.preview).toBe(true);
       expect(Number(first.body.month.income)).toBe(1500);
       expect(first.body.groups[0].entries).toMatchObject([
-        { name: "Netflix", amount: "12", paid: false, transaction: null },
+        { name: "Netflix", amount: "12", paid: false, envelope: false, transactions: [] },
       ]);
       expect(first.body.groups[0].entries[0].id).toMatch(/^preview:/);
       expect(second.body.preview).toBe(true);
