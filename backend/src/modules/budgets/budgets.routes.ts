@@ -5,6 +5,7 @@ import { requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { badRequest, conflict, notFound } from "../../utils/errors.js";
 import {
+  ENVELOPE_REFUND,
   createEntrySchema,
   createGroupSchema,
   deleteEntryQuerySchema,
@@ -73,8 +74,8 @@ const buildMonthResponse = async (userId: string, target: YearMonth) => {
     prisma.budgetGroup.findMany({ where: { userId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
     prisma.budgetEntry.findMany({
       where: { userId, ...target },
-      // El gasto enlazado (si lo hay) aporta el importe real de la linea.
-      include: { transaction: { select: { id: true, amount: true, occurredAt: true } } },
+      // Los gastos enlazados (uno en una linea normal, los que sean en un sobre) aportan el importe real de la linea.
+      include: { transactions: { select: { id: true, amount: true, occurredAt: true }, orderBy: { occurredAt: "asc" } } },
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     }),
   ]);
@@ -124,9 +125,10 @@ const buildPreviewResponse = async (userId: string, target: YearMonth) => {
           itemId: item.id,
           name: item.name,
           amount: item.amount,
+          envelope: item.envelope,
           paid: false,
           position: item.position,
-          transaction: null,
+          transactions: [],
         })),
     })),
   };
@@ -244,6 +246,7 @@ budgetsRouter.post(
         groupId: body.groupId,
         name: body.name,
         amount: body.amount,
+        envelope: body.envelope,
         position: await nextItemPosition(userId, body.groupId),
       },
     });
@@ -260,6 +263,7 @@ budgetsRouter.patch(
     if (!item) throw notFound("Línea no encontrada");
 
     if (body.groupId) await findOwnedGroup(userId, body.groupId);
+    if ((body.envelope ?? item.envelope) && (body.amount ?? Number(item.amount)) <= 0) throw badRequest(ENVELOPE_REFUND);
 
     const updated = await prisma.budgetItem.update({ where: { id: item.id }, data: body });
     res.json({ item: updated });
@@ -366,7 +370,14 @@ budgetsRouter.post(
     const entry = await prisma.$transaction(async (tx) => {
       const item = body.recurring
         ? await tx.budgetItem.create({
-            data: { userId, groupId: body.groupId, name: body.name, amount: body.amount, position: itemPosition },
+            data: {
+              userId,
+              groupId: body.groupId,
+              name: body.name,
+              amount: body.amount,
+              envelope: body.envelope,
+              position: itemPosition,
+            },
           })
         : null;
 
@@ -378,6 +389,7 @@ budgetsRouter.post(
           itemId: item?.id ?? null,
           name: body.name,
           amount: body.amount,
+          envelope: body.envelope,
           position: entryPosition,
         },
       });
@@ -398,6 +410,7 @@ budgetsRouter.post(
             itemId: item.id,
             name: item.name,
             amount: item.amount,
+            envelope: item.envelope,
             position: item.position,
           })),
           skipDuplicates: true,
@@ -446,25 +459,44 @@ budgetsRouter.patch(
 
     if (body.groupId) await findOwnedGroup(userId, body.groupId);
 
-    // Una linea enlazada a un gasto de Movimientos esta pagada por definicion: para cambiarlo se desenlaza el gasto.
-    if (body.paid === false || (body.amount !== undefined && body.amount <= 0)) {
-      const linked = await prisma.transaction.findFirst({
-        where: { budgetEntryId: entry.id, userId },
-        select: { id: true },
-      });
-      if (linked && body.paid === false) {
-        throw conflict(
-          "Esta línea está enlazada a un movimiento: desenlázalo desde Movimientos para marcarla como no pagada",
-        );
-      }
-      if (linked) throw badRequest("Una línea enlazada a un gasto no puede pasar a reembolso");
-    }
+    const linkedCount = await prisma.transaction.count({ where: { budgetEntryId: entry.id, userId } });
+    const nextEnvelope = body.envelope ?? entry.envelope;
+    const nextAmount = body.amount ?? Number(entry.amount);
 
-    // Lo que comparte con la plantilla: nombre, importe y grupo.
+    // Una linea con un gasto enlazado (no un sobre) esta pagada por definicion: para cambiarlo se desenlaza el gasto.
+    if (body.paid === false && linkedCount > 0 && !entry.envelope) {
+      throw conflict(
+        "Esta línea está enlazada a un movimiento: desenlázalo desde Movimientos para marcarla como no pagada",
+      );
+    }
+    if (nextAmount <= 0 && linkedCount > 0) throw badRequest("Una línea enlazada a un gasto no puede pasar a reembolso");
+
+    // Un sobre solo recibe gastos: no es un reembolso, no nace de un gasto (esa linea sigue a su gasto) y no se
+    // marca como pagado (lo gastado es la suma de sus gastos).
+    if (nextEnvelope && nextAmount <= 0) throw badRequest(ENVELOPE_REFUND);
+    if (nextEnvelope && entry.fromTransaction) {
+      throw badRequest("Una línea creada con un gasto no puede ser un sobre");
+    }
+    if (nextEnvelope && body.paid === true) throw badRequest("Un sobre no se marca como pagado");
+
+    // Cambiar entre linea normal y sobre: el sobre nunca esta "pagado"; una linea normal lo esta si tiene su gasto.
+    const switching = body.envelope !== undefined && body.envelope !== entry.envelope;
+    if (switching && !body.envelope && linkedCount > 1) {
+      throw badRequest(
+        `Esta línea tiene ${linkedCount} movimientos enlazados: desenlázalos hasta que quede uno para volver a una línea normal`,
+      );
+    }
+    const data = {
+      ...body,
+      ...(switching && { paid: !body.envelope && linkedCount === 1 }),
+    };
+
+    // Lo que comparte con la plantilla: nombre, importe, grupo y si es un sobre.
     const shared = {
       ...(body.name !== undefined && { name: body.name }),
       ...(body.amount !== undefined && { amount: body.amount }),
       ...(body.groupId !== undefined && { groupId: body.groupId }),
+      ...(body.envelope !== undefined && { envelope: body.envelope }),
     };
 
     if (scope === "template" && entry.itemId && Object.keys(shared).length > 0) {
@@ -472,10 +504,10 @@ budgetsRouter.patch(
       // pagadas, enlazadas a un gasto o editadas a mano solo para su mes. Esta linea vuelve a seguir la plantilla.
       const itemId = entry.itemId;
       const updated = await prisma.$transaction(async (tx) => {
-        const saved = await tx.budgetEntry.update({ where: { id: entry.id }, data: { ...body, edited: false } });
+        const saved = await tx.budgetEntry.update({ where: { id: entry.id }, data: { ...data, edited: false } });
         await tx.budgetItem.updateMany({ where: { id: itemId, userId }, data: shared });
         await tx.budgetEntry.updateMany({
-          where: { userId, itemId, paid: false, edited: false, transaction: { is: null }, ...afterMonth(entry) },
+          where: { userId, itemId, paid: false, edited: false, transactions: { none: {} }, ...afterMonth(entry) },
           data: shared,
         });
         return saved;
@@ -488,10 +520,11 @@ budgetsRouter.patch(
     const changesTemplateValues =
       (body.name !== undefined && body.name !== entry.name) ||
       (body.amount !== undefined && !entry.amount.equals(body.amount)) ||
-      (body.groupId !== undefined && body.groupId !== entry.groupId);
+      (body.groupId !== undefined && body.groupId !== entry.groupId) ||
+      switching;
     const updated = await prisma.budgetEntry.update({
       where: { id: entry.id },
-      data: { ...body, ...(entry.itemId && changesTemplateValues && { edited: true }) },
+      data: { ...data, ...(entry.itemId && changesTemplateValues && { edited: true }) },
     });
     res.json({ entry: updated });
   }),
@@ -511,7 +544,7 @@ budgetsRouter.delete(
       const itemId = entry.itemId;
       await prisma.$transaction([
         prisma.budgetEntry.deleteMany({
-          where: { userId, itemId, paid: false, edited: false, transaction: { is: null }, ...afterMonth(entry) },
+          where: { userId, itemId, paid: false, edited: false, transactions: { none: {} }, ...afterMonth(entry) },
         }),
         prisma.budgetEntry.delete({ where: { id: entry.id } }),
         prisma.budgetItem.deleteMany({ where: { id: itemId, userId } }),

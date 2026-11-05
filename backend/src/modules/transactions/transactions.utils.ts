@@ -8,40 +8,37 @@ type Db = Prisma.TransactionClient;
 // Datos de la linea del presupuesto que se devuelven junto a un movimiento enlazado.
 export const transactionInclude = {
   category: true,
-  budgetEntry: { select: { id: true, name: true, fromTransaction: true, group: { select: { name: true, color: true } } } },
+  budgetEntry: {
+    select: { id: true, name: true, fromTransaction: true, envelope: true, group: { select: { name: true, color: true } } },
+  },
 } satisfies Prisma.TransactionInclude;
 
 export const LINK_ONLY_EXPENSE = "Solo un gasto se puede enlazar con una línea del presupuesto";
 
-// Una linea admite un gasto si es del usuario, es una linea de gasto (importe positivo: un reembolso no
-// se enlaza) y no tiene ya otro gasto enlazado. `ownTransactionId` permite conservar el enlace propio.
+// Una linea admite un gasto si es del usuario y es una linea de gasto (importe positivo: un reembolso no se
+// enlaza). Una linea normal admite uno solo; un sobre, los que sean. `ownTransactionId` permite conservar el
+// enlace propio. Devuelve la linea para que quien enlaza sepa si es un sobre.
 export const assertLinkable = async (db: Db, userId: string, budgetEntryId: string, ownTransactionId?: string) => {
-  const entry = await db.budgetEntry.findFirst({
-    where: { id: budgetEntryId, userId },
-    include: { transaction: { select: { id: true } } },
-  });
+  // Bloquea la linea hasta el final de la transaccion: dos enlaces a la vez a una linea normal se atienden de
+  // uno en uno y el segundo ya ve el primero (no hay indice unico que lo impida, porque un sobre admite varios).
+  await db.$queryRaw`SELECT "id" FROM "BudgetEntry" WHERE "id" = ${budgetEntryId} AND "userId" = ${userId} FOR UPDATE`;
+
+  const entry = await db.budgetEntry.findFirst({ where: { id: budgetEntryId, userId } });
   if (!entry) throw notFound("Línea del presupuesto no encontrada");
   if (Number(entry.amount) <= 0) throw badRequest("Un reembolso no se enlaza con un gasto");
-  if (entry.transaction && entry.transaction.id !== ownTransactionId) {
-    throw conflict("Esa línea ya está enlazada a otro movimiento");
+  if (!entry.envelope) {
+    const others = await db.transaction.count({
+      where: { budgetEntryId, ...(ownTransactionId && { id: { not: ownTransactionId } }) },
+    });
+    if (others > 0) throw conflict("Esa línea ya está enlazada a otro movimiento");
   }
+  return entry;
 };
 
-// Enlazar marca la linea como pagada; desenlazar (o borrar el gasto) la deja sin pagar.
+// Enlazar marca la linea como pagada; desenlazar (o borrar el gasto) la deja sin pagar. Un sobre no se marca nunca:
+// lo gastado es la suma de sus gastos.
 export const setEntryPaid = (db: Db, entryId: string, paid: boolean) =>
   db.budgetEntry.update({ where: { id: entryId }, data: { paid } });
-
-// Dos peticiones a la vez sobre la misma linea: el indice unico deja pasar solo a una.
-export const withLinkConflict = async <T>(run: () => Promise<T>): Promise<T> => {
-  try {
-    return await run();
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw conflict("Esa línea ya está enlazada a otro movimiento");
-    }
-    throw error;
-  }
-};
 
 export const LINK_EXCLUSIVE = "Elige una línea del presupuesto o un grupo, no las dos cosas";
 
@@ -79,8 +76,8 @@ export const createEntryForExpense = async (db: Db, userId: string, { groupId, n
 
 // El gasto deja de cubrir una linea: si la linea nacio con el gasto se borra, y si ya existia vuelve a estar sin pagar.
 export const releaseEntry = async (db: Db, entryId: string) => {
-  const entry = await db.budgetEntry.findUnique({ where: { id: entryId }, select: { fromTransaction: true } });
+  const entry = await db.budgetEntry.findUnique({ where: { id: entryId }, select: { fromTransaction: true, envelope: true } });
   if (!entry) return;
   if (entry.fromTransaction) await db.budgetEntry.delete({ where: { id: entryId } });
-  else await setEntryPaid(db, entryId, false);
+  else if (!entry.envelope) await setEntryPaid(db, entryId, false);
 };

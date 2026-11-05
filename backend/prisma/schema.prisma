@@ -24,6 +24,7 @@ model User {
   budgetItems   BudgetItem[]
   budgetMonths  BudgetMonth[]
   budgetEntries BudgetEntry[]
+  savedColors   SavedColor[]
 }
 
 model Category {
@@ -54,11 +55,13 @@ model Transaction {
   occurredAt    DateTime
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
-  // Linea del presupuesto que este gasto cubre (como mucho un gasto por linea). Si la linea se borra, el
-  // movimiento sigue existiendo y solo pierde el enlace.
+  // Linea del presupuesto que este gasto cubre. Una linea normal admite un solo gasto y un sobre (BudgetEntry.envelope)
+  // varios; esa regla la hace cumplir el servidor al enlazar. Si la linea se borra, el movimiento sigue existiendo
+  // y solo pierde el enlace.
   budgetEntry   BudgetEntry?    @relation(fields: [budgetEntryId], references: [id], onDelete: SetNull)
-  budgetEntryId String?         @unique
+  budgetEntryId String?
 
+  @@index([budgetEntryId])
   @@index([userId, occurredAt])
   @@index([userId, categoryId])
   @@index([userId, type])
@@ -95,6 +98,9 @@ model BudgetItem {
   groupId   String
   name      String
   amount    Decimal       @db.Decimal(12, 2)
+  // Sobre: gasto variable con un importe previsto del que se van descontando varios gastos a lo largo del mes
+  // (supermercado, gasolina). Si es false, la linea se paga de una vez.
+  envelope  Boolean       @default(false)
   position  Int           @default(0)
   createdAt DateTime      @default(now())
   entries   BudgetEntry[]
@@ -129,6 +135,8 @@ model BudgetEntry {
   itemId          String?
   name            String
   amount          Decimal      @db.Decimal(12, 2)
+  // Sobre (ver BudgetItem.envelope): admite varios gastos y nunca esta "pagada", lo gastado es la suma de sus gastos.
+  envelope        Boolean      @default(false)
   paid            Boolean      @default(false)
   position        Int          @default(0)
   // Editada a mano solo para este mes (nombre, importe o grupo distintos de la plantilla): los cambios de
@@ -138,9 +146,22 @@ model BudgetEntry {
   // o deja de cubrirla, la linea se borra con el, porque no existia antes que el.
   fromTransaction Boolean      @default(false)
   createdAt       DateTime     @default(now())
-  // Gasto de Movimientos enlazado a esta linea: su importe es el "real" de la linea y la marca como pagada.
-  transaction     Transaction?
+  // Gastos de Movimientos enlazados a esta linea: su importe es el "real" de la linea. En una linea normal hay uno
+  // como mucho y la marca como pagada; en un sobre hay los que sean y se suman.
+  transactions    Transaction[]
 
   @@unique([userId, year, month, itemId])
   @@index([userId, year, month])
+}
+
+// Colores propios que el usuario guarda para volver a elegirlos al dar color a una categoria o a un grupo del
+// presupuesto. Son privados de cada usuario. `hex` va siempre como #RRGGBB en mayusculas (sin duplicados por caso).
+model SavedColor {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  hex       String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, hex])
 }

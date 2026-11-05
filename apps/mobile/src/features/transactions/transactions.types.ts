@@ -12,7 +12,14 @@ export interface Transaction {
   category: Category;
   // Linea del presupuesto que este gasto cubre (solo los gastos pueden estar enlazados).
   // fromTransaction: la linea nacio con este gasto ("Descontar de" un grupo) y lo sigue (importe, nombre, mes).
-  budgetEntry?: { id: string; name: string; fromTransaction?: boolean; group: { name: string; color: string } } | null;
+  // envelope: la linea es un sobre (admite varios gastos).
+  budgetEntry?: {
+    id: string;
+    name: string;
+    fromTransaction?: boolean;
+    envelope?: boolean;
+    group: { name: string; color: string };
+  } | null;
 }
 
 export interface TransactionsPage {

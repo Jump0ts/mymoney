@@ -4,11 +4,11 @@ import { Controller, useForm } from 'react-hook-form';
 import { Switch, View } from 'react-native';
 
 import { Button } from '@/components/Button';
-import { ColorPicker } from '@/components/ColorPicker';
 import { FieldError } from '@/components/FieldError';
 import { Input } from '@/components/Input';
 import { ThemedText } from '@/components/themed-text';
-import { CategoryPalette } from '@/features/categories/categories.constants';
+import { ColorField } from '@/features/colors/ColorField';
+import { ColorPalette } from '@/features/colors/colors.constants';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { confirmAsync } from '@/utils/alert';
@@ -39,7 +39,7 @@ export const BudgetGroupForm = ({ defaultValues, submitLabel, onSubmit, onCancel
     formState: { errors, isSubmitting, isDirty },
   } = useForm<BudgetGroupFormValues>({
     resolver: yupResolver(budgetGroupSchema),
-    defaultValues: defaultValues ?? { name: '', color: CategoryPalette[0], limit: '', isRemainder: false },
+    defaultValues: defaultValues ?? { name: '', color: ColorPalette[0], limit: '', isRemainder: false },
   });
   const isRemainder = watch('isRemainder');
   useReportDirty(isDirty);
@@ -110,12 +110,7 @@ export const BudgetGroupForm = ({ defaultValues, submitLabel, onSubmit, onCancel
         control={control}
         name="color"
         render={({ field }) => (
-          <ColorPicker
-            accessibilityLabel="Color del grupo"
-            colors={CategoryPalette}
-            value={field.value}
-            onChange={field.onChange}
-          />
+          <ColorField accessibilityLabel="Color del grupo" value={field.value} onChange={field.onChange} />
         )}
       />
 

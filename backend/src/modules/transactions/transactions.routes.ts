@@ -22,7 +22,6 @@ import {
   releaseEntry,
   setEntryPaid,
   transactionInclude,
-  withLinkConflict,
 } from "./transactions.utils.js";
 
 export const transactionsRouter = Router();
@@ -164,28 +163,27 @@ transactionsRouter.post(
       await ensureMonth(userId, month);
     }
 
-    const transaction = await withLinkConflict(() =>
-      prisma.$transaction(async (db) => {
-        let linkId = budgetEntryId ?? null;
-        if (budgetGroupId) {
-          const entry = await createEntryForExpense(db, userId, {
-            groupId: budgetGroupId,
-            name: entryNameFor(body.description, category.name),
-            amount: body.amount,
-            month,
-          });
-          linkId = entry.id;
-        } else if (linkId) {
-          await assertLinkable(db, userId, linkId);
-        }
-        const created = await db.transaction.create({
-          data: { ...body, userId, budgetEntryId: linkId },
-          include: transactionInclude,
+    const transaction = await prisma.$transaction(async (db) => {
+      let linkId = budgetEntryId ?? null;
+      let linkedToEnvelope = false;
+      if (budgetGroupId) {
+        const entry = await createEntryForExpense(db, userId, {
+          groupId: budgetGroupId,
+          name: entryNameFor(body.description, category.name),
+          amount: body.amount,
+          month,
         });
-        if (linkId && !budgetGroupId) await setEntryPaid(db, linkId, true);
-        return created;
-      }),
-    );
+        linkId = entry.id;
+      } else if (linkId) {
+        linkedToEnvelope = (await assertLinkable(db, userId, linkId)).envelope;
+      }
+      const created = await db.transaction.create({
+        data: { ...body, userId, budgetEntryId: linkId },
+        include: transactionInclude,
+      });
+      if (linkId && !budgetGroupId && !linkedToEnvelope) await setEntryPaid(db, linkId, true);
+      return created;
+    });
     res.status(201).json({ transaction });
   }),
 );
@@ -235,39 +233,38 @@ transactionsRouter.patch(
       await ensureMonth(userId, month);
     }
 
-    const transaction = await withLinkConflict(() =>
-      prisma.$transaction(async (db) => {
-        let linkId = nextLink;
-        if (newGroupId) {
-          const entry = await createEntryForExpense(db, userId, {
-            groupId: newGroupId,
-            name: entryNameFor(description, category.name),
-            amount,
-            month,
-          });
-          linkId = entry.id;
-        } else if (linkId && linkId !== existing.budgetEntryId) {
-          await assertLinkable(db, userId, linkId, existing.id);
-        }
-
-        await db.transaction.update({
-          where: { id: existing.id },
-          data: { ...body, budgetEntryId: linkId },
+    const transaction = await prisma.$transaction(async (db) => {
+      let linkId = nextLink;
+      let linkedToEnvelope = false;
+      if (newGroupId) {
+        const entry = await createEntryForExpense(db, userId, {
+          groupId: newGroupId,
+          name: entryNameFor(description, category.name),
+          amount,
+          month,
         });
+        linkId = entry.id;
+      } else if (linkId && linkId !== existing.budgetEntryId) {
+        linkedToEnvelope = (await assertLinkable(db, userId, linkId, existing.id)).envelope;
+      }
 
-        const linkChanged = linkId !== existing.budgetEntryId;
-        if (linkChanged && existing.budgetEntryId) await releaseEntry(db, existing.budgetEntryId);
-        if (linkChanged && linkId && !newGroupId) await setEntryPaid(db, linkId, true);
-        // La linea que nacio con el gasto sigue a su gasto: mismo importe y nombre.
-        if (!linkChanged && own?.fromTransaction) {
-          await db.budgetEntry.update({
-            where: { id: own.id },
-            data: { amount, name: entryNameFor(description, category.name) },
-          });
-        }
-        return db.transaction.findUniqueOrThrow({ where: { id: existing.id }, include: transactionInclude });
-      }),
-    );
+      await db.transaction.update({
+        where: { id: existing.id },
+        data: { ...body, budgetEntryId: linkId },
+      });
+
+      const linkChanged = linkId !== existing.budgetEntryId;
+      if (linkChanged && existing.budgetEntryId) await releaseEntry(db, existing.budgetEntryId);
+      if (linkChanged && linkId && !newGroupId && !linkedToEnvelope) await setEntryPaid(db, linkId, true);
+      // La linea que nacio con el gasto sigue a su gasto: mismo importe y nombre.
+      if (!linkChanged && own?.fromTransaction) {
+        await db.budgetEntry.update({
+          where: { id: own.id },
+          data: { amount, name: entryNameFor(description, category.name) },
+        });
+      }
+      return db.transaction.findUniqueOrThrow({ where: { id: existing.id }, include: transactionInclude });
+    });
     res.json({ transaction });
   }),
 );

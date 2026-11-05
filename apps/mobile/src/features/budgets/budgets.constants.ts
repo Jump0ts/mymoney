@@ -3,8 +3,16 @@ import type { BudgetLineType, BudgetScope } from './budgets.types';
 
 export const LINE_TYPE_OPTIONS: SegmentOption<BudgetLineType>[] = [
   { label: 'Gasto', value: 'EXPENSE' },
+  { label: 'Variable', value: 'ENVELOPE' },
   { label: 'Reembolso', value: 'REFUND' },
 ];
+
+// Una linea que nacio con un gasto lo sigue a el: no puede ser un sobre.
+export const LINE_TYPE_OPTIONS_NO_ENVELOPE = LINE_TYPE_OPTIONS.filter((option) => option.value !== 'ENVELOPE');
+
+// Explicacion de un sobre al elegir "Variable" en el formulario de una linea.
+export const ENVELOPE_HINT =
+  'Para gastos que se reparten en varias compras (supermercado, gasolina). El importe es lo previsto para todas; cada gasto que enlaces se descuenta de él.';
 
 export const SCOPE_OPTIONS_CREATE: SegmentOption<BudgetScope>[] = [
   { label: 'Solo este mes', value: 'month' },

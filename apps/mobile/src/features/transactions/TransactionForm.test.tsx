@@ -23,7 +23,7 @@ const mockBudgetGroups = [
     isRemainder: false,
     position: 0,
     entries: [
-      { id: 'e-luz', groupId: 'g1', itemId: null, name: 'Luz', amount: '60.00', paid: false, position: 0, transaction: null },
+      { id: 'e-luz', groupId: 'g1', itemId: null, name: 'Luz', amount: '60.00', paid: false, position: 0, envelope: false, transactions: [] },
       {
         id: 'e-agua',
         groupId: 'g1',
@@ -32,9 +32,10 @@ const mockBudgetGroups = [
         amount: '25.00',
         paid: true,
         position: 1,
-        transaction: { id: 'tx-other', amount: '25.00', occurredAt: '2026-05-02T10:00:00.000Z' },
+        envelope: false,
+        transactions: [{ id: 'tx-other', amount: '25.00', occurredAt: '2026-05-02T10:00:00.000Z' }],
       },
-      { id: 'e-ivan', groupId: 'g1', itemId: null, name: 'Luz Ivan', amount: '-30.00', paid: false, position: 2, transaction: null },
+      { id: 'e-ivan', groupId: 'g1', itemId: null, name: 'Luz Ivan', amount: '-30.00', paid: false, position: 2, envelope: false, transactions: [] },
       {
         id: 'e-hipoteca',
         groupId: 'g1',
@@ -43,7 +44,8 @@ const mockBudgetGroups = [
         amount: '700.00',
         paid: true,
         position: 3,
-        transaction: { id: 'tx-own', amount: '700.00', occurredAt: '2026-05-01T10:00:00.000Z' },
+        envelope: false,
+        transactions: [{ id: 'tx-own', amount: '700.00', occurredAt: '2026-05-01T10:00:00.000Z' }],
       },
     ],
   },
@@ -375,7 +377,7 @@ describe('TransactionForm - enlace con el presupuesto', () => {
           {
             ...mockBudgetGroups[0],
             entries: [
-              { id: 'e-cuota', groupId: 'g1', itemId: null, name: 'Cuota', amount: '21.99', paid: false, position: 0, transaction: null },
+              { id: 'e-cuota', groupId: 'g1', itemId: null, name: 'Cuota', amount: '21.99', paid: false, position: 0, envelope: false, transactions: [] },
             ],
           },
         ],
@@ -454,8 +456,8 @@ describe('TransactionForm - enlace con el presupuesto', () => {
           {
             ...mockBudgetGroups[0],
             entries: [
-              { id: 'e-luz', groupId: 'g1', itemId: null, name: 'Luz', amount: '60.00', paid: false, position: 0, transaction: null },
-              { id: 'e-gas', groupId: 'g1', itemId: null, name: 'Gas', amount: '30.00', paid: false, position: 1, transaction: null },
+              { id: 'e-luz', groupId: 'g1', itemId: null, name: 'Luz', amount: '60.00', paid: false, position: 0, envelope: false, transactions: [] },
+              { id: 'e-gas', groupId: 'g1', itemId: null, name: 'Gas', amount: '30.00', paid: false, position: 1, envelope: false, transactions: [] },
             ],
           },
         ],
@@ -547,6 +549,75 @@ describe('TransactionForm - enlace con el presupuesto', () => {
     // Opciones apiladas de 44 pt: sin hitSlop para que no se solapen con las vecinas.
     expect(screen.getByTestId('budget-link-option-e-luz').props.hitSlop).toBe(0);
     expect(screen.getByTestId('budget-link-option-e-luz').props.accessibilityLabel).toMatch(/^Luz, previsto /);
+  });
+
+  describe('sobres (lineas variables)', () => {
+    const expense = (id: string, amount: string) => ({ id, amount, occurredAt: '2026-05-03T10:00:00.000Z' });
+    const supermercado = {
+      id: 'e-super',
+      groupId: 'g1',
+      itemId: 'i-super',
+      name: 'Supermercado',
+      amount: '300.00',
+      paid: false,
+      position: 0,
+      envelope: true,
+      transactions: [expense('tx-a', '45.00'), expense('tx-b', '32.50')],
+    };
+
+    beforeEach(() => {
+      mockBudgetState.data = {
+        month: { year: 2026, month: 5, income: '2000.00' },
+        groups: [{ ...mockBudgetGroups[0], entries: [...mockBudgetGroups[0].entries, supermercado] }],
+      };
+    });
+
+    it('un sobre se ofrece aunque ya tenga gastos, con lo gastado de lo previsto', () => {
+      renderForm();
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+
+      const option = screen.getByTestId('budget-link-option-e-super');
+      expect(option).toBeTruthy();
+      expect(screen.getByText('77,50 € de 300,00 €')).toBeTruthy();
+      expect(String(option.props.accessibilityLabel).replace(/ /g, ' ')).toBe(
+        'Supermercado, variable, gastado 77,50 € de 300,00 €',
+      );
+      // Una linea normal con su gasto sigue sin ofrecerse.
+      expect(screen.queryByTestId('budget-link-option-e-agua')).toBeNull();
+    });
+
+    it('enlazar con un sobre no rellena el importe ni la descripcion con los del sobre', async () => {
+      const { onSubmit } = renderForm({ defaultValues: undefined });
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-super'));
+      fireEvent.changeText(screen.getByTestId('transaction-amount-input'), '32,50');
+      fireEvent.press(screen.getByTestId('category-chip-cat-exp-1'));
+
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('32,50');
+      expect(screen.getByPlaceholderText('Descripción (opcional)').props.value).toBe('');
+      fireEvent.press(screen.getByTestId('transaction-submit'));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(submittedValues(onSubmit)).toMatchObject({ amount: 32.5, budgetEntryId: 'e-super', description: '' });
+    });
+
+    it('con el importe vacio no se rellena con los 300 del sobre', () => {
+      renderForm({ defaultValues: undefined });
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('');
+
+      fireEvent.press(screen.getByTestId('budget-link-toggle'));
+      fireEvent.press(screen.getByTestId('budget-link-option-e-super'));
+
+      expect(screen.getByTestId('transaction-amount-input').props.value).toBe('');
+    });
+
+    it('al editar un gasto del sobre, ese sobre sigue elegido', () => {
+      renderForm({ defaultValues: { ...baseValues, budgetEntryId: 'e-super' }, ownTransactionId: 'tx-a' });
+
+      expect(screen.getByTestId('budget-link-toggle').props.accessibilityLabel).toBe(
+        'Línea del presupuesto: Supermercado · Hogar',
+      );
+    });
   });
 });
 

@@ -17,6 +17,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuthStore } from '@/features/auth/auth.store';
 import { useSummary } from '@/features/transactions/useTransactions';
+import { useLegibleColor } from '@/hooks/use-legible-color';
 import { useTheme } from '@/hooks/use-theme';
 import { getCurrentYearMonth, getMonthRange } from '@/utils/date';
 import { formatMoney } from '@/utils/format';
@@ -28,6 +29,7 @@ const CONTENT_FADE_IN = FadeIn.duration(200);
 
 const DashboardScreen = () => {
   const theme = useTheme();
+  const legible = useLegibleColor();
   const user = useAuthStore((s) => s.user);
   const [selected, setSelected] = useState(getCurrentYearMonth());
   const selectedMonthKey = `${selected.year}-${String(selected.month).padStart(2, '0')}`;
@@ -39,7 +41,7 @@ const DashboardScreen = () => {
   const expenseSlices =
     summary?.byCategory
       .filter((c) => c.type === 'EXPENSE')
-      .map((c) => ({ label: c.categoryName, value: c.total, color: c.color })) ?? [];
+      .map((c) => ({ label: c.categoryName, value: c.total, color: legible(c.color) })) ?? [];
 
   return (
     <ThemedView style={styles.container}>

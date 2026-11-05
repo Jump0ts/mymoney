@@ -84,6 +84,7 @@ export const openMonth = async (userId: string, target: YearMonth): Promise<bool
           itemId: item.id,
           name: item.name,
           amount: item.amount,
+          envelope: item.envelope,
           position: item.position,
         })),
         skipDuplicates: true,

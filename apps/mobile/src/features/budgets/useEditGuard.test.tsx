@@ -5,6 +5,13 @@ import { BudgetGroupForm } from './BudgetGroupForm';
 import { BudgetLineForm } from './BudgetLineForm';
 import { EditGuardProvider, useEditGuard, useReportDirty } from './useEditGuard';
 
+// El campo de color pide los colores propios guardados al servidor: aqui no hay ninguno.
+jest.mock('@/features/colors/useColors', () => ({
+  useSavedColors: () => ({ data: [] }),
+  useSaveColor: () => ({ mutate: jest.fn() }),
+  useRemoveColor: () => ({ mutate: jest.fn(), isPending: false }),
+}));
+
 jest.mock('@/utils/alert', () => ({ confirmAsync: jest.fn().mockResolvedValue(true), notify: jest.fn() }));
 
 // Una pantalla con dos formularios que pueden estar sucios.

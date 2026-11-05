@@ -1,8 +1,18 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { CategoryPalette } from '@/features/categories/categories.constants';
+import { ColorPalette } from '@/features/colors/colors.constants';
 import { ApiError } from '@/lib/api';
 import { confirmAsync } from '@/utils/alert';
 import { BudgetGroupForm } from './BudgetGroupForm';
+
+// El campo de color pide los colores propios guardados al servidor: aqui no hay ninguno.
+const mockSavedColors: { id: string; hex: string; createdAt: string }[] = [];
+const mockSaveColor = jest.fn();
+
+jest.mock('@/features/colors/useColors', () => ({
+  useSavedColors: () => ({ data: mockSavedColors }),
+  useSaveColor: () => ({ mutate: mockSaveColor }),
+  useRemoveColor: () => ({ mutate: jest.fn(), isPending: false }),
+}));
 
 jest.mock('@/utils/alert', () => ({ confirmAsync: jest.fn().mockResolvedValue(true), notify: jest.fn() }));
 
@@ -23,7 +33,7 @@ describe('BudgetGroupForm', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toEqual({
       name: 'Hogar',
-      color: CategoryPalette[0],
+      color: ColorPalette[0],
       limit: '',
       isRemainder: false,
     });
@@ -37,7 +47,47 @@ describe('BudgetGroupForm', () => {
     fireEvent.press(screen.getByTestId('budget-group-submit'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
-    expect(onSubmit.mock.calls[0][0].color).toBe(CategoryPalette[3]);
+    expect(onSubmit.mock.calls[0][0].color).toBe(ColorPalette[3]);
+  });
+
+  describe('color personalizado', () => {
+    beforeEach(() => {
+      mockSavedColors.length = 0;
+      mockSaveColor.mockClear();
+    });
+
+    it('envia un color escrito a mano y lo guarda para la proxima vez', async () => {
+      const { onSubmit } = renderForm();
+
+      fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Deseos');
+      fireEvent.press(screen.getByLabelText('Elegir otro color'));
+      fireEvent.changeText(screen.getByTestId('color-panel-hex'), '#e91e63');
+      fireEvent.press(screen.getByTestId('color-panel-apply'));
+      fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(onSubmit.mock.calls[0][0].color).toBe('#E91E63');
+      expect(mockSaveColor).toHaveBeenCalledWith('#E91E63');
+    });
+
+    it('ofrece los colores guardados y envia el que se elija', async () => {
+      mockSavedColors.push({ id: 'c1', hex: '#101010', createdAt: '2026-11-04T10:00:00.000Z' });
+      const { onSubmit } = renderForm();
+
+      fireEvent.changeText(screen.getByTestId('budget-group-name'), 'Deseos');
+      fireEvent.press(screen.getByLabelText('Color guardado #101010'));
+      fireEvent.press(screen.getByTestId('budget-group-submit'));
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(onSubmit.mock.calls[0][0].color).toBe('#101010');
+      expect(mockSaveColor).not.toHaveBeenCalled();
+    });
+
+    it('al editar un grupo con un color propio lo muestra como elegido', () => {
+      renderForm({ defaultValues: { name: 'Deseos', color: '#123456', limit: '', isRemainder: false } });
+
+      expect(screen.getByLabelText('Color personalizado #123456').props.accessibilityState).toMatchObject({ selected: true });
+    });
   });
 
   it('envia el limite escrito, y es opcional', async () => {
@@ -64,7 +114,7 @@ describe('BudgetGroupForm', () => {
 
   it('precarga el limite al editar y se puede vaciar para quitarlo', async () => {
     const { onSubmit } = renderForm({
-      defaultValues: { name: 'Gastos fijos', color: CategoryPalette[0], limit: '600', isRemainder: false },
+      defaultValues: { name: 'Gastos fijos', color: ColorPalette[0], limit: '600', isRemainder: false },
     });
     expect(screen.getByDisplayValue('600')).toBeTruthy();
 
@@ -91,7 +141,7 @@ describe('BudgetGroupForm', () => {
   });
 
   it('el interruptor se expone como switch y se puede desmarcar', () => {
-    renderForm({ defaultValues: { name: 'Caprichos', color: CategoryPalette[0], limit: '', isRemainder: true } });
+    renderForm({ defaultValues: { name: 'Caprichos', color: ColorPalette[0], limit: '', isRemainder: true } });
     const toggle = screen.getByLabelText('Recibe lo que sobra del sueldo');
 
     expect(toggle.props.value).toBe(true);
@@ -133,7 +183,7 @@ describe('BudgetGroupForm', () => {
   });
 
   it('precarga los valores al editar', () => {
-    renderForm({ defaultValues: { name: 'Alquiler', color: CategoryPalette[2], limit: '', isRemainder: false } });
+    renderForm({ defaultValues: { name: 'Alquiler', color: ColorPalette[2], limit: '', isRemainder: false } });
 
     expect(screen.getByDisplayValue('Alquiler')).toBeTruthy();
     expect(screen.getByLabelText('Color 3 de 10').props.accessibilityState).toMatchObject({ selected: true });
@@ -192,7 +242,7 @@ describe('BudgetGroupForm', () => {
 
     it('pide confirmacion antes de borrar', async () => {
       const onDelete = jest.fn().mockResolvedValue(undefined);
-      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '', isRemainder: false }, onDelete });
+      renderForm({ defaultValues: { name: 'Hogar', color: ColorPalette[0], limit: '', isRemainder: false }, onDelete });
 
       fireEvent.press(screen.getByTestId('budget-group-delete'));
 
@@ -203,7 +253,7 @@ describe('BudgetGroupForm', () => {
     it('no borra si se cancela la confirmacion', async () => {
       jest.mocked(confirmAsync).mockResolvedValueOnce(false);
       const onDelete = jest.fn();
-      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '', isRemainder: false }, onDelete });
+      renderForm({ defaultValues: { name: 'Hogar', color: ColorPalette[0], limit: '', isRemainder: false }, onDelete });
 
       fireEvent.press(screen.getByTestId('budget-group-delete'));
 
@@ -215,7 +265,7 @@ describe('BudgetGroupForm', () => {
       const onDelete = jest
         .fn()
         .mockRejectedValue(new ApiError(400, 'No se puede borrar un grupo que tiene líneas, ni siquiera de meses anteriores'));
-      renderForm({ defaultValues: { name: 'Hogar', color: CategoryPalette[0], limit: '', isRemainder: false }, onDelete });
+      renderForm({ defaultValues: { name: 'Hogar', color: ColorPalette[0], limit: '', isRemainder: false }, onDelete });
 
       fireEvent.press(screen.getByTestId('budget-group-delete'));
 
