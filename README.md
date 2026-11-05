@@ -3,14 +3,14 @@
 [![CI](https://github.com/Jump0ts/mymoney/actions/workflows/ci.yml/badge.svg)](https://github.com/Jump0ts/mymoney/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Status: beta](https://img.shields.io/badge/status-beta-orange)
-![Version: 0.5.0 beta](https://img.shields.io/badge/version-0.5.0--beta-orange)
+![Version: 0.5.1 beta](https://img.shields.io/badge/version-0.5.1--beta-orange)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)
 
 **A personal-finance app built end to end by one developer: React Native + Expo client, Node/Express/PostgreSQL API, automated tests, CI/CD and a hardened production deployment.**
 
 Track income and expenses, see where the money goes, and plan the month in an **Excel-style budget** with recurring lines, group limits and a "whatever is left of my salary" group. It runs in production on a small VPS, serves the web app from the same server, and ships through a pipeline that needs a human approval before anything is deployed.
 
-> **Status: public beta (0.5.0).** The core product is feature-complete, covered by automated tests and running in production. It is a personal tool, not a product: every account is **individual and private**, registration is closed in production, and there is no public demo (see [Run it locally](#run-it-locally) for a seeded demo user). It is not a 1.0: expect rough edges. See the [changelog](./CHANGELOG.md).
+> **Status: public beta (0.5.1).** The core product is feature-complete, covered by automated tests and running in production. It is a personal tool, not a product: every account is **individual and private**, registration is closed in production, and there is no public demo (see [Run it locally](#run-it-locally) for a seeded demo user). It is not a 1.0: expect rough edges. See the [changelog](./CHANGELOG.md).
 
 ## Screenshots
 
@@ -30,7 +30,7 @@ The app's interface is in Spanish (it is the author's native language and the on
 |---|---|
 | **Full-stack TypeScript** | React Native/Expo client and Express/Prisma API sharing conventions and strict typing; Zod validation on the server, Yup on the forms. One codebase for iOS, Android and web. |
 | **Product & domain design** | A monthly budget modelled as a recurring template plus per-month entries, group limits that reserve money, a group that receives what is left of the salary, refunds, and expenses that can be linked to budget lines — designed from a real spreadsheet workflow. |
-| **Testing** | 700+ client tests (Jest, React Native Testing Library), 270+ API tests (Vitest + supertest against a real PostgreSQL, including tenant-isolation and concurrency tests), and shell tests for the deployment scripts. Every change ships with its own tests. |
+| **Testing** | 800+ client tests (Jest, React Native Testing Library), 300+ API tests (Vitest + supertest against a real PostgreSQL, including tenant-isolation and concurrency tests), and shell tests for the deployment scripts. Every change ships with its own tests. |
 | **CI/CD** | GitHub Actions: lint, typecheck, build, tests with coverage, a job that **builds the production Docker image and boots it under the same restrictions as production** (including the web server), and `shellcheck`. Deployments are automatic but gated by a human approval. |
 | **Security** | Per-user data isolation, JWT, Helmet, rate limiting at the proxy, closed registration, a strict Content Security Policy, secret scanning and push protection, supply-chain controls (pinned actions, image digests, provenance attestation). See [Security](#security). |
 | **DevOps** | Docker (non-root, read-only, no capabilities), nginx + Let's Encrypt on a server shared with another app, GHCR, a forced-command SSH deploy key, automatic rollback of the API, daily database backups that are restore-tested. |
@@ -164,7 +164,7 @@ npm run lint --workspace=backend && npm run lint --workspace=apps/mobile
 
 ## Status and roadmap
 
-**Beta (v0.5.0).** The core features are complete and tested; the [changelog](./CHANGELOG.md) lists what each release contains. The web app is live and installable; native iOS and Android builds run in Expo Go (store builds are not published yet). Not built yet: an installable Android APK, automatic payment detection (Android) and multiple accounts/wallets.
+**Beta (v0.5.1).** The core features are complete and tested; the [changelog](./CHANGELOG.md) lists what each release contains. The web app is live and installable; native iOS and Android builds run in Expo Go (store builds are not published yet). Not built yet: an installable Android APK, automatic payment detection (Android) and multiple accounts/wallets.
 
 ## Documentation
 

@@ -4,7 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
-## [Unreleased]
+## [0.5.1] — 2026-11-05 — Beta
+
+> Hotfix: a refund (what someone pays you back for a shared expense) now reduces the expense it compensates instead of being left out of *Movimientos* and the overview.
 
 ### Fixed
 - **A refund now reduces the expense it pays back.** Some things are paid by one person and split afterwards (half of the internet bill, half of a dinner for two). Ticking a refund line in the budget only set a mark, so the full expense stayed in *Movimientos* and in the overview as if you had paid it all. A **refund is now an expense with a negative amount** in the category of the expense it compensates, so every figure is net: the dinner of 50 € and the 25 € your partner pays you back leave 25 € in *Ocio*, in the monthly bars, in the total spent and in the balance, and the refund is **not** counted as income.
@@ -168,6 +170,7 @@ author as a personal tool, and interfaces and data models may still change.
 - Automatic payment detection (Android only), multiple accounts/wallets, and recurring expenses outside the budget.
 - Screenshots and a public demo.
 
+[0.5.1]: https://github.com/Jump0ts/mymoney/releases/tag/v0.5.1-beta
 [0.5.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.5.0-beta
 [0.4.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.4.0-beta
 [0.3.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.3.0-beta
