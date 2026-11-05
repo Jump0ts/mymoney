@@ -4,7 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
-## [Unreleased]
+## [0.5.0] — 2026-11-05 — Beta
+
+> Budget and categories release: envelopes (variable budget lines that take several expenses), any colour for categories and groups, editable categories, and the app's own icon.
 
 ### Added
 - **Envelopes: a budget line that takes several expenses.** A line such as *Supermercado* or *Gasolina* is not paid in one go: it is spent in many purchases over the month, and until now a line could be linked to only one expense, so the budget said "paid" after the first purchase and ignored the rest. A line can now be of type **Variable** (new option next to *Gasto* and *Reembolso* in the line form, with a short explanation): its amount is what you plan to spend in total, you can link **as many expenses as you want** to it, and the row shows what you have spent, what is left and a bar (*"Quedan 190,00 € de 300,00 €"*, or *"Te pasas 5,00 €"* in the expense colour when you go over).
@@ -23,6 +25,7 @@ author as a personal tool, and interfaces and data models may still change.
   - API: `GET /api/colors`, `POST /api/colors` (`{ hex }`, idempotent, stored upper case, `400` over the limit or for something that is not `#RRGGBB`) and `DELETE /api/colors/:id` (`404` for another user's colour). New table `SavedColor` (private to each user, unique per user and colour); the migration only creates the table, it touches no data.
 
 ### Changed
+- Database: this release applies two migrations, `SavedColor` (creates the table of each user's own colours) and `budget_envelopes` (two columns with a default and the unique index on `Transaction.budgetEntryId` replaced by a plain one). Neither touches existing data. The web app and the API must be deployed together: the budget endpoint now returns `transactions` instead of `transaction`, so a browser tab left open on the previous web version has to be reloaded.
 - The adaptive Android icon uses the brand colour as a plain background instead of the default image layer, which is removed.
 
 ### Fixed
@@ -154,6 +157,7 @@ author as a personal tool, and interfaces and data models may still change.
 - Automatic payment detection (Android only), multiple accounts/wallets, and recurring expenses outside the budget.
 - Screenshots and a public demo.
 
+[0.5.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.5.0-beta
 [0.4.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.4.0-beta
 [0.3.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.3.0-beta
 [0.2.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.2.0-beta
