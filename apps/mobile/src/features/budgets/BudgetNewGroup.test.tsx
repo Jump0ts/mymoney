@@ -3,6 +3,13 @@ import { BudgetNewGroup } from './BudgetNewGroup';
 
 const mockCreateGroup = jest.fn().mockResolvedValue(undefined);
 
+// El campo de color pide los colores propios guardados al servidor: aqui no hay ninguno.
+jest.mock('@/features/colors/useColors', () => ({
+  useSavedColors: () => ({ data: [] }),
+  useSaveColor: () => ({ mutate: jest.fn() }),
+  useRemoveColor: () => ({ mutate: jest.fn(), isPending: false }),
+}));
+
 jest.mock('./useBudgets', () => ({ useCreateGroup: () => ({ mutateAsync: mockCreateGroup }) }));
 
 describe('BudgetNewGroup', () => {

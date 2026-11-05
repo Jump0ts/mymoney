@@ -9,7 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CategoryGroup } from '@/features/categories/CategoryGroup';
 import { CategoryGroupSkeleton } from '@/features/categories/CategoryGroupSkeleton';
-import { NewCategoryForm } from '@/features/categories/NewCategoryForm';
+import { CategoryForm } from '@/features/categories/CategoryForm';
 import type { Category } from '@/features/categories/categories.types';
 import { useCategories, useDeleteCategory } from '@/features/categories/useCategories';
 import { useTheme } from '@/hooks/use-theme';
@@ -24,6 +24,8 @@ const CategoriesScreen = () => {
   const { data: categories, isLoading } = useCategories();
   const deleteCategory = useDeleteCategory();
   const [isCreating, setIsCreating] = useState(false);
+  // Categoria que se esta editando: su fila pasa a ser el formulario. Crear y editar no se abren a la vez.
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const expense = useMemo(() => categories?.filter((c) => c.type === 'EXPENSE') ?? [], [categories]);
   const income = useMemo(() => categories?.filter((c) => c.type === 'INCOME') ?? [], [categories]);
@@ -46,6 +48,13 @@ const CategoriesScreen = () => {
     [deleteCategory],
   );
 
+  const handleEdit = useCallback((category: Category) => {
+    setIsCreating(false);
+    setEditingId(category.id);
+  }, []);
+
+  const handleDoneEditing = useCallback(() => setEditingId(null), []);
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -57,13 +66,16 @@ const CategoriesScreen = () => {
             <AnimatedPressable
               accessibilityRole="button"
               accessibilityLabel={isCreating ? 'Cerrar formulario' : 'Añadir categoría'}
-              onPress={() => setIsCreating((v) => !v)}
+              onPress={() => {
+                setEditingId(null);
+                setIsCreating((v) => !v);
+              }}
               style={[styles.addButton, { backgroundColor: theme.primary }]}>
               <Feather name={isCreating ? 'x' : 'plus'} size={20} color={theme.primaryText} />
             </AnimatedPressable>
           </View>
 
-          {isCreating && <NewCategoryForm onDone={() => setIsCreating(false)} />}
+          {isCreating && <CategoryForm onDone={() => setIsCreating(false)} />}
 
           {isLoading ? (
             <>
@@ -72,8 +84,22 @@ const CategoriesScreen = () => {
             </>
           ) : (
             <Animated.View entering={CONTENT_FADE_IN}>
-              <CategoryGroup title="Gastos" categories={expense} onDelete={handleDelete} />
-              <CategoryGroup title="Ingresos" categories={income} onDelete={handleDelete} />
+              <CategoryGroup
+                title="Gastos"
+                categories={expense}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+                editingId={editingId}
+                onDoneEditing={handleDoneEditing}
+              />
+              <CategoryGroup
+                title="Ingresos"
+                categories={income}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+                editingId={editingId}
+                onDoneEditing={handleDoneEditing}
+              />
             </Animated.View>
           )}
         </ScrollView>

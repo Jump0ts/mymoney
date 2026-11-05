@@ -46,6 +46,18 @@ describe("grupos de presupuesto", () => {
     expect(list.body.groups.map((g: { name: string }) => g.name)).toEqual(["Hogar", "Deseos"]);
   });
 
+  it("editar solo una cosa del grupo no toca las demas (cambiar el nombre no restablece el color)", async () => {
+    const { token } = await authedUser();
+    const created = await as(token).post("/api/budgets/groups", { name: "Hogar", color: "#E91E63" });
+    const id = created.body.group.id;
+
+    const renamed = await as(token).patch(`/api/budgets/groups/${id}`, { name: "Casa" });
+    const recolored = await as(token).patch(`/api/budgets/groups/${id}`, { color: "#00AA55" });
+
+    expect(renamed.body.group).toMatchObject({ name: "Casa", color: "#E91E63" });
+    expect(recolored.body.group).toMatchObject({ name: "Casa", color: "#00AA55" });
+  });
+
   it("rechaza un nombre duplicado y un color invalido", async () => {
     const { token } = await authedUser();
     await createGroup(token, "Hogar");

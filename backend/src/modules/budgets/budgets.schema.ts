@@ -17,14 +17,18 @@ export const monthParamsSchema = z.object({
 // Tope opcional de la suma de lo previsto en las lineas del grupo; null lo quita.
 const groupLimitSchema = z.number().positive("El límite debe ser mayor que 0").max(1_000_000).nullable();
 
-export const createGroupSchema = z.object({
+const groupFields = {
   name: z.string().trim().min(1).max(40),
-  color: colorSchema.default("#6C5CE7"),
+  color: colorSchema,
   limit: groupLimitSchema.optional(),
   isRemainder: z.boolean().optional(),
-});
+};
 
-export const updateGroupSchema = createGroupSchema.partial().extend({
+// Al crear, el color tiene valor por defecto.
+export const createGroupSchema = z.object({ ...groupFields, color: groupFields.color.default("#6C5CE7") });
+
+// Al editar, lo que no se manda no se toca (con el valor por defecto aqui, un cambio solo de nombre restablecia el color).
+export const updateGroupSchema = z.object(groupFields).partial().extend({
   position: z.number().int().min(0).optional(),
 });
 
