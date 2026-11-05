@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuthStore } from '@/features/auth/auth.store';
+import { toExpenseSlices } from '@/features/transactions/transactions.utils';
 import { useSummary } from '@/features/transactions/useTransactions';
 import { useLegibleColor } from '@/hooks/use-legible-color';
 import { useTheme } from '@/hooks/use-theme';
@@ -38,10 +39,7 @@ const DashboardScreen = () => {
   // Historico completo (sin filtro de mes) solo para el grafico de barras.
   const { data: history, isLoading: isHistoryLoading } = useSummary();
 
-  const expenseSlices =
-    summary?.byCategory
-      .filter((c) => c.type === 'EXPENSE')
-      .map((c) => ({ label: c.categoryName, value: c.total, color: legible(c.color) })) ?? [];
+  const expenseSlices = toExpenseSlices(summary?.byCategory ?? [], legible);
 
   return (
     <ThemedView style={styles.container}>

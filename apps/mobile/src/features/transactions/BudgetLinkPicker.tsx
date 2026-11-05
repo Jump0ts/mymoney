@@ -19,6 +19,9 @@ export interface LinkedLine {
 }
 
 interface BudgetLinkPickerProps {
+  // Un gasto se enlaza con las lineas de gasto y un reembolso (lo que te devuelven por algo que pagas a medias), con
+  // las de reembolso. Por defecto, un gasto.
+  refund?: boolean;
   // Mes del gasto: solo se ofrecen las lineas de su presupuesto.
   month: YearMonth;
   value: string | null;
@@ -38,8 +41,10 @@ interface BudgetLinkPickerProps {
 
 // Elige de donde sale este gasto en el presupuesto del mes: una linea que ya existe (solo salen lineas de gasto, no
 // reembolsos; una linea normal solo si no tiene ya otro gasto, un sobre siempre) o un grupo, para que el gasto cree su
-// propia linea puntual.
+// propia linea puntual. Con un reembolso salen solo las lineas de reembolso que aun no tienen el suyo, y el grupo
+// crea una linea de reembolso nueva.
 export const BudgetLinkPicker = ({
+  refund = false,
   month,
   value,
   onChange,
@@ -50,6 +55,9 @@ export const BudgetLinkPicker = ({
   ownLineId,
 }: BudgetLinkPickerProps) => {
   const theme = useTheme();
+  // Una linea de reembolso se guarda con importe negativo; al enlazar un reembolso se ofrece y se rellena lo que te
+  // devuelven, sin signo.
+  const plannedOf = (amount: string) => (refund ? amount.replace(/^-/, '') : amount);
   const [expanded, setExpanded] = useState(false);
   const { data, isLoading, isError, isFetching } = useBudgetMonth(month);
 
@@ -63,12 +71,12 @@ export const BudgetLinkPicker = ({
           ...group,
           entries: group.entries.filter(
             (entry) =>
-              Number(entry.amount) > 0 &&
+              (refund ? Number(entry.amount) < 0 : Number(entry.amount) > 0) &&
               (entry.envelope || entry.transactions.every((expense) => expense.id === ownTransactionId)),
           ),
         }))
         .filter((group) => group.entries.length > 0),
-    [data, isPreview, ownTransactionId],
+    [data, isPreview, ownTransactionId, refund],
   );
 
   const selected = useMemo(
@@ -97,7 +105,7 @@ export const BudgetLinkPicker = ({
   // Con una linea elegida que aun no se ha podido resolver (cargando o sin conexion) no se dice "Sin enlazar":
   // el enlace sigue ahi y se conserva al guardar.
   const summary = groupValue
-    ? `Nuevo gasto en ${selectedGroup?.name ?? 'un grupo'}`
+    ? `${refund ? 'Nuevo reembolso' : 'Nuevo gasto'} en ${selectedGroup?.name ?? 'un grupo'}`
     : selected
       ? `${selected.entry.name} · ${selected.group.name}`
       : value
@@ -137,7 +145,9 @@ export const BudgetLinkPicker = ({
             <ThemedText type="small" themeColor="textSecondary">
               {isPreview
                 ? 'Este mes aún no está preparado en Presupuesto: edítalo allí para poder enlazar.'
-                : 'No hay líneas de gasto libres en el presupuesto de este mes.'}
+                : refund
+                  ? 'No hay reembolsos libres en el presupuesto de este mes.'
+                  : 'No hay líneas de gasto libres en el presupuesto de este mes.'}
             </ThemedText>
           )}
 
@@ -157,7 +167,7 @@ export const BudgetLinkPicker = ({
           {onGroupChange && (data?.groups.length ?? 0) > 0 && (
             <View>
               <ThemedText type="smallBold" themeColor="textSecondary" accessibilityRole="header" style={styles.groupTitle}>
-                Gasto nuevo en un grupo
+                {refund ? 'Reembolso nuevo en un grupo' : 'Gasto nuevo en un grupo'}
               </ThemedText>
               {data?.groups.map((group) => {
                 const active = group.id === groupValue;
@@ -165,7 +175,7 @@ export const BudgetLinkPicker = ({
                   <AnimatedPressable
                     key={group.id}
                     accessibilityRole="radio"
-                    accessibilityLabel={`Nuevo gasto en ${group.name}`}
+                    accessibilityLabel={`${refund ? 'Nuevo reembolso' : 'Nuevo gasto'} en ${group.name}`}
                     accessibilityState={{ selected: active }}
                     testID={`budget-group-option-${group.id}`}
                     hitSlop={0}
@@ -202,20 +212,26 @@ export const BudgetLinkPicker = ({
                     accessibilityLabel={
                       entry.envelope
                         ? `${entry.name}, variable, gastado ${formatMoney(getEntryActual(entry))} de ${formatMoney(entry.amount)}`
-                        : `${entry.name}, previsto ${formatMoney(entry.amount)}`
+                        : refund
+                          ? `${entry.name}, reembolso previsto ${formatMoney(plannedOf(entry.amount))}`
+                          : `${entry.name}, previsto ${formatMoney(entry.amount)}`
                     }
                     accessibilityState={{ selected: active }}
                     testID={`budget-link-option-${entry.id}`}
                     hitSlop={0}
                     onPress={() =>
-                      choose(entry.id, { name: entry.name, plannedAmount: entry.amount, envelope: entry.envelope })
+                      choose(entry.id, {
+                        name: entry.name,
+                        plannedAmount: plannedOf(entry.amount),
+                        envelope: entry.envelope,
+                      })
                     }
                     style={[styles.option, active && { backgroundColor: theme.backgroundSelected }]}>
                     <ThemedText style={styles.optionName}>{entry.name}</ThemedText>
                     <ThemedText type="smallBold" themeColor="textSecondary" style={styles.optionAmount}>
                       {entry.envelope
                         ? `${formatMoney(getEntryActual(entry))} de ${formatMoney(entry.amount)}`
-                        : formatMoney(entry.amount)}
+                        : formatMoney(plannedOf(entry.amount))}
                     </ThemedText>
                     {active && <Feather name="check" size={18} color={theme.primary} />}
                   </AnimatedPressable>

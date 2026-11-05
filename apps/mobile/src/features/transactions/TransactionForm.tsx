@@ -20,6 +20,10 @@ import { BudgetLinkPicker } from './BudgetLinkPicker';
 import { addTransactionSchema, type AddTransactionFormValues } from './transactions.schema';
 import { styles } from './TransactionForm.styles';
 
+type TransactionKind = 'EXPENSE' | 'INCOME' | 'REFUND';
+
+const KIND_LABELS: Record<TransactionKind, string> = { EXPENSE: 'Gasto', INCOME: 'Ingreso', REFUND: 'Reembolso' };
+
 interface TransactionFormProps {
   defaultValues?: AddTransactionFormValues;
   submitLabel: string;
@@ -77,6 +81,9 @@ export const TransactionForm = ({
   });
 
   const type = watch('type');
+  const refund = Boolean(watch('refund'));
+  // Gasto, ingreso o reembolso (un gasto de importe negativo: lo que te devuelven por un gasto).
+  const kind: TransactionKind = type === 'INCOME' ? 'INCOME' : refund ? 'REFUND' : 'EXPENSE';
   const categoryId = watch('categoryId');
   const occurredAt = watch('occurredAt');
   const budgetEntryId = watch('budgetEntryId');
@@ -91,42 +98,40 @@ export const TransactionForm = ({
     <ThemedView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Controller
-          control={control}
-          name="type"
-          render={({ field }) => (
-            <View accessibilityRole="radiogroup" style={styles.segmentRow}>
-              {(['EXPENSE', 'INCOME'] as const).map((option) => {
-                const active = field.value === option;
-                return (
-                  <AnimatedPressable
-                    key={option}
-                    accessibilityRole="radio"
-                    accessibilityLabel={option === 'EXPENSE' ? 'Gasto' : 'Ingreso'}
-                    accessibilityState={{ selected: active }}
-                    testID={`transaction-type-${option}`}
-                    onPress={() => {
-                      field.onChange(option);
-                      setValue('categoryId', '');
-                      // Un ingreso no cubre ninguna linea del presupuesto ni sale de un grupo.
-                      if (option === 'INCOME') {
-                        setValue('budgetEntryId', null);
-                        setValue('budgetGroupId', null);
-                      }
-                    }}
-                    style={[
-                      styles.segment,
-                      { backgroundColor: active ? theme.primary : theme.backgroundElement },
-                    ]}>
-                    <ThemedText style={{ color: active ? theme.primaryText : theme.text }}>
-                      {option === 'EXPENSE' ? 'Gasto' : 'Ingreso'}
-                    </ThemedText>
-                  </AnimatedPressable>
-                );
-              })}
-            </View>
-          )}
-        />
+        <View accessibilityRole="radiogroup" style={styles.segmentRow}>
+          {(['EXPENSE', 'INCOME', 'REFUND'] as const).map((option) => {
+            const active = kind === option;
+            return (
+              <AnimatedPressable
+                key={option}
+                accessibilityRole="radio"
+                accessibilityLabel={KIND_LABELS[option]}
+                accessibilityState={{ selected: active }}
+                testID={`transaction-type-${option}`}
+                onPress={() => {
+                  if (option === kind) return;
+                  const nextType = option === 'INCOME' ? 'INCOME' : 'EXPENSE';
+                  // Las categorias de gasto sirven para un gasto y un reembolso; un ingreso tiene las suyas.
+                  if (nextType !== type) setValue('categoryId', '');
+                  setValue('type', nextType);
+                  setValue('refund', option === 'REFUND');
+                  // La linea elegida ya no encaja (un gasto con las de gasto, un reembolso con las de reembolso) y un
+                  // ingreso no cubre ninguna ni sale de un grupo. Un grupo vale para un gasto y para un reembolso.
+                  setValue('budgetEntryId', null);
+                  if (nextType === 'INCOME') setValue('budgetGroupId', null);
+                }}
+                style={[styles.segment, { backgroundColor: active ? theme.primary : theme.backgroundElement }]}>
+                <ThemedText style={{ color: active ? theme.primaryText : theme.text }}>{KIND_LABELS[option]}</ThemedText>
+              </AnimatedPressable>
+            );
+          })}
+        </View>
+        {kind === 'REFUND' && (
+          <ThemedText type="small" themeColor="textSecondary">
+            Lo que te devuelven por un gasto (la mitad de una cena): resta de su categoría en los resúmenes y no cuenta
+            como ingreso. Elige la categoría del gasto.
+          </ThemedText>
+        )}
 
         <Input
           testID="transaction-amount-input"
@@ -216,6 +221,7 @@ export const TransactionForm = ({
               Presupuesto
             </ThemedText>
             <BudgetLinkPicker
+              refund={refund}
               month={{ year: occurredAt.getFullYear(), month: occurredAt.getMonth() + 1 }}
               value={budgetEntryId ?? null}
               groupValue={budgetGroupId ?? null}

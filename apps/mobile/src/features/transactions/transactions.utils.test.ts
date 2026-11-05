@@ -1,5 +1,6 @@
 import type { AddTransactionFormValues } from './transactions.schema';
-import { toCreateInput, toNewExpenseDefaults, toUpdateInput } from './transactions.utils';
+import { toCreateInput, toExpenseSlices, toNewExpenseDefaults, toUpdateInput } from './transactions.utils';
+import type { CategoryBreakdown } from './transactions.types';
 
 const expense: AddTransactionFormValues = {
   type: 'EXPENSE',
@@ -31,6 +32,21 @@ describe('toCreateInput', () => {
     expect(toCreateInput({ ...expense, type: 'INCOME' })).not.toHaveProperty('budgetEntryId');
   });
 
+  it('un reembolso es un gasto de importe negativo: el formulario lo pide en positivo y se envia en negativo', () => {
+    const input = toCreateInput({ ...expense, refund: true, budgetEntryId: 'refund-1' });
+
+    expect(input).toMatchObject({ type: 'EXPENSE', amount: -62.3, budgetEntryId: 'refund-1' });
+  });
+
+  it('un gasto (refund false o sin marca) conserva su importe positivo', () => {
+    expect(toCreateInput({ ...expense, refund: false }).amount).toBe(62.3);
+    expect(toCreateInput(expense).amount).toBe(62.3);
+  });
+
+  it('un ingreso ignora la marca de reembolso: nunca es negativo', () => {
+    expect(toCreateInput({ ...expense, type: 'INCOME', refund: true }).amount).toBe(62.3);
+  });
+
   it('una descripcion vacia se omite', () => {
     expect(toCreateInput({ ...expense, description: '' }).description).toBeUndefined();
   });
@@ -48,6 +64,13 @@ describe('toUpdateInput', () => {
 
   it('si el gasto pasa a ingreso manda null aunque hubiera una linea', () => {
     expect(toUpdateInput({ ...expense, type: 'INCOME' }).budgetEntryId).toBeNull();
+  });
+
+  it('un reembolso enlazado conserva su linea al guardar y se envia en negativo', () => {
+    const input = toUpdateInput({ ...expense, refund: true, budgetEntryId: 'refund-1' });
+
+    expect(input.budgetEntryId).toBe('refund-1');
+    expect(input.amount).toBe(-62.3);
   });
 });
 
@@ -116,5 +139,40 @@ describe('toNewExpenseDefaults', () => {
     const values = toNewExpenseDefaults('g-deseos', 'ayer')!;
 
     expect(Math.abs(values.occurredAt.getTime() - Date.now())).toBeLessThan(5000);
+  });
+});
+
+describe('reembolso que sale de un grupo del presupuesto', () => {
+  it('crea su propia linea de reembolso: manda el grupo y el importe negativo', () => {
+    const input = toCreateInput({ ...expense, refund: true, budgetEntryId: null, budgetGroupId: 'g-deseos' });
+
+    expect(input).toMatchObject({ type: 'EXPENSE', amount: -62.3, budgetGroupId: 'g-deseos' });
+    expect(input).not.toHaveProperty('budgetEntryId');
+  });
+});
+
+describe('toExpenseSlices', () => {
+  const row = (categoryId: string, type: 'EXPENSE' | 'INCOME', total: number): CategoryBreakdown => ({
+    categoryId,
+    categoryName: categoryId,
+    color: '#112233',
+    type,
+    total,
+  });
+
+  it('solo dibuja gastos y pasa el color por la funcion que le den', () => {
+    const slices = toExpenseSlices([row('ocio', 'EXPENSE', 25), row('nomina', 'INCOME', 1800)], (c) => c.toLowerCase() + '!');
+
+    expect(slices).toEqual([{ label: 'ocio', value: 25, color: '#112233!' }]);
+  });
+
+  it('el total de una categoria ya viene neto de reembolsos: la cena de 50 con 25 de vuelta pesa 25', () => {
+    expect(toExpenseSlices([row('ocio', 'EXPENSE', 25)], (c) => c)[0].value).toBe(25);
+  });
+
+  it('una categoria con mas reembolsos que gastos (cero o negativa) no tiene porcion', () => {
+    const slices = toExpenseSlices([row('ocio', 'EXPENSE', -20), row('casa', 'EXPENSE', 0), row('ropa', 'EXPENSE', 10)], (c) => c);
+
+    expect(slices.map((s) => s.label)).toEqual(['ropa']);
   });
 });

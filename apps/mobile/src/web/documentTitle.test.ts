@@ -21,6 +21,12 @@ describe('pageTitle', () => {
     expect(pageTitle('/budgets', 'MyMoney', { envelope: '1' })).toBe('Presupuesto · MyMoney');
   });
 
+  it('la hoja de pago de un reembolso se llama "Marcar como cobrada"', () => {
+    expect(pageTitle('/pay-entry', 'MyMoney', { refund: '1', entryId: 'r1' })).toBe('Marcar como cobrada · MyMoney');
+    expect(pageTitle('/pay-entry', 'MyMoney (Pre)', { refund: '1' })).toBe('Marcar como cobrada · MyMoney (Pre)');
+    expect(pageTitle('/budgets', 'MyMoney', { refund: '1' })).toBe('Presupuesto · MyMoney');
+  });
+
   it('reconoce la edicion de un movimiento por su prefijo, sea cual sea el id', () => {
     expect(pageTitle('/edit-transaction/cmw2ia8uy0000')).toBe('Editar movimiento · MyMoney');
   });

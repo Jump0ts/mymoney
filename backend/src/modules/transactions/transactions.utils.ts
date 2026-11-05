@@ -13,19 +13,36 @@ export const transactionInclude = {
   },
 } satisfies Prisma.TransactionInclude;
 
-export const LINK_ONLY_EXPENSE = "Solo un gasto se puede enlazar con una línea del presupuesto";
+export const LINK_ONLY_EXPENSE = "Solo un gasto o un reembolso se puede enlazar con una línea del presupuesto";
 
-// Una linea admite un gasto si es del usuario y es una linea de gasto (importe positivo: un reembolso no se
-// enlaza). Una linea normal admite uno solo; un sobre, los que sean. `ownTransactionId` permite conservar el
-// enlace propio. Devuelve la linea para que quien enlaza sepa si es un sobre.
-export const assertLinkable = async (db: Db, userId: string, budgetEntryId: string, ownTransactionId?: string) => {
+// El signo del movimiento tiene que ser el de la linea: un gasto (importe positivo) paga una linea de gasto y un
+// reembolso (importe negativo, lo que te devuelve otra persona) cubre una linea de reembolso.
+export const coversEntry = (amount: number | Prisma.Decimal, entryAmount: number | Prisma.Decimal): boolean =>
+  Number(amount) > 0 ? Number(entryAmount) > 0 : Number(entryAmount) < 0;
+
+// Una linea admite un movimiento si es del usuario y su signo encaja con el de la linea. Una linea normal admite uno
+// solo; un sobre, los que sean. `ownTransactionId` permite conservar el enlace propio. Devuelve la linea para que
+// quien enlaza sepa si es un sobre.
+export const assertLinkable = async (
+  db: Db,
+  userId: string,
+  budgetEntryId: string,
+  amount: number,
+  ownTransactionId?: string,
+) => {
   // Bloquea la linea hasta el final de la transaccion: dos enlaces a la vez a una linea normal se atienden de
   // uno en uno y el segundo ya ve el primero (no hay indice unico que lo impida, porque un sobre admite varios).
   await db.$queryRaw`SELECT "id" FROM "BudgetEntry" WHERE "id" = ${budgetEntryId} AND "userId" = ${userId} FOR UPDATE`;
 
   const entry = await db.budgetEntry.findFirst({ where: { id: budgetEntryId, userId } });
   if (!entry) throw notFound("Línea del presupuesto no encontrada");
-  if (Number(entry.amount) <= 0) throw badRequest("Un reembolso no se enlaza con un gasto");
+  if (!coversEntry(amount, entry.amount)) {
+    throw badRequest(
+      amount > 0
+        ? "Un reembolso no se enlaza con un gasto"
+        : "Un reembolso solo se enlaza con una línea de reembolso",
+    );
+  }
   if (!entry.envelope) {
     const others = await db.transaction.count({
       where: { budgetEntryId, ...(ownTransactionId && { id: { not: ownTransactionId } }) },
@@ -35,7 +52,7 @@ export const assertLinkable = async (db: Db, userId: string, budgetEntryId: stri
   return entry;
 };
 
-// Enlazar marca la linea como pagada; desenlazar (o borrar el gasto) la deja sin pagar. Un sobre no se marca nunca:
+// Enlazar marca la linea como pagada; desenlazar (o borrar el movimiento) la deja sin pagar. Un sobre no se marca nunca:
 // lo gastado es la suma de sus gastos.
 export const setEntryPaid = (db: Db, entryId: string, paid: boolean) =>
   db.budgetEntry.update({ where: { id: entryId }, data: { paid } });

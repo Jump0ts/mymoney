@@ -36,7 +36,9 @@ const EditTransactionScreen = () => {
   const defaultValues: AddTransactionFormValues = {
     type: transaction.type,
     categoryId: transaction.category.id,
-    amount: Number(transaction.amount),
+    // Un reembolso es un gasto de importe negativo: el formulario lo muestra en positivo y con el tipo "Reembolso".
+    amount: Math.abs(Number(transaction.amount)),
+    refund: transaction.type === 'EXPENSE' && Number(transaction.amount) < 0,
     description: transaction.description ?? '',
     occurredAt: new Date(transaction.occurredAt),
     budgetEntryId: transaction.budgetEntry?.id ?? null,
