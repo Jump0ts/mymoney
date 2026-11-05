@@ -15,6 +15,12 @@ describe('pageTitle', () => {
     expect(pageTitle(pathname)).toBe(expected);
   });
 
+  it('la hoja de pago de un sobre se llama "Añadir gasto"; los parametros no cambian otras pantallas', () => {
+    expect(pageTitle('/pay-entry', 'MyMoney', { envelope: '1', spent: '77.5' })).toBe('Añadir gasto · MyMoney');
+    expect(pageTitle('/pay-entry', 'MyMoney', { entryId: 'e1' })).toBe('Marcar como pagada · MyMoney');
+    expect(pageTitle('/budgets', 'MyMoney', { envelope: '1' })).toBe('Presupuesto · MyMoney');
+  });
+
   it('reconoce la edicion de un movimiento por su prefijo, sea cual sea el id', () => {
     expect(pageTitle('/edit-transaction/cmw2ia8uy0000')).toBe('Editar movimiento · MyMoney');
   });
