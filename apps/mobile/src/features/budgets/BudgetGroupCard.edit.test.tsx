@@ -30,6 +30,8 @@ const target = { year: 2026, month: 10 };
 const entry = (overrides: Partial<BudgetEntry> = {}): BudgetEntry => ({
   id: 'e1',
   groupId: 'g1',
+  envelope: false,
+  transactions: [],
   itemId: 'i1',
   name: 'Netflix',
   amount: '21.99',
@@ -98,7 +100,7 @@ describe('BudgetGroupCard en modo edicion', () => {
     await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalledTimes(1));
     expect(mockUpdateEntry).toHaveBeenCalledWith({
       entry: expect.objectContaining({ id: 'e1' }),
-      line: { name: 'Netflix', amount: 25 },
+      line: { name: 'Netflix', amount: 25, envelope: false },
       scope: 'month',
     });
     await waitFor(() => expect(screen.queryByTestId('budget-line-name')).toBeNull());
@@ -132,7 +134,7 @@ describe('BudgetGroupCard en modo edicion', () => {
     await waitFor(() => expect(mockCreateEntry).toHaveBeenCalledTimes(1));
     expect(mockCreateEntry).toHaveBeenCalledWith({
       groupId: 'g1',
-      line: { name: 'Gimnasio', amount: 60 },
+      line: { name: 'Gimnasio', amount: 60, envelope: false },
       scope: 'template',
     });
   });
@@ -168,7 +170,7 @@ describe('BudgetGroupCard en modo edicion', () => {
     await waitFor(() => expect(mockCreateEntry).toHaveBeenCalledTimes(1));
     expect(mockCreateEntry).toHaveBeenCalledWith({
       groupId: 'g1',
-      line: { name: 'Cena con amigos', amount: 35 },
+      line: { name: 'Cena con amigos', amount: 35, envelope: false },
       scope: 'month',
     });
   });
@@ -329,5 +331,65 @@ describe('BudgetGroupCard en modo edicion', () => {
       expect(announce).toHaveBeenCalledWith('grupo Hogar movido a la posición 1 de 3');
       announce.mockRestore();
     });
+  });
+});
+
+describe('BudgetGroupCard en modo edicion (lineas variables)', () => {
+  beforeEach(() => {
+    mockUpdateEntry.mockClear();
+    mockCreateEntry.mockClear();
+  });
+
+  it('crea una linea variable', async () => {
+    renderCard(true);
+    fireEvent.press(screen.getByTestId('budget-add-line-g1'));
+
+    fireEvent.changeText(screen.getByTestId('budget-line-name'), 'Supermercado');
+    fireEvent.changeText(screen.getByTestId('budget-line-amount'), '300');
+    fireEvent.press(screen.getByText('Variable'));
+    fireEvent.press(screen.getByTestId('budget-line-submit'));
+
+    await waitFor(() => expect(mockCreateEntry).toHaveBeenCalledTimes(1));
+    expect(mockCreateEntry).toHaveBeenCalledWith({
+      groupId: 'g1',
+      line: { name: 'Supermercado', amount: 300, envelope: true },
+      scope: 'template',
+    });
+  });
+
+  it('editar un sobre lo abre con Variable elegido y lo guarda como sobre', async () => {
+    renderCard(true, [entry({ name: 'Gasolina', amount: '120.00', envelope: true })]);
+
+    fireEvent.press(screen.getByTestId('budget-entry-e1'));
+    expect(screen.getByText(/varias compras/)).toBeTruthy();
+    fireEvent.changeText(screen.getByTestId('budget-line-amount'), '150');
+    fireEvent.press(screen.getByTestId('budget-line-submit'));
+
+    await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalledTimes(1));
+    expect(mockUpdateEntry).toHaveBeenCalledWith({
+      entry: expect.objectContaining({ id: 'e1', envelope: true }),
+      line: { name: 'Gasolina', amount: 150, envelope: true },
+      scope: 'month',
+    });
+  });
+
+  it('convertir una linea normal en variable', async () => {
+    renderCard(true);
+
+    fireEvent.press(screen.getByTestId('budget-entry-e1'));
+    fireEvent.press(screen.getByText('Variable'));
+    fireEvent.press(screen.getByTestId('budget-line-submit'));
+
+    await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalledTimes(1));
+    expect(mockUpdateEntry.mock.calls[0][0].line).toEqual({ name: 'Netflix', amount: 21.99, envelope: true });
+  });
+
+  it('una linea que nacio con un gasto no ofrece Variable', () => {
+    renderCard(true, [entry({ itemId: null, fromTransaction: true, paid: true })]);
+
+    fireEvent.press(screen.getByTestId('budget-entry-e1'));
+
+    expect(screen.getByText('Gasto')).toBeTruthy();
+    expect(screen.queryByText('Variable')).toBeNull();
   });
 });

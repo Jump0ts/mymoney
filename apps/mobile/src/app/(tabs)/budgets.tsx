@@ -22,6 +22,7 @@ import {
   getMonthTotals,
   getRemainderAvailable,
   payEntryParams,
+  shouldAddToEnvelope,
   shouldRegisterPayment,
 } from '@/features/budgets/budgets.utils';
 import {
@@ -52,6 +53,15 @@ const BudgetsScreen = () => {
 
   const handleTogglePaid = useCallback(
     async (entry: BudgetEntry) => {
+      // Un sobre no se marca: se apunta un gasto en el (mes actual o pasado) y el servidor lo suma a lo gastado.
+      if (entry.envelope) {
+        if (shouldAddToEnvelope(entry, selected)) {
+          router.push({ pathname: '/pay-entry', params: payEntryParams(entry, selected) });
+        } else {
+          notify('Todavía no', 'Los gastos de una línea variable se apuntan cuando llega el mes.');
+        }
+        return;
+      }
       // Pagar una linea del mes actual o de uno pasado es un gasto real: la hoja pide la categoria y lo crea.
       if (shouldRegisterPayment(entry, selected)) {
         router.push({ pathname: '/pay-entry', params: payEntryParams(entry, selected) });

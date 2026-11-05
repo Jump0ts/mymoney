@@ -9,6 +9,7 @@ import { notify } from '@/utils/alert';
 import { formatMoney } from '@/utils/format';
 import type { BudgetEntry } from './budgets.types';
 import { getEntryActual, isEntryLinked } from './budgets.utils';
+import { BudgetEnvelopeRow } from './BudgetEnvelopeRow';
 import { BudgetMoveButtons } from './BudgetMoveButtons';
 import { styles } from './BudgetEntryRow.styles';
 
@@ -17,6 +18,7 @@ const LINKED_MESSAGE = 'Está pagada por un movimiento. Para cambiarlo, quita el
 
 interface BudgetEntryRowProps {
   entry: BudgetEntry;
+  // Marcar o desmarcar una linea normal; en un sobre, apuntar un gasto nuevo.
   onTogglePaid: (entry: BudgetEntry) => void;
   // En modo edicion la fila deja de ser un check y abre el formulario de la linea.
   editMode?: boolean;
@@ -74,6 +76,9 @@ export const BudgetEntryRow = memo(
         </View>
       );
     }
+
+    // Un sobre no se marca: tocarlo apunta un gasto (lo decide quien recibe onTogglePaid).
+    if (entry.envelope) return <BudgetEnvelopeRow entry={entry} onPress={onTogglePaid} />;
 
     const isRefund = Number(entry.amount) < 0;
     const linked = isEntryLinked(entry);

@@ -8,6 +8,7 @@ import type {
   BudgetMonthResponse,
   BudgetMonthTotals,
   BudgetTotals,
+  EnvelopeStatus,
 } from './budgets.types';
 import type { TransactionInput } from '@/features/transactions/useTransactions';
 import { compareYearMonth, formatDateKey, getCurrentYearMonth, parseDateKey, type YearMonth } from '@/utils/date';
@@ -15,13 +16,29 @@ import { compareYearMonth, formatDateKey, getCurrentYearMonth, parseDateKey, typ
 // Evita arrastrar errores de coma flotante (0.1 + 0.2) a lo que se muestra.
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
 
-// Una linea esta enlazada si tiene un gasto de Movimientos asociado.
-export const isEntryLinked = (entry: BudgetEntry): boolean => Boolean(entry.transaction);
+// Una linea esta enlazada si tiene algun gasto de Movimientos asociado.
+export const isEntryLinked = (entry: BudgetEntry): boolean => entry.transactions.length > 0;
 
-// Lo "pagado" de una linea es el importe real del gasto enlazado o, si se marco a mano, su importe previsto.
+// Lo "pagado" de una linea es el importe real de sus gastos enlazados (uno, o la suma de los de un sobre) o, si se
+// marco a mano, su importe previsto. Un sobre sin gastos no ha gastado nada.
 export const getEntryActual = (entry: BudgetEntry): number => {
-  if (entry.transaction) return Number(entry.transaction.amount);
-  return entry.paid ? Number(entry.amount) : 0;
+  if (entry.transactions.length > 0) {
+    return roundMoney(entry.transactions.reduce((sum, expense) => sum + Number(expense.amount), 0));
+  }
+  return entry.paid && !entry.envelope ? Number(entry.amount) : 0;
+};
+
+// Lo que lleva gastado un sobre de lo previsto, para mostrar cuanto queda.
+export const getEnvelopeStatus = (entry: BudgetEntry): EnvelopeStatus => {
+  const planned = Number(entry.amount);
+  const spent = getEntryActual(entry);
+  return {
+    planned,
+    spent,
+    remaining: roundMoney(planned - spent),
+    ratio: planned > 0 ? Math.min(spent / planned, 1) : 0,
+    isOver: spent > planned,
+  };
 };
 
 export const getGroupTotals = (entries: BudgetEntry[]): BudgetTotals => ({
@@ -84,7 +101,10 @@ export const parseAmountInput = (text: string): number | null => {
   return /^\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : null;
 };
 
-export const getLineType = (entry: BudgetEntry): BudgetLineType => (Number(entry.amount) < 0 ? 'REFUND' : 'EXPENSE');
+export const getLineType = (entry: BudgetEntry): BudgetLineType => {
+  if (Number(entry.amount) < 0) return 'REFUND';
+  return entry.envelope ? 'ENVELOPE' : 'EXPENSE';
+};
 
 // Importe sin signo para el campo de texto del formulario ("21,99").
 export const formatAmountForInput = (amount: string): string => String(Math.abs(Number(amount))).replace('.', ',');
@@ -94,6 +114,7 @@ export const toLinePayload = (values: { name: string; lineType: BudgetLineType; 
   return {
     name: values.name.trim(),
     amount: values.lineType === 'REFUND' ? -magnitude : magnitude,
+    envelope: values.lineType === 'ENVELOPE',
   };
 };
 
@@ -155,12 +176,21 @@ export const expenseDateFor = (target: YearMonth, now: YearMonth = getCurrentYea
   compareYearMonth(target, now) >= 0 ? undefined : formatDateKey(new Date(target.year, target.month, 0, 12));
 
 // Marcar como pagada una linea sin enlazar de un mes actual o pasado registra el pago (crea el gasto). No aplica a un
-// mes futuro (aun no se ha pagado nada), a un reembolso (no es un gasto) ni a lo que ya esta pagado (ahi solo se desmarca).
+// mes futuro (aun no se ha pagado nada), a un reembolso (no es un gasto), a lo que ya esta pagado (ahi solo se
+// desmarca) ni a un sobre (ahi se apuntan gastos, no se marca).
 export const shouldRegisterPayment = (
   entry: BudgetEntry,
   target: YearMonth,
   now: YearMonth = getCurrentYearMonth(),
-): boolean => !entry.paid && !isEntryLinked(entry) && Number(entry.amount) > 0 && canAddExpenseIn(target, now);
+): boolean =>
+  !entry.envelope && !entry.paid && !isEntryLinked(entry) && Number(entry.amount) > 0 && canAddExpenseIn(target, now);
+
+// Tocar un sobre de un mes actual o pasado apunta un gasto nuevo en el. En un mes futuro aun no se ha gastado nada.
+export const shouldAddToEnvelope = (
+  entry: BudgetEntry,
+  target: YearMonth,
+  now: YearMonth = getCurrentYearMonth(),
+): boolean => entry.envelope && canAddExpenseIn(target, now);
 
 // Parametros con los que se abre la hoja de pago. Viajan por la ruta, asi que todo son textos y solo van los que existen.
 // (type y no interface: asi encaja como parametros de ruta de expo-router.)
@@ -170,6 +200,10 @@ export type PayEntryParams = {
   amount: string;
   categoryId?: string;
   date?: string;
+  // Solo en un sobre: '1' y lo gastado hasta ahora. El importe de la hoja es entonces el de un gasto nuevo, vacio, y
+  // `amount` es lo previsto para todo el sobre.
+  envelope?: string;
+  spent?: string;
 };
 
 export const payEntryParams = (
@@ -184,6 +218,7 @@ export const payEntryParams = (
     amount: entry.amount,
     ...(entry.suggestedCategoryId ? { categoryId: entry.suggestedCategoryId } : {}),
     ...(date ? { date } : {}),
+    ...(entry.envelope ? { envelope: '1', spent: String(getEntryActual(entry)) } : {}),
   };
 };
 

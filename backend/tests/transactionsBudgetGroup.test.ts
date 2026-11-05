@@ -47,7 +47,7 @@ type MonthEntry = {
   paid: boolean;
   itemId: string | null;
   position: number;
-  transaction: { id: string; amount: string } | null;
+  transactions: { id: string; amount: string }[];
 };
 type MonthGroup = { id: string; entries: MonthEntry[] };
 
@@ -72,7 +72,7 @@ describe("crear un gasto que sale de un grupo del presupuesto", () => {
     expect(res.body.transaction.budgetEntry).toMatchObject({ name: "Cerveza", group: { name: "Deseos" } });
     const [line] = await entriesOf(ctx, ctx.wishes.id);
     expect(line).toMatchObject({ name: "Cerveza", amount: "3.5", paid: true, itemId: null });
-    expect(line.transaction).toMatchObject({ id: res.body.transaction.id, amount: "3.5" });
+    expect(line.transactions[0]).toMatchObject({ id: res.body.transaction.id, amount: "3.5" });
   });
 
   it("la linea nace marcada como creada con el gasto", async () => {
@@ -235,7 +235,7 @@ describe("borrar el gasto que creo una linea", () => {
     await as(ctx.token).del(`/api/transactions/${created.body.transaction.id}`);
 
     const [kept] = await entriesOf(ctx, ctx.home.id);
-    expect(kept).toMatchObject({ id: line.id, paid: false, transaction: null });
+    expect(kept).toMatchObject({ id: line.id, paid: false, transactions: [] });
   });
 
   it("borrar la linea desde el presupuesto deja el gasto en Movimientos", async () => {
@@ -376,7 +376,7 @@ describe("editar el gasto que creo una linea", () => {
     });
 
     expect(res.status).toBe(200);
-    expect((await entriesOf(ctx, ctx.home.id))[0]).toMatchObject({ id: line.id, paid: false, transaction: null });
+    expect((await entriesOf(ctx, ctx.home.id))[0]).toMatchObject({ id: line.id, paid: false, transactions: [] });
     expect((await entriesOf(ctx, ctx.wishes.id))).toHaveLength(1);
   });
 

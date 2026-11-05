@@ -36,6 +36,8 @@ const seed = (): BudgetMonthResponse => ({
         {
           id: 'e1',
           groupId: 'g1',
+          envelope: false,
+          transactions: [],
           itemId: null,
           name: 'Netflix',
           amount: '21.99',
@@ -94,6 +96,8 @@ describe('useToggleEntryPaid', () => {
 const entry = (overrides: Partial<BudgetEntry> = {}): BudgetEntry => ({
   id: 'e1',
   groupId: 'g1',
+  envelope: false,
+  transactions: [],
   itemId: 'i1',
   name: 'Netflix',
   amount: '21.99',
@@ -102,7 +106,7 @@ const entry = (overrides: Partial<BudgetEntry> = {}): BudgetEntry => ({
   ...overrides,
 });
 
-const fixedLine = { name: 'Netflix HD', amount: 25 } as const;
+const fixedLine = { name: 'Netflix HD', amount: 25, envelope: false } as const;
 
 describe('useUpdateEntry', () => {
   beforeEach(() => jest.mocked(apiRequest).mockReset().mockResolvedValue({}));
@@ -118,7 +122,7 @@ describe('useUpdateEntry', () => {
     expect(apiRequest).toHaveBeenCalledTimes(1);
     expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1', {
       method: 'PATCH',
-      body: { name: 'Netflix HD', amount: 25, scope: 'month' },
+      body: { name: 'Netflix HD', amount: 25, envelope: false, scope: 'month' },
     });
   });
 
@@ -133,7 +137,7 @@ describe('useUpdateEntry', () => {
     expect(apiRequest).toHaveBeenCalledTimes(1);
     expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1', {
       method: 'PATCH',
-      body: { name: 'Netflix HD', amount: 25, scope: 'template' },
+      body: { name: 'Netflix HD', amount: 25, envelope: false, scope: 'template' },
     });
   });
 
@@ -147,7 +151,25 @@ describe('useUpdateEntry', () => {
 
     expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1', {
       method: 'PATCH',
-      body: { name: 'Netflix HD', amount: 25, scope: 'month' },
+      body: { name: 'Netflix HD', amount: 25, envelope: false, scope: 'month' },
+    });
+  });
+
+  it('envia si la linea es un sobre, para convertirla en variable (o devolverla a normal)', async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useUpdateEntry(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        entry: entry(),
+        line: { name: 'Supermercado', amount: 300, envelope: true },
+        scope: 'month',
+      });
+    });
+
+    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/entries/e1', {
+      method: 'PATCH',
+      body: { name: 'Supermercado', amount: 300, envelope: true, scope: 'month' },
     });
   });
 
@@ -258,6 +280,24 @@ describe('useCreateEntry', () => {
       body: { groupId: 'g1', ...fixedLine, recurring },
     });
   });
+
+  it('una linea variable se crea como sobre', async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useCreateEntry(target), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        groupId: 'g1',
+        line: { name: 'Supermercado', amount: 300, envelope: true },
+        scope: 'template',
+      });
+    });
+
+    expect(apiRequest).toHaveBeenCalledWith('/api/budgets/months/2026/9/entries', {
+      method: 'POST',
+      body: { groupId: 'g1', name: 'Supermercado', amount: 300, envelope: true, recurring: true },
+    });
+  });
 });
 
 describe('grupos', () => {
@@ -320,6 +360,8 @@ describe('useMoveInBudget', () => {
   const entryOf = (id: string, name: string) => ({
     id,
     groupId: 'g1',
+    envelope: false,
+    transactions: [],
     itemId: null,
     name,
     amount: '10.00',

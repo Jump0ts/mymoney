@@ -59,11 +59,11 @@ describe("enlazar un gasto con una linea del presupuesto", () => {
     const res = await createExpense(ctx, { budgetEntryId: entry.id });
 
     expect(res.status).toBe(201);
-    expect(res.body.transaction.budgetEntry).toEqual({ id: entry.id, name: "Luz", fromTransaction: false, group: { name: "Hogar", color: expect.any(String) } });
+    expect(res.body.transaction.budgetEntry).toEqual({ id: entry.id, name: "Luz", fromTransaction: false, envelope: false, group: { name: "Hogar", color: expect.any(String) } });
     const updated = await getEntry(ctx, entry.id);
     expect(updated.paid).toBe(true);
     expect(updated.amount).toBe("60");
-    expect(updated.transaction).toMatchObject({ id: res.body.transaction.id, amount: "62.3" });
+    expect(updated.transactions[0]).toMatchObject({ id: res.body.transaction.id, amount: "62.3" });
   });
 
   it("sin enlace todo funciona como antes y la linea no cambia", async () => {
@@ -114,7 +114,7 @@ describe("enlazar un gasto con una linea del presupuesto", () => {
     expect(crossTenant.status).toBe(404);
     expect(missing.status).toBe(404);
     expect((await getEntry(other, othersEntry.id)).paid).toBe(false);
-    expect((await getEntry(other, othersEntry.id)).transaction).toBeNull();
+    expect((await getEntry(other, othersEntry.id)).transactions).toEqual([]);
   });
 
   it("una linea solo admite un gasto: el segundo da 409 y no cambia nada", async () => {
@@ -125,7 +125,7 @@ describe("enlazar un gasto con una linea del presupuesto", () => {
     const second = await createExpense(ctx, { budgetEntryId: entry.id }, 10);
 
     expect(second.status).toBe(409);
-    expect((await getEntry(ctx, entry.id)).transaction?.id).toBe(first.body.transaction.id);
+    expect((await getEntry(ctx, entry.id)).transactions[0]?.id).toBe(first.body.transaction.id);
     const list = await as(ctx.token).get("/api/transactions");
     expect(list.body.transactions).toHaveLength(1);
   });
@@ -170,7 +170,7 @@ describe("cambiar o quitar el enlace", () => {
     expect(res.body.transaction.budgetEntry).toBeNull();
     const after = await getEntry(ctx, entry.id);
     expect(after.paid).toBe(false);
-    expect(after.transaction).toBeNull();
+    expect(after.transactions).toEqual([]);
   });
 
   it("cambiarlo a otra linea libera la anterior y paga la nueva", async () => {
@@ -194,7 +194,7 @@ describe("cambiar o quitar el enlace", () => {
     const res = await as(ctx.token).patch(`/api/transactions/${created.body.transaction.id}`, { budgetEntryId: entry.id });
 
     expect(res.status).toBe(200);
-    expect((await getEntry(ctx, entry.id)).transaction?.id).toBe(created.body.transaction.id);
+    expect((await getEntry(ctx, entry.id)).transactions[0]?.id).toBe(created.body.transaction.id);
   });
 
   it("editar otros campos sin tocar budgetEntryId conserva el enlace, y el importe real sigue al gasto", async () => {
@@ -208,7 +208,7 @@ describe("cambiar o quitar el enlace", () => {
     expect(res.body.transaction.budgetEntry.id).toBe(entry.id);
     const after = await getEntry(ctx, entry.id);
     expect(after.paid).toBe(true);
-    expect(after.transaction?.amount).toBe("58");
+    expect(after.transactions[0]?.amount).toBe("58");
     expect(after.amount).toBe("60");
   });
 
@@ -222,7 +222,7 @@ describe("cambiar o quitar el enlace", () => {
     const res = await as(ctx.token).patch(`/api/transactions/${a.body.transaction.id}`, { budgetEntryId: agua.id });
 
     expect(res.status).toBe(409);
-    expect((await getEntry(ctx, luz.id)).transaction?.id).toBe(a.body.transaction.id);
+    expect((await getEntry(ctx, luz.id)).transactions[0]?.id).toBe(a.body.transaction.id);
   });
 
   it("si un gasto enlazado pasa a ingreso pierde el enlace y la linea queda sin pagar", async () => {
@@ -263,7 +263,7 @@ describe("cambiar o quitar el enlace", () => {
     const res = await as(mine.token).patch(`/api/transactions/${created.body.transaction.id}`, { budgetEntryId: othersEntry.id });
 
     expect(res.status).toBe(404);
-    expect((await getEntry(other, othersEntry.id)).transaction).toBeNull();
+    expect((await getEntry(other, othersEntry.id)).transactions).toEqual([]);
   });
 });
 
@@ -278,7 +278,7 @@ describe("borrar el gasto o la linea", () => {
     expect(res.status).toBe(204);
     const after = await getEntry(ctx, entry.id);
     expect(after.paid).toBe(false);
-    expect(after.transaction).toBeNull();
+    expect(after.transactions).toEqual([]);
   });
 
   it("borrar la linea no borra el gasto: solo pierde el enlace", async () => {

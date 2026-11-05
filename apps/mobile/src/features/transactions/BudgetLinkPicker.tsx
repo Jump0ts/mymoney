@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { ThemedText } from '@/components/themed-text';
 import { useBudgetMonth } from '@/features/budgets/useBudgets';
+import { getEntryActual } from '@/features/budgets/budgets.utils';
 import { useTheme } from '@/hooks/use-theme';
 import type { YearMonth } from '@/utils/date';
 import { formatMoney } from '@/utils/format';
@@ -13,6 +14,8 @@ import { styles } from './BudgetLinkPicker.styles';
 export interface LinkedLine {
   name: string;
   plannedAmount: string;
+  // Sobre: lo previsto es para todos sus gastos, no para este.
+  envelope: boolean;
 }
 
 interface BudgetLinkPickerProps {
@@ -33,8 +36,9 @@ interface BudgetLinkPickerProps {
   ownLineId?: string;
 }
 
-// Elige de donde sale este gasto en el presupuesto del mes: una linea que ya existe (solo salen lineas de gasto,
-// no reembolsos, y que no tengan ya otro gasto enlazado) o un grupo, para que el gasto cree su propia linea puntual.
+// Elige de donde sale este gasto en el presupuesto del mes: una linea que ya existe (solo salen lineas de gasto, no
+// reembolsos; una linea normal solo si no tiene ya otro gasto, un sobre siempre) o un grupo, para que el gasto cree su
+// propia linea puntual.
 export const BudgetLinkPicker = ({
   month,
   value,
@@ -58,7 +62,9 @@ export const BudgetLinkPicker = ({
         .map((group) => ({
           ...group,
           entries: group.entries.filter(
-            (entry) => Number(entry.amount) > 0 && (!entry.transaction || entry.transaction.id === ownTransactionId),
+            (entry) =>
+              Number(entry.amount) > 0 &&
+              (entry.envelope || entry.transactions.every((expense) => expense.id === ownTransactionId)),
           ),
         }))
         .filter((group) => group.entries.length > 0),
@@ -193,15 +199,23 @@ export const BudgetLinkPicker = ({
                   <AnimatedPressable
                     key={entry.id}
                     accessibilityRole="radio"
-                    accessibilityLabel={`${entry.name}, previsto ${formatMoney(entry.amount)}`}
+                    accessibilityLabel={
+                      entry.envelope
+                        ? `${entry.name}, variable, gastado ${formatMoney(getEntryActual(entry))} de ${formatMoney(entry.amount)}`
+                        : `${entry.name}, previsto ${formatMoney(entry.amount)}`
+                    }
                     accessibilityState={{ selected: active }}
                     testID={`budget-link-option-${entry.id}`}
                     hitSlop={0}
-                    onPress={() => choose(entry.id, { name: entry.name, plannedAmount: entry.amount })}
+                    onPress={() =>
+                      choose(entry.id, { name: entry.name, plannedAmount: entry.amount, envelope: entry.envelope })
+                    }
                     style={[styles.option, active && { backgroundColor: theme.backgroundSelected }]}>
                     <ThemedText style={styles.optionName}>{entry.name}</ThemedText>
                     <ThemedText type="smallBold" themeColor="textSecondary" style={styles.optionAmount}>
-                      {formatMoney(entry.amount)}
+                      {entry.envelope
+                        ? `${formatMoney(getEntryActual(entry))} de ${formatMoney(entry.amount)}`
+                        : formatMoney(entry.amount)}
                     </ThemedText>
                     {active && <Feather name="check" size={18} color={theme.primary} />}
                   </AnimatedPressable>

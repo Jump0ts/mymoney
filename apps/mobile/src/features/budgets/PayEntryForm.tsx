@@ -19,6 +19,9 @@ interface PayEntryFormProps {
   // Linea que se paga: su nombre encabeza la hoja y el importe previsto es el que se propone.
   entryName: string;
   plannedAmount: string;
+  // Solo en un sobre: lo gastado hasta ahora. La hoja apunta entonces un gasto nuevo (importe vacio) y muestra cuanto
+  // queda del sobre, en vez de proponer el importe previsto.
+  spentAmount?: string;
   // Categoria sugerida (la del ultimo pago de esta misma linea); vacia la primera vez.
   defaultCategoryId?: string;
   isSubmitting: boolean;
@@ -32,12 +35,14 @@ const toInputText = (amount: string) => String(Number(amount)).replace('.', ',')
 export const PayEntryForm = ({
   entryName,
   plannedAmount,
+  spentAmount,
   defaultCategoryId,
   isSubmitting,
   submitError,
   onSubmit,
 }: PayEntryFormProps) => {
   const { data: categories } = useCategories();
+  const isEnvelope = spentAmount !== undefined;
 
   const {
     control,
@@ -45,7 +50,7 @@ export const PayEntryForm = ({
     formState: { errors },
   } = useForm<PayEntryFormValues>({
     resolver: yupResolver(payEntrySchema),
-    defaultValues: { categoryId: defaultCategoryId ?? '', amount: toInputText(plannedAmount) },
+    defaultValues: { categoryId: defaultCategoryId ?? '', amount: isEnvelope ? '' : toInputText(plannedAmount) },
   });
 
   // Solo gastos: la linea de un presupuesto se paga con un gasto.
@@ -60,7 +65,9 @@ export const PayEntryForm = ({
               {entryName}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Previsto {formatMoney(plannedAmount)}
+              {isEnvelope
+                ? `Gastado ${formatMoney(spentAmount)} de ${formatMoney(plannedAmount)}`
+                : `Previsto ${formatMoney(plannedAmount)}`}
             </ThemedText>
           </View>
 
@@ -71,7 +78,8 @@ export const PayEntryForm = ({
               render={({ field }) => (
                 <Input
                   testID="pay-entry-amount"
-                  accessibilityLabel="Importe pagado en euros"
+                  accessibilityLabel={isEnvelope ? 'Importe del gasto en euros' : 'Importe pagado en euros'}
+                  autoFocus={isEnvelope}
                   placeholder="0,00 €"
                   keyboardType="decimal-pad"
                   value={field.value}
@@ -115,7 +123,7 @@ export const PayEntryForm = ({
 
           <Button
             testID="pay-entry-submit"
-            label="Marcar como pagada"
+            label={isEnvelope ? 'Añadir gasto' : 'Marcar como pagada'}
             loading={isSubmitting}
             onPress={handleSubmit(onSubmit)}
           />

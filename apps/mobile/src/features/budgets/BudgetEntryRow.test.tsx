@@ -8,6 +8,8 @@ jest.mock('@/utils/alert', () => ({ notify: jest.fn(), confirmAsync: jest.fn() }
 const fixed = (overrides: Partial<BudgetEntry> = {}): BudgetEntry => ({
   id: 'e1',
   groupId: 'g1',
+  envelope: false,
+  transactions: [],
   itemId: null,
   name: 'Netflix',
   amount: '21.99',
@@ -100,7 +102,7 @@ describe('BudgetEntryRow (enlazada a un gasto de Movimientos)', () => {
       name: 'Luz',
       amount,
       paid: true,
-      transaction: { id: 'tx-1', amount: real, occurredAt: '2026-10-12T10:00:00.000Z' },
+      transactions: [{ id: 'tx-1', amount: real, occurredAt: '2026-10-12T10:00:00.000Z' }],
     });
 
   it('muestra el importe real del gasto y, si difiere, el previsto debajo', () => {
@@ -143,5 +145,56 @@ describe('BudgetEntryRow (enlazada a un gasto de Movimientos)', () => {
     expect(onTogglePaid).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('budget-entry-link-e1')).toBeNull();
     expect(screen.getByTestId('budget-entry-e1').props.accessibilityHint).toBeUndefined();
+  });
+});
+
+describe('BudgetEntryRow (sobre)', () => {
+  const envelope = (overrides: Partial<BudgetEntry> = {}) =>
+    fixed({
+      id: 'super',
+      name: 'Supermercado',
+      amount: '300.00',
+      envelope: true,
+      transactions: [
+        { id: 't1', amount: '45.00', occurredAt: '2026-11-02T10:00:00.000Z' },
+        { id: 't2', amount: '32.50', occurredAt: '2026-11-03T10:00:00.000Z' },
+      ],
+      ...overrides,
+    });
+
+  it('un sobre se pinta con su propia fila (lo gastado de lo previsto), no como un checkbox', () => {
+    render(<BudgetEntryRow entry={envelope()} onTogglePaid={jest.fn()} />);
+
+    const row = screen.getByTestId('budget-entry-super');
+    expect(row.props.accessibilityRole).toBe('button');
+    expect(screen.getByText('77,50 €')).toBeTruthy();
+    expect(screen.getByText('de 300,00 €')).toBeTruthy();
+    expect(screen.getByText('Quedan 222,50 €')).toBeTruthy();
+  });
+
+  it('tocarlo avisa con la linea, igual que el check de una linea normal', () => {
+    const onTogglePaid = jest.fn();
+    const entry = envelope();
+    render(<BudgetEntryRow entry={entry} onTogglePaid={onTogglePaid} />);
+
+    fireEvent.press(screen.getByTestId('budget-entry-super'));
+
+    expect(onTogglePaid).toHaveBeenCalledWith(entry);
+  });
+
+  it('en modo edicion es un boton de editar, como cualquier linea', () => {
+    const onEdit = jest.fn();
+    const entry = envelope();
+    render(<BudgetEntryRow entry={entry} onTogglePaid={jest.fn()} editMode onEdit={onEdit} />);
+
+    expect(screen.getByTestId('budget-entry-super').props.accessibilityLabel).toBe('Editar Supermercado');
+    fireEvent.press(screen.getByTestId('budget-entry-super'));
+    expect(onEdit).toHaveBeenCalledWith(entry);
+  });
+
+  it('una linea normal sigue siendo un checkbox', () => {
+    render(<BudgetEntryRow entry={fixed()} onTogglePaid={jest.fn()} />);
+
+    expect(screen.getByTestId('budget-entry-e1').props.accessibilityRole).toBe('checkbox');
   });
 });
