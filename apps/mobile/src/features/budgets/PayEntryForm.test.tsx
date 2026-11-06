@@ -5,11 +5,19 @@ const mockCategories = [
   { id: 'cat-ocio', name: 'Ocio', icon: 'film', color: '#E67E22', type: 'EXPENSE' },
   { id: 'cat-casa', name: 'Casa', icon: 'home', color: '#3498DB', type: 'EXPENSE' },
   { id: 'cat-nomina', name: 'Nómina', icon: 'briefcase', color: '#1FA971', type: 'INCOME' },
+  { id: 'cat-bizum', name: 'Bizum', icon: 'smartphone', color: '#16A085', type: 'INCOME' },
 ];
 
+// Cambiable por test: las categorias que existen.
+let mockCategoryData: typeof mockCategories | undefined = mockCategories;
+
 jest.mock('@/features/categories/useCategories', () => ({
-  useCategories: () => ({ data: mockCategories }),
+  useCategories: () => ({ data: mockCategoryData }),
 }));
+
+beforeEach(() => {
+  mockCategoryData = mockCategories;
+});
 
 const renderForm = (props: Partial<React.ComponentProps<typeof PayEntryForm>> = {}) => {
   const onSubmit = jest.fn();
@@ -165,5 +173,94 @@ describe('PayEntryForm (sobre)', () => {
     expect(screen.getByTestId('pay-entry-amount').props.value).toBe('21,99');
     expect(screen.getByText('Marcar como pagada')).toBeTruthy();
     expect(screen.queryByText(/Gastado/)).toBeNull();
+  });
+});
+
+describe('PayEntryForm (reembolso)', () => {
+  const renderRefund = (props: Partial<React.ComponentProps<typeof PayEntryForm>> = {}) =>
+    renderForm({ entryName: 'Internet (mitad)', plannedAmount: '20.00', refund: true, ...props });
+
+  it('presenta el reembolso previsto sin signo y propone ese importe', () => {
+    renderRefund();
+
+    expect(screen.getByRole('header', { name: 'Internet (mitad)' })).toBeTruthy();
+    expect(screen.getByText(/Reembolso previsto 20,00/)).toBeTruthy();
+    expect(screen.getByTestId('pay-entry-amount').props.value).toBe('20');
+    expect(screen.getByTestId('pay-entry-amount').props.accessibilityLabel).toBe('Importe recibido en euros');
+  });
+
+  it('ofrece categorias de gasto: el reembolso resta de la del gasto que compensa', () => {
+    renderRefund();
+
+    expect(screen.getByTestId('pay-entry-category-cat-ocio')).toBeTruthy();
+    expect(screen.getByTestId('pay-entry-category-cat-casa')).toBeTruthy();
+    expect(screen.queryByTestId('pay-entry-category-cat-nomina')).toBeNull();
+    expect(screen.queryByTestId('pay-entry-category-cat-bizum')).toBeNull();
+  });
+
+  it('el boton dice "Marcar como cobrada"', () => {
+    renderRefund();
+
+    expect(screen.getByText('Marcar como cobrada')).toBeTruthy();
+    expect(screen.queryByText('Marcar como pagada')).toBeNull();
+  });
+
+  it('con la categoria sugerida llega elegida y confirmar manda categoria e importe', async () => {
+    const { onSubmit } = renderRefund({ defaultCategoryId: 'cat-casa' });
+
+    expect(screen.getByTestId('pay-entry-category-cat-casa').props.accessibilityState.selected).toBe(true);
+    submit();
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toEqual({ categoryId: 'cat-casa', amount: '20' });
+  });
+
+  it('se puede corregir el importe si te devolvieron otra cantidad', async () => {
+    const { onSubmit } = renderRefund({ defaultCategoryId: 'cat-casa' });
+
+    fireEvent.changeText(screen.getByTestId('pay-entry-amount'), '18,50');
+    submit();
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].amount).toBe('18,50');
+  });
+
+  it('sin categoria elegida no deja confirmar', async () => {
+    const { onSubmit } = renderRefund();
+
+    submit();
+
+    expect(await screen.findByText('Elige una categoría')).toBeTruthy();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('sin categorias de gasto lo explica y manda crear una', () => {
+    mockCategoryData = mockCategories.filter((c) => c.type === 'INCOME');
+    renderRefund();
+
+    expect(screen.getByText(/No tienes categorías de gasto: crea una en Categorías para registrar el reembolso/)).toBeTruthy();
+    // El aviso va solo: un grupo de opciones vacio lo leeria el lector de pantalla como "grupo de radio" sin nada.
+    expect(screen.queryByRole('radiogroup')).toBeNull();
+  });
+
+  it('un gasto sin categorias de gasto tambien lo explica', () => {
+    mockCategoryData = mockCategories.filter((c) => c.type === 'INCOME');
+    renderForm();
+
+    expect(screen.getByText(/No tienes categorías de gasto/)).toBeTruthy();
+  });
+
+  it('mientras las categorias cargan no avisa de que faltan', () => {
+    mockCategoryData = undefined;
+    renderRefund();
+
+    expect(screen.queryByText(/No tienes categorías/)).toBeNull();
+  });
+
+  it('un gasto normal sigue sin la marca de reembolso', () => {
+    renderForm();
+
+    expect(screen.getByText('Marcar como pagada')).toBeTruthy();
+    expect(screen.queryByText('Marcar como cobrada')).toBeNull();
   });
 });

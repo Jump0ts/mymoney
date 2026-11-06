@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
+## [0.5.1] — 2026-11-05 — Beta
+
+> Hotfix: a refund (what someone pays you back for a shared expense) now reduces the expense it compensates instead of being left out of *Movimientos* and the overview.
+
+### Fixed
+- **A refund now reduces the expense it pays back.** Some things are paid by one person and split afterwards (half of the internet bill, half of a dinner for two). Ticking a refund line in the budget only set a mark, so the full expense stayed in *Movimientos* and in the overview as if you had paid it all. A **refund is now an expense with a negative amount** in the category of the expense it compensates, so every figure is net: the dinner of 50 € and the 25 € your partner pays you back leave 25 € in *Ocio*, in the monthly bars, in the total spent and in the balance, and the refund is **not** counted as income.
+  - **Ticking a refund line.** An unpaid refund of the current or a past month now opens the same sheet as paying a line, titled **Marcar como cobrada**: it proposes the planned amount (without the minus sign, editable if they paid you back a different amount) and asks for the **expense category** it reduces, which is remembered for that line the next time. Confirming creates the refund, already linked to the line.
+  - **In *Movimientos*.** The form has a third type, **Reembolso** (next to *Gasto* and *Ingreso*): you type a positive amount and it is saved negative. The list shows it with a plus sign and the income colour, in its expense category, and a screen reader reads "Reembolso de …". The *Presupuesto* field lists, for a refund, the refund lines of the month that have none yet (so a Bizum you already registered can be linked to its line) and **"Reembolso nuevo en un grupo"**: it creates, in one go, the refund and its own refund line in that group of the budget, like a new expense does (the group then shows 50 − 25 = 25 € paid). Changing the type of a movement removes the line it was linked to, as they no longer match.
+  - **The budget counts it with its own sign**: the line, the group and the month totals subtract what you got back, as they already did for a refund ticked by hand.
+  - **Charts.** A category or a month with more refunds than expenses ends up negative: the donut has no slice for it and the bar stays at zero instead of overflowing.
+  - API: `POST` and `PATCH /api/transactions` accept a **negative amount for an expense** (never zero, and an income stays positive: `400`). `budgetEntryId` links a refund to a refund line and an expense to an expense line (`400` if the signs do not match; an income links to nothing); a refund line takes one refund, like an expense line takes one expense (the row lock that serialises parallel requests is the same one; a test fires five at once). `budgetGroupId` accepts a refund and then creates a refund line. If the amount of a linked movement changes sign it loses its line. A line with linked movements cannot change between expense and refund. The summary needed no change: it adds up amounts, so the negative ones subtract. No migration.
+  - Without expense categories the sheet says so and points to *Categorías*.
+
 ## [0.5.0] — 2026-11-05 — Beta
 
 > Budget and categories release: envelopes (variable budget lines that take several expenses), any colour for categories and groups, editable categories, and the app's own icon.
@@ -157,6 +170,7 @@ author as a personal tool, and interfaces and data models may still change.
 - Automatic payment detection (Android only), multiple accounts/wallets, and recurring expenses outside the budget.
 - Screenshots and a public demo.
 
+[0.5.1]: https://github.com/Jump0ts/mymoney/releases/tag/v0.5.1-beta
 [0.5.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.5.0-beta
 [0.4.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.4.0-beta
 [0.3.0]: https://github.com/Jump0ts/mymoney/releases/tag/v0.3.0-beta

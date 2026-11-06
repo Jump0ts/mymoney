@@ -5,6 +5,7 @@ import { requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { badRequest, notFound } from "../../utils/errors.js";
 import {
+  INCOME_POSITIVE,
   createTransactionSchema,
   listTransactionsQuerySchema,
   summaryQuerySchema,
@@ -16,6 +17,7 @@ import {
   LINK_EXCLUSIVE,
   LINK_ONLY_EXPENSE,
   assertLinkable,
+  coversEntry,
   createEntryForExpense,
   entryNameFor,
   monthOf,
@@ -175,7 +177,7 @@ transactionsRouter.post(
         });
         linkId = entry.id;
       } else if (linkId) {
-        linkedToEnvelope = (await assertLinkable(db, userId, linkId)).envelope;
+        linkedToEnvelope = (await assertLinkable(db, userId, linkId, body.amount)).envelope;
       }
       const created = await db.transaction.create({
         data: { ...body, userId, budgetEntryId: linkId },
@@ -196,7 +198,9 @@ transactionsRouter.patch(
 
     const existing = await prisma.transaction.findFirst({
       where: { id: req.params.id, userId },
-      include: { budgetEntry: { select: { id: true, fromTransaction: true, groupId: true, year: true, month: true } } },
+      include: {
+        budgetEntry: { select: { id: true, fromTransaction: true, groupId: true, year: true, month: true, amount: true } },
+      },
     });
     if (!existing) throw notFound("Movimiento no encontrado");
 
@@ -206,17 +210,23 @@ transactionsRouter.patch(
     const occurredAt = body.occurredAt ?? existing.occurredAt;
     if (budgetGroupId && requestedLink) throw badRequest(LINK_EXCLUSIVE);
     if (budgetGroupId && type !== "EXPENSE") throw badRequest(LINK_ONLY_EXPENSE);
+    if (type === "INCOME" && amount <= 0) throw badRequest(INCOME_POSITIVE);
 
     const category = await prisma.category.findFirst({
       where: { id: body.categoryId ?? existing.categoryId, userId },
     });
     if (!category) throw notFound("Categoría no encontrada");
 
-    // undefined = no tocar el enlace; null = quitarlo. Un ingreso no puede estar enlazado: si el gasto pasa
-    // a ingreso, pierde el enlace; pedir a la vez un enlace y un ingreso es un error.
+    // undefined = no tocar el enlace; null = quitarlo. Un ingreso no puede estar enlazado: si el gasto pasa a
+    // ingreso, pierde el enlace; pedir a la vez un enlace y un ingreso es un error. Si el importe cambia de signo
+    // (un gasto que pasa a reembolso, o al reves) ya no encaja con su linea y tambien la pierde; un enlace pedido se
+    // valida al guardar.
     let nextLink = requestedLink !== undefined ? requestedLink : existing.budgetEntryId;
     if (nextLink && type !== "EXPENSE") {
       if (requestedLink) throw badRequest(LINK_ONLY_EXPENSE);
+      nextLink = null;
+    }
+    if (nextLink && requestedLink === undefined && existing.budgetEntry && !coversEntry(amount, existing.budgetEntry.amount)) {
       nextLink = null;
     }
 
@@ -245,7 +255,7 @@ transactionsRouter.patch(
         });
         linkId = entry.id;
       } else if (linkId && linkId !== existing.budgetEntryId) {
-        linkedToEnvelope = (await assertLinkable(db, userId, linkId, existing.id)).envelope;
+        linkedToEnvelope = (await assertLinkable(db, userId, linkId, amount, existing.id)).envelope;
       }
 
       await db.transaction.update({

@@ -8,7 +8,7 @@ import { useCreateTransaction } from '@/features/transactions/useTransactions';
 import { ApiError } from '@/lib/api';
 
 // Hoja de "marcar como pagada" de Presupuesto: crea el gasto real de la linea (ya enlazado) con su categoria. En un
-// sobre apunta un gasto mas, sin proponer importe.
+// sobre apunta un gasto mas, sin proponer importe. En un reembolso crea el ingreso que te devuelven.
 const PayEntryScreen = () => {
   const params = useLocalSearchParams<Record<keyof PayEntryParams, string>>();
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -23,15 +23,18 @@ const PayEntryScreen = () => {
   };
 
   const isEnvelope = Boolean(params.envelope);
+  const isRefund = Boolean(params.refund);
 
   return (
     <>
       {/* En un sobre no se "marca como pagada" nada: se apunta un gasto mas. */}
       {isEnvelope && <Stack.Screen options={{ title: 'Añadir gasto' }} />}
+      {isRefund && <Stack.Screen options={{ title: 'Marcar como cobrada' }} />}
       <PayEntryForm
         entryName={params.name}
         plannedAmount={params.amount}
         spentAmount={isEnvelope ? (params.spent ?? '0') : undefined}
+        refund={isRefund}
         defaultCategoryId={params.categoryId}
         isSubmitting={createTransaction.isPending}
         submitError={submitError}

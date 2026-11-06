@@ -34,20 +34,19 @@ describe("POST /api/transactions", () => {
     expect(res.body.transaction.amount).toBe("45.5");
   });
 
-  it("rechaza un importe negativo", async () => {
-    const { token, expenseCategory } = await setup();
+  it("un importe negativo es un reembolso: solo vale para un gasto", async () => {
+    const { token, expenseCategory, incomeCategory } = await setup();
+    const send = (body: object) =>
+      request(app)
+        .post("/api/transactions")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ amount: -10, occurredAt: new Date().toISOString(), ...body });
 
-    const res = await request(app)
-      .post("/api/transactions")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        categoryId: expenseCategory.id,
-        type: "EXPENSE",
-        amount: -10,
-        occurredAt: new Date().toISOString(),
-      });
+    const refund = await send({ categoryId: expenseCategory.id, type: "EXPENSE" });
+    const income = await send({ categoryId: incomeCategory.id, type: "INCOME" });
 
-    expect(res.status).toBe(400);
+    expect(refund.status).toBe(201);
+    expect(income.status).toBe(400);
   });
 });
 

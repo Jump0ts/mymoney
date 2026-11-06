@@ -34,7 +34,10 @@ const fadedOutStyle = { opacity: 0 };
 
 export const TransactionRow = memo(({ transaction, onEdit, onDelete, isDeleting }: TransactionRowProps) => {
   const theme = useTheme();
-  const isExpense = transaction.type === 'EXPENSE';
+  // Un reembolso es un gasto de importe negativo: lo que te devuelven por un gasto. Se ve en positivo y en el color
+  // de los ingresos, pero sigue siendo de su categoria de gasto.
+  const isRefund = transaction.type === 'EXPENSE' && Number(transaction.amount) < 0;
+  const isExpense = transaction.type === 'EXPENSE' && !isRefund;
   const reduceMotion = useReducedMotion();
   const label = transaction.description || transaction.category.name;
   return (
@@ -56,7 +59,7 @@ export const TransactionRow = memo(({ transaction, onEdit, onDelete, isDeleting 
             <View
               testID="transaction-row-budget"
               accessible
-              accessibilityLabel={`Cubre ${transaction.budgetEntry.name} del presupuesto, grupo ${transaction.budgetEntry.group.name}`}
+              accessibilityLabel={`${isRefund ? 'Reembolso de' : 'Cubre'} ${transaction.budgetEntry.name} del presupuesto, grupo ${transaction.budgetEntry.group.name}`}
               style={styles.budgetMeta}>
               <Feather name="link" size={12} color={theme.textSecondary} />
               <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.budgetText}>
@@ -65,9 +68,12 @@ export const TransactionRow = memo(({ transaction, onEdit, onDelete, isDeleting 
             </View>
           )}
         </View>
-        <ThemedText type="smallBold" themeColor={isExpense ? 'expense' : 'income'}>
+        <ThemedText
+          type="smallBold"
+          themeColor={isExpense ? 'expense' : 'income'}
+          accessibilityLabel={isRefund ? `Reembolso de ${formatMoney(String(Math.abs(Number(transaction.amount))))}` : undefined}>
           {isExpense ? '-' : '+'}
-          {formatMoney(transaction.amount)}
+          {formatMoney(isRefund ? String(Math.abs(Number(transaction.amount))) : transaction.amount)}
         </ThemedText>
         <View style={styles.actions}>
           <AnimatedPressable
