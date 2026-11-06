@@ -18,6 +18,30 @@ describe('ThemedText', () => {
     expect(screen.getByText('Subtitulo').props.maxFontSizeMultiplier).toBe(DISPLAY_MAX_FONT_SCALE);
   });
 
+  it('el texto grande lleva tracking negativo y el pequeno no: letras muy separadas se leen sueltas', () => {
+    render(
+      <>
+        <ThemedText type="title">Titulo</ThemedText>
+        <ThemedText type="subtitle">Subtitulo</ThemedText>
+        <ThemedText>Cuerpo</ThemedText>
+        <ThemedText type="small">Pequeno</ThemedText>
+      </>,
+    );
+    const flat = (text: string) => Object.assign({}, ...[screen.getByText(text).props.style].flat(Infinity).filter(Boolean));
+
+    expect(flat('Titulo').letterSpacing).toBeCloseTo(-0.02 * 48);
+    expect(flat('Subtitulo').letterSpacing).toBeCloseTo(-0.02 * 32);
+    expect(flat('Cuerpo').letterSpacing).toBeUndefined();
+    expect(flat('Pequeno').letterSpacing).toBeUndefined();
+  });
+
+  it('el subtitulo lleva un interlineado justo (poco mas que su cuerpo)', () => {
+    render(<ThemedText type="subtitle">Subtitulo</ThemedText>);
+    const style = Object.assign({}, ...[screen.getByText('Subtitulo').props.style].flat(Infinity).filter(Boolean));
+
+    expect(style.lineHeight / style.fontSize).toBeLessThan(1.25);
+  });
+
   it('deja que el texto de cuerpo escale sin limite', () => {
     render(<ThemedText>Cuerpo</ThemedText>);
 

@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { drag } from '@/testing/drag';
 import { ColorPanel } from './ColorPanel';
 
 const layout = (width: number, height: number) => ({ nativeEvent: { layout: { x: 0, y: 0, width, height } } });
-const touch = (x: number, y: number) => ({ nativeEvent: { locationX: x, locationY: y } });
 
 const flat = (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
 const hexInput = () => screen.getByTestId('color-panel-hex');
@@ -94,43 +94,43 @@ describe('ColorPanel', () => {
   });
 
   describe('mover el selector', () => {
-    it('arrastrar por el area cambia el codigo y la vista previa', () => {
+    it('arrastrar por el area cambia el codigo y la vista previa', async () => {
       setup({ initialColor: '#FF0000' });
 
       // Esquina superior derecha: saturacion y brillo maximos con el mismo matiz.
-      fireEvent(screen.getByTestId('color-area'), 'responderGrant', touch(320, 0));
+      await drag('color-area-pan', [[320, 0]]);
       expect(hexInput().props.value).toBe('#FF0000');
 
       // Mitad de la saturacion y del brillo.
-      fireEvent(screen.getByTestId('color-area'), 'responderMove', touch(160, 80));
+      await drag('color-area-pan', [[160, 80]]);
       expect(hexInput().props.value).toBe('#804040');
       expect(previewColor()).toBe('#804040');
     });
 
-    it('mover la tira de matiz cambia el matiz y conserva la saturacion y el brillo', () => {
+    it('mover la tira de matiz cambia el matiz y conserva la saturacion y el brillo', async () => {
       setup({ initialColor: '#FF0000' });
 
       // 1/3 de la tira = 120 grados: del rojo al verde.
-      fireEvent(screen.getByTestId('hue-slider'), 'responderGrant', touch(320 / 3, 10));
+      await drag('hue-slider-pan', [[320 / 3, 10]]);
 
       expect(hexInput().props.value).toBe('#00FF00');
     });
 
-    it('arrastrar quita un error anterior', () => {
+    it('arrastrar quita un error anterior', async () => {
       setup();
       fireEvent.changeText(hexInput(), 'zz');
       fireEvent.press(screen.getByTestId('color-panel-apply'));
       expect(screen.getByText('Escribe un color como #1A2B3C')).toBeTruthy();
 
-      fireEvent(screen.getByTestId('color-area'), 'responderGrant', touch(100, 50));
+      await drag('color-area-pan', [[100, 50]]);
 
       expect(screen.queryByText('Escribe un color como #1A2B3C')).toBeNull();
     });
 
-    it('lo que se arrastra se aplica tal cual', () => {
+    it('lo que se arrastra se aplica tal cual', async () => {
       const { onApply } = setup({ initialColor: '#FF0000' });
 
-      fireEvent(screen.getByTestId('hue-slider'), 'responderGrant', touch(320 / 3, 10));
+      await drag('hue-slider-pan', [[320 / 3, 10]]);
       fireEvent.press(screen.getByTestId('color-panel-apply'));
 
       expect(onApply).toHaveBeenCalledWith('#00FF00');

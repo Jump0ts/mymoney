@@ -2,6 +2,8 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 
+import { Duration, EASE_OUT_CSS } from '@/constants/motion';
+
 // Animamos el propio Pressable (no un View interno envolviendolo) para que
 // estilos relativos al contenedor (flex: 1, anchos en %, como los usan los
 // segmentos de tipo Gasto/Ingreso o la rejilla del calendario) se sigan
@@ -54,8 +56,8 @@ export const AnimatedPressable = ({
 const transitionStyle = {
   transform: [{ scale: 1 }],
   transitionProperty: 'transform' as const,
-  transitionDuration: 120,
-  transitionTimingFunction: 'cubic-bezier(0.23, 1, 0.32, 1)' as const,
+  transitionDuration: Duration.press,
+  transitionTimingFunction: EASE_OUT_CSS,
 };
 
 const noTransitionDuration = { transitionDuration: 0 };

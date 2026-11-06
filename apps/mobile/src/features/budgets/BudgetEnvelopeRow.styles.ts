@@ -12,7 +12,6 @@ export const styles = StyleSheet.create({
   name: { flex: 1, flexShrink: 1, minWidth: 0 },
   amount: { flexShrink: 0 },
   track: { height: 6, borderRadius: Radius.pill, overflow: 'hidden', marginLeft: NAME_INDENT },
-  fill: { height: '100%', borderRadius: Radius.pill },
   bottom: {
     flexDirection: 'row',
     alignItems: 'center',

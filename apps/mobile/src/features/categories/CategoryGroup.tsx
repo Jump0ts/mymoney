@@ -1,9 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import { memo } from 'react';
 import { View } from 'react-native';
-import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
+import { ROW_EXIT, ROW_REFLOW } from '@/constants/motion';
 import { Card } from '@/components/Card';
 import { ThemedText } from '@/components/themed-text';
 import { useLegibleColor } from '@/hooks/use-legible-color';
@@ -24,9 +25,6 @@ interface CategoryGroupProps {
 
 // No es una lista virtualizada (es un .map() dentro de un ScrollView normal),
 // asi que animar la salida de la fila y el reflujo de las demas es seguro.
-const ROW_EXIT = FadeOut.duration(200);
-const ROW_REFLOW = LinearTransition.duration(200);
-
 export const CategoryGroup = memo(({ title, categories, onDelete, onEdit, editingId = null, onDoneEditing }: CategoryGroupProps) => {
   const theme = useTheme();
   const legible = useLegibleColor();

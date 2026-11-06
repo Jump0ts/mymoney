@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { ThemedText } from '@/components/themed-text';
@@ -15,9 +15,8 @@ import { useCategories, useDeleteCategory } from '@/features/categories/useCateg
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { styles } from '@/screens/tabs/categories.styles';
+import { CONTENT_FADE_IN } from '@/constants/motion';
 import { confirmAsync, notify } from '@/utils/alert';
-
-const CONTENT_FADE_IN = FadeIn.duration(200);
 
 const CategoriesScreen = () => {
   const theme = useTheme();

@@ -95,3 +95,20 @@ describe('BudgetLimitBar', () => {
     expect(screen.getByTestId('budget-limit-g1').props.accessibilityLabel).toMatch(/Te pasas.*50,00/);
   });
 });
+
+describe('BudgetLimitBar - relleno', () => {
+  const fillStyle = () =>
+    Object.assign({}, ...[screen.getByTestId('budget-limit-fill-g1').props.style].flat(Infinity).filter(Boolean));
+
+  it('se llena en proporcion a lo gastado del limite', () => {
+    render(<BudgetLimitBar group={group('200.00', ['50.00'])} remainderAvailable={0} />);
+
+    expect(fillStyle().width).toBe('25%');
+  });
+
+  it('se queda en 100% al pasarse', () => {
+    render(<BudgetLimitBar group={group('100.00', ['150.00'])} remainderAvailable={0} />);
+
+    expect(fillStyle().width).toBe('100%');
+  });
+});

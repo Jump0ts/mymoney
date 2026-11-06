@@ -1,5 +1,7 @@
 import { useId } from 'react';
 import { View, type AccessibilityActionEvent } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useDragPosition } from '@/hooks/useDragPosition';
@@ -23,7 +25,15 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 // el matiz elegido. Se pinta con tres capas: el matiz puro, un degradado de blanco (saturacion) y uno de negro (brillo).
 export const ColorArea = ({ hue, saturation, value, onChange, accessibilityLabel = 'Saturación y brillo' }: ColorAreaProps) => {
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const { size, onLayout, responderProps } = useDragPosition((x, y, width, height) => onChange(areaToSv(x, y, width, height)));
+  const { onLayout, gesture, x, y } = useDragPosition({
+    testID: 'color-area-pan',
+    onMove: (px, py, width, height) => onChange(areaToSv(px, py, width, height)),
+    restAt: ({ width, height }) => svToArea(saturation, value, width, height),
+  });
+  // El tirador va por transform (hilo de UI): su posicion sale de los valores compartidos, no del estado de React.
+  const thumbStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.get() - AREA_THUMB / 2 }, { translateY: y.get() - AREA_THUMB / 2 }],
+  }));
 
   const onAccessibilityAction = (event: AccessibilityActionEvent) => {
     switch (event.nativeEvent.actionName) {
@@ -39,47 +49,47 @@ export const ColorArea = ({ hue, saturation, value, onChange, accessibilityLabel
     }
   };
 
-  const { x, y } = svToArea(saturation, value, size.width, size.height);
   const current = hsvToHex({ h: hue, s: saturation, v: value });
 
   return (
-    <View
-      testID="color-area"
-      accessible
-      accessibilityLabel={accessibilityLabel}
-      accessibilityHint="Arrastra para elegir el color. También puedes escribir su código en el campo de debajo."
-      accessibilityActions={[
-        { name: 'moreSaturation', label: 'Más saturación' },
-        { name: 'lessSaturation', label: 'Menos saturación' },
-        { name: 'brighter', label: 'Más brillo' },
-        { name: 'darker', label: 'Menos brillo' },
-      ]}
-      onAccessibilityAction={onAccessibilityAction}
-      onLayout={onLayout}
-      style={styles.area}
-      {...responderProps}>
-      <View pointerEvents="none" style={styles.layers}>
-        <Svg width="100%" height="100%">
-          <Defs>
-            <LinearGradient id={`${id}-sat`} x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor="#FFFFFF" stopOpacity="1" />
-              <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
-            </LinearGradient>
-            <LinearGradient id={`${id}-val`} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#000000" stopOpacity="0" />
-              <Stop offset="1" stopColor="#000000" stopOpacity="1" />
-            </LinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill={hsvToHex({ h: hue, s: 1, v: 1 })} />
-          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}-sat)`} />
-          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}-val)`} />
-        </Svg>
-      </View>
+    <GestureDetector gesture={gesture}>
       <View
-        pointerEvents="none"
-        testID="color-area-thumb"
-        style={[styles.thumb, { left: x - AREA_THUMB / 2, top: y - AREA_THUMB / 2, backgroundColor: current }]}
-      />
-    </View>
+        testID="color-area"
+        accessible
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint="Arrastra para elegir el color. También puedes escribir su código en el campo de debajo."
+        accessibilityActions={[
+          { name: 'moreSaturation', label: 'Más saturación' },
+          { name: 'lessSaturation', label: 'Menos saturación' },
+          { name: 'brighter', label: 'Más brillo' },
+          { name: 'darker', label: 'Menos brillo' },
+        ]}
+        onAccessibilityAction={onAccessibilityAction}
+        onLayout={onLayout}
+        style={styles.area}>
+        <View pointerEvents="none" style={styles.layers}>
+          <Svg width="100%" height="100%">
+            <Defs>
+              <LinearGradient id={`${id}-sat`} x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor="#FFFFFF" stopOpacity="1" />
+                <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+              </LinearGradient>
+              <LinearGradient id={`${id}-val`} x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor="#000000" stopOpacity="0" />
+                <Stop offset="1" stopColor="#000000" stopOpacity="1" />
+              </LinearGradient>
+            </Defs>
+            <Rect x="0" y="0" width="100%" height="100%" fill={hsvToHex({ h: hue, s: 1, v: 1 })} />
+            <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}-sat)`} />
+            <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}-val)`} />
+          </Svg>
+        </View>
+        <Animated.View
+          pointerEvents="none"
+          testID="color-area-thumb"
+          style={[styles.thumb, { backgroundColor: current }, thumbStyle]}
+        />
+      </View>
+    </GestureDetector>
   );
 };

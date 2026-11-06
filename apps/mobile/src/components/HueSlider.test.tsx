@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { drag } from '@/testing/drag';
 import { HueSlider } from './HueSlider';
 
 const layout = (width = 360, height = 44) => ({ nativeEvent: { layout: { x: 0, y: 0, width, height } } });
-const touch = (x: number) => ({ nativeEvent: { locationX: x, locationY: 10 } });
 
 const setup = (hue = 120) => {
   const onChange = jest.fn();
@@ -15,44 +15,64 @@ const setup = (hue = 120) => {
 const flat = (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
 
 describe('HueSlider', () => {
-  it('tocar un punto de la tira da su matiz (0 a la izquierda, 360 a la derecha)', () => {
-    const { onChange, slider } = setup();
+  it('tocar un punto de la tira da su matiz (0 a la izquierda, 360 a la derecha)', async () => {
+    const { onChange } = setup();
 
-    fireEvent(slider, 'responderGrant', touch(0));
-    fireEvent(slider, 'responderGrant', touch(180));
-    fireEvent(slider, 'responderGrant', touch(360));
+    await drag('hue-slider-pan', [[0, 10]]);
+    await drag('hue-slider-pan', [[180, 10]]);
+    await drag('hue-slider-pan', [[360, 10]]);
 
     expect(onChange.mock.calls.map(([hue]) => hue)).toEqual([0, 180, 360]);
   });
 
-  it('arrastrar sigue al dedo y lo que cae fuera se recorta', () => {
-    const { onChange, slider } = setup();
+  it('arrastrar sigue al dedo y lo que cae fuera se recorta', async () => {
+    const { onChange } = setup();
 
-    fireEvent(slider, 'responderGrant', touch(120));
-    fireEvent(slider, 'responderMove', touch(240));
-    fireEvent(slider, 'responderMove', touch(-50));
-    fireEvent(slider, 'responderMove', touch(999));
+    await drag('hue-slider-pan', [[120, 10], [240, 10], [-50, 10], [999, 10]]);
 
     expect(onChange.mock.calls.map(([hue]) => hue)).toEqual([120, 240, 0, 360]);
   });
 
-  it('antes de medirse (ancho 0) no manda nada', () => {
+  it('antes de medirse (ancho 0) no manda nada', async () => {
     const onChange = jest.fn();
     render(<HueSlider hue={0} onChange={onChange} />);
 
-    fireEvent(screen.getByTestId('hue-slider'), 'responderGrant', touch(100));
+    await drag('hue-slider-pan', [[100, 10]]);
 
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it('el tirador esta en la posicion del matiz y lleva su color', () => {
+  it('el tirador esta en la posicion del matiz y lleva su color', async () => {
     setup(180);
 
-    const thumb = flat(screen.getByTestId('hue-slider-thumb').props.style);
-
+    const thumb = screen.getByTestId('hue-slider-thumb');
     // 180 / 360 de 360 px = 180, menos la mitad del tirador (28 / 2).
-    expect(thumb.left).toBeCloseTo(180 - 14);
-    expect(thumb.backgroundColor).toBe('#00FFFF');
+    // El tirador se coloca en un efecto: se espera a que Reanimated lo aplique.
+    await act(async () => {});
+    expect(thumb).toHaveAnimatedStyle({ transform: [{ translateX: 180 - 14 }] });
+    expect(flat(thumb.props.style).backgroundColor).toBe('#00FFFF');
+  });
+
+  it('al arrastrar, el tirador va donde esta el dedo (recortado a la tira) sin esperar al valor', async () => {
+    setup(0);
+
+    await drag('hue-slider-pan', [[90, 10]]);
+    expect(screen.getByTestId('hue-slider-thumb')).toHaveAnimatedStyle({ transform: [{ translateX: 90 - 14 }] });
+
+    await drag('hue-slider-pan', [[999, 10]]);
+    expect(screen.getByTestId('hue-slider-thumb')).toHaveAnimatedStyle({ transform: [{ translateX: 360 - 14 }] });
+  });
+
+  it('si el matiz cambia por otro camino (el campo del codigo) el tirador se recoloca', async () => {
+    const onChange = jest.fn();
+    const { rerender } = render(<HueSlider hue={0} onChange={onChange} />);
+    fireEvent(screen.getByTestId('hue-slider'), 'layout', layout());
+
+    rerender(<HueSlider hue={270} onChange={onChange} />);
+
+    // El tirador se coloca en un efecto: se espera a que Reanimated lo aplique.
+    await act(async () => {});
+    expect(screen.getByTestId('hue-slider-thumb')).toHaveAnimatedStyle({ transform: [{ translateX: 270 - 14 }] });
   });
 
   it('se expone como ajustable, con su valor, para el lector de pantalla', () => {

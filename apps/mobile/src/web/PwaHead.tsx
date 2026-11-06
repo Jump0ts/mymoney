@@ -13,6 +13,7 @@ const PwaHead = () => (
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content={PWA_THEME_COLOR.light} media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content={PWA_THEME_COLOR.dark} media="(prefers-color-scheme: dark)" />
     <meta name="format-detection" content="telephone=no" />

@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows [Kee
 and the project uses [Semantic Versioning](https://semver.org/). Versions before 1.0.0 are **betas**: they are built and tested by a single
 author as a personal tool, and interfaces and data models may still change.
 
+## [Unreleased]
+
+### Added
+- **A haptic confirmation on paying.** Confirming the payment sheet (a paid line, a refund, an expense added to an envelope) vibrates once when the server has accepted it, on iOS and Android (`expo-haptics`, new dependency). It never replaces what is shown on screen and does nothing on the web.
+- **The payment sheet is a native sheet on iOS.** *Marcar como pagada / cobrada* and *Añadir gasto* open as a `formSheet` that rises to 70 % of the screen and can be pulled up to full height or dismissed downwards, instead of a full-screen modal. On Android it stays a normal modal and on the web it looks the same. The long forms (new or edit a movement) are still modals.
+- **Budget bars grow instead of jumping.** The limit bar of a group and the bar of an envelope animate their width (220 ms, strong ease-out) when you add an expense; they appear already in place on first load.
+- `constants/motion.ts`: the app's motion vocabulary (the two easing curves, every duration and the layout animations) in a single place, with a test that no UI animation passes 300 ms.
+
+### Changed
+- **The type selector of a movement** (*Gasto / Ingreso / Reembolso*) uses the same sliding-pill selector as *Movimientos* and *Presupuesto* instead of a hand-made row of buttons.
+- **The overview donut** draws in 300 ms (it used to take 450 ms and redraw from zero on every change of data): each arc is drawn from zero only when it appears and otherwise slides from where it was to its new size.
+- **The loading skeleton** pulses with a Reanimated CSS animation, which also runs off the JS thread on the web, instead of one `Animated` loop per skeleton.
+- **The colour picker follows your finger on the UI thread.** The saturation/brightness square and the hue strip use `Gesture.Pan()` and shared values: the handle no longer waits for React to render on every move, while the colour preview and the hex field still update live. The app is wrapped in `GestureHandlerRootView`, which gestures need to respond.
+- **Large text is tighter.** The title and subtitle get a negative letter spacing (about -0.02 em) and the subtitle a tighter line height (38 instead of 44). Body text is unchanged.
+- The colour picker handles use `boxShadow` instead of the deprecated `shadow*` props (the web warned about them).
+- **The web shell** (`src/web/appShell.ts`, now tested): the viewport adds `interactive-widget=resizes-content` so the Android keyboard resizes the visible area, the page declares `color-scheme: light dark`, and a long press on a button, option or tab no longer selects its label (text content is still selectable).
+
 ## [0.5.1] — 2026-11-05 — Beta
 
 > Hotfix: a refund (what someone pays you back for a shared expense) now reduces the expense it compensates instead of being left out of *Movimientos* and the overview.

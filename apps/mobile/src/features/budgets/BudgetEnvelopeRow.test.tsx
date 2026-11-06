@@ -22,8 +22,7 @@ const envelope = (spent: string[], amount = '300.00'): BudgetEntry => ({
 const labelOf = () => String(screen.getByTestId('budget-entry-super').props.accessibilityLabel).replace(/ /g, ' ');
 
 const barWidth = () => {
-  const bar = screen.getByTestId('budget-envelope-bar-super');
-  const fill = bar.children[0] as unknown as { props: { style: unknown } };
+  const fill = screen.getByTestId('budget-envelope-fill-super');
   return Object.assign({}, ...[fill.props.style].flat(Infinity).filter(Boolean)).width;
 };
 

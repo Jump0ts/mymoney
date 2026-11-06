@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Button } from '@/components/Button';
@@ -35,10 +35,9 @@ import { EditGuardProvider, useEditGuard } from '@/features/budgets/useEditGuard
 import { usePreviewMonth } from '@/features/budgets/usePreviewMonth';
 import { useTheme } from '@/hooks/use-theme';
 import { styles } from '@/screens/tabs/budgets.styles';
+import { CONTENT_FADE_IN } from '@/constants/motion';
 import { notify } from '@/utils/alert';
 import { getCurrentYearMonth } from '@/utils/date';
-
-const CONTENT_FADE_IN = FadeIn.duration(200);
 
 const BudgetsScreen = () => {
   const theme = useTheme();

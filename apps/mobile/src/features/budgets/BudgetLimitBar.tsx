@@ -1,5 +1,6 @@
 import { View } from 'react-native';
 
+import { ProgressFill } from '@/components/ProgressFill';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { formatMoney } from '@/utils/format';
@@ -42,11 +43,10 @@ export const BudgetLimitBar = ({ group, remainderAvailable = 0 }: BudgetLimitBar
         </ThemedText>
       </View>
       <View style={[styles.track, { backgroundColor: theme.backgroundSelected }]}>
-        <View
-          style={[
-            styles.fill,
-            { width: `${status.ratio * 100}%`, backgroundColor: status.isOver ? theme.expense : theme.primary },
-          ]}
+        <ProgressFill
+          testID={`budget-limit-fill-${group.id}`}
+          ratio={status.ratio}
+          color={status.isOver ? theme.expense : theme.primary}
         />
       </View>
     </View>
