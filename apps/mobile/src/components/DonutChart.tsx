@@ -127,7 +127,7 @@ export const DonutChart = ({
             })}
         </G>
       </Svg>
-      <View style={styles.centerLabel} pointerEvents="none">
+      <View testID="donut-center" style={styles.centerLabel}>
         {centerLabel && <ThemedText type="smallBold">{centerLabel}</ThemedText>}
         {centerSubLabel && (
           <ThemedText type="small" themeColor="textSecondary">

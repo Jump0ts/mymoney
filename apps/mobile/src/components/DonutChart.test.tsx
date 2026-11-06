@@ -92,3 +92,17 @@ describe('DonutChart - arcos', () => {
     unmount();
   });
 });
+
+describe('DonutChart - rotulo central', () => {
+  it('no le quita los toques al grafico (lo dice el estilo, no la propiedad obsoleta)', () => {
+    const { unmount } = render(<DonutChart data={data} centerLabel="100,00 €" />);
+
+    const center = screen.getByTestId('donut-center');
+    const style = Object.assign({}, ...[center.props.style].flat(Infinity).filter(Boolean));
+
+    expect(style.pointerEvents).toBe('none');
+    expect(center.props.pointerEvents).toBeUndefined();
+
+    unmount();
+  });
+});

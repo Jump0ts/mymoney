@@ -5,8 +5,10 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // El rotulo del centro va sobre el grafico y no le quita los toques.
   centerLabel: {
     position: 'absolute',
     alignItems: 'center',
+    pointerEvents: 'none',
   },
 });

@@ -178,9 +178,10 @@ export const TransactionForm = ({
               setShowDatePicker((v) => !v);
             }}>
             <Input
+              testID="transaction-date-input"
               editable={false}
               value={formatDate(occurredAt.toISOString())}
-              pointerEvents="none"
+              style={styles.dateInput}
               importantForAccessibility="no"
               accessibilityElementsHidden
             />

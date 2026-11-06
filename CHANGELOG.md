@@ -19,6 +19,7 @@ author as a personal tool, and interfaces and data models may still change.
 - **The colour picker follows your finger on the UI thread.** The saturation/brightness square and the hue strip use `Gesture.Pan()` and shared values: the handle no longer waits for React to render on every move, while the colour preview and the hex field still update live. The app is wrapped in `GestureHandlerRootView`, which gestures need to respond.
 - **Large text is tighter.** The title and subtitle get a negative letter spacing (about -0.02 em) and the subtitle a tighter line height (38 instead of 44). Body text is unchanged.
 - The colour picker handles use `boxShadow` instead of the deprecated `shadow*` props (the web warned about them).
+- **`pointerEvents` moves into `style`.** The donut's centre label, the colour picker's layers and handles, and the date field of the movement form used the deprecated `pointerEvents` prop, which the web reported in the console on every page. They now declare it in their styles, with the same behaviour, and a test fails if a component brings the prop back.
 - **The web shell** (`src/web/appShell.ts`, now tested): the viewport adds `interactive-widget=resizes-content` so the Android keyboard resizes the visible area, the page declares `color-scheme: light dark`, and a long press on a button, option or tab no longer selects its label (text content is still selectable).
 
 ## [0.5.1] — 2026-11-05 — Beta

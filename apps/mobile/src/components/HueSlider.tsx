@@ -50,7 +50,7 @@ export const HueSlider = ({ hue, onChange, accessibilityLabel = 'Tono' }: HueSli
         onAccessibilityAction={onAccessibilityAction}
         onLayout={onLayout}
         style={styles.touchArea}>
-        <View pointerEvents="none" style={styles.track}>
+        <View style={styles.track}>
           <Svg width="100%" height="100%">
             <Defs>
               <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
@@ -63,7 +63,6 @@ export const HueSlider = ({ hue, onChange, accessibilityLabel = 'Tono' }: HueSli
           </Svg>
         </View>
         <Animated.View
-          pointerEvents="none"
           testID="hue-slider-thumb"
           style={[styles.thumb, { backgroundColor: hsvToHex({ h: hue, s: 1, v: 1 }) }, thumbStyle]}
         />

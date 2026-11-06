@@ -67,7 +67,7 @@ export const ColorArea = ({ hue, saturation, value, onChange, accessibilityLabel
         onAccessibilityAction={onAccessibilityAction}
         onLayout={onLayout}
         style={styles.area}>
-        <View pointerEvents="none" style={styles.layers}>
+        <View style={styles.layers}>
           <Svg width="100%" height="100%">
             <Defs>
               <LinearGradient id={`${id}-sat`} x1="0" y1="0" x2="1" y2="0">
@@ -85,7 +85,6 @@ export const ColorArea = ({ hue, saturation, value, onChange, accessibilityLabel
           </Svg>
         </View>
         <Animated.View
-          pointerEvents="none"
           testID="color-area-thumb"
           style={[styles.thumb, { backgroundColor: current }, thumbStyle]}
         />

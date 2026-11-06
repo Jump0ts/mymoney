@@ -138,3 +138,14 @@ describe('ColorArea', () => {
     expect(screen.getByTestId('color-area').props.accessibilityHint).toContain('código');
   });
 });
+
+describe('ColorArea - los hijos no reciben toques', () => {
+  it('el tirador no intercepta los toques de la zona (lo dice el estilo, no la propiedad obsoleta)', () => {
+    setup();
+
+    const style = Object.assign({}, ...[screen.getByTestId('color-area-thumb').props.style].flat(Infinity).filter(Boolean));
+
+    expect(style.pointerEvents).toBe('none');
+    expect(screen.getByTestId('color-area-thumb').props.pointerEvents).toBeUndefined();
+  });
+});

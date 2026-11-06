@@ -101,3 +101,14 @@ describe('HueSlider', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+describe('HueSlider - los hijos no reciben toques', () => {
+  it('el tirador no intercepta los toques de la zona (lo dice el estilo, no la propiedad obsoleta)', () => {
+    setup();
+
+    const thumb = screen.getByTestId('hue-slider-thumb');
+
+    expect(flat(thumb.props.style).pointerEvents).toBe('none');
+    expect(thumb.props.pointerEvents).toBeUndefined();
+  });
+});

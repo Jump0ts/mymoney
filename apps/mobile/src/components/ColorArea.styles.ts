@@ -10,9 +10,20 @@ export const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? ({ touchAction: 'none', cursor: 'crosshair' } as object) : {}),
   },
   // Solo los colores se recortan a las esquinas redondeadas: el tirador se ve entero tambien en el borde.
-  layers: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 14, overflow: 'hidden' },
+  // Los hijos no reciben toques: los recibe la zona entera (el gesto), y asi `event.x/y` son los de la zona.
+  layers: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: 14,
+    overflow: 'hidden',
+    pointerEvents: 'none',
+  },
   thumb: {
     position: 'absolute',
+    pointerEvents: 'none',
     left: 0,
     top: 0,
     width: AREA_THUMB,
