@@ -22,6 +22,9 @@ author as a personal tool, and interfaces and data models may still change.
 - **`pointerEvents` moves into `style`.** The donut's centre label, the colour picker's layers and handles, and the date field of the movement form used the deprecated `pointerEvents` prop, which the web reported in the console on every page. They now declare it in their styles, with the same behaviour, and a test fails if a component brings the prop back.
 - **The web shell** (`src/web/appShell.ts`, now tested): the viewport adds `interactive-widget=resizes-content` so the Android keyboard resizes the visible area, the page declares `color-scheme: light dark`, and a long press on a button, option or tab no longer selects its label (text content is still selectable).
 
+### Fixed
+- **The native app (Expo Go, iOS and Android) compiles again.** `react-native-svg` 15.11.1 imported `buffer` without declaring it and nothing installed it, so the native bundle failed with *Unable to resolve module buffer*. The web and the tests never load that code, so it went unnoticed (production is web only). `react-native-svg` is now at **15.15.4**, the version Expo SDK 57 expects (`npx expo install react-native-svg`), which no longer imports `buffer`; no new dependency was added. A test now walks the sources of `react-native-svg` and fails if any package it imports is not installed. Both native bundles (`expo export --platform ios --platform android`) build, and the overview donut and the colour picker draw the same on the web.
+
 ## [0.5.1] — 2026-11-05 — Beta
 
 > Hotfix: a refund (what someone pays you back for a shared expense) now reduces the expense it compensates instead of being left out of *Movimientos* and the overview.
