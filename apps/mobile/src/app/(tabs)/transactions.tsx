@@ -26,6 +26,7 @@ import { ApiError } from '@/lib/api';
 import { getCurrentYearMonth, getDayRange, getMonthRange } from '@/utils/date';
 import { monthRowStyles, styles } from '@/screens/tabs/transactions.styles';
 import { CONTENT_FADE_IN, ROW_REFLOW } from '@/constants/motion';
+import { useResetWhenChanged } from '@/hooks/useResetWhenChanged';
 import { confirmAsync, notify } from '@/utils/alert';
 
 const CHIP_SCROLL_STEP = 160;
@@ -70,13 +71,12 @@ const TransactionsScreen = () => {
   const visibleCategories = categories?.filter((c) => !type || c.type === type) ?? [];
 
   // Un dia solo tiene sentido dentro del mes que hay seleccionado.
-  useEffect(() => {
-    setSelectedDay(undefined);
-  }, [selectedMonth]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [type, categoryId, debouncedSearch, selectedMonth, selectedDay]);
+  useResetWhenChanged(`${selectedMonth.year}-${selectedMonth.month}`, () => setSelectedDay(undefined));
+  // Cualquier filtro nuevo vuelve a la primera pagina (en el mismo render: no se pide la pagina vieja con el filtro nuevo).
+  useResetWhenChanged(
+    [type, categoryId, debouncedSearch, selectedMonth.year, selectedMonth.month, selectedDay].join('|'),
+    () => setPage(1),
+  );
 
   const getChipScrollNode = () =>
     (chipScrollRef.current as unknown as { getScrollableNode?: () => HTMLElement })?.getScrollableNode?.();

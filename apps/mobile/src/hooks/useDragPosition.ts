@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+
+import { useStableCallback } from './useStableCallback';
 
 export interface DragSize {
   width: number;
@@ -33,8 +35,6 @@ const clamp = (value: number, min: number, max: number) => {
 // Se esparce `onLayout` sobre el View de la zona y se envuelve en un GestureDetector con `gesture`.
 export const useDragPosition = ({ onMove, restAt, testID }: DragPositionOptions) => {
   const [size, setSize] = useState<DragSize>({ width: 0, height: 0 });
-  const sizeRef = useRef(size);
-  const moveRef = useRef(onMove);
   const width = useSharedValue(0);
   const height = useSharedValue(0);
   const x = useSharedValue(0);
@@ -44,14 +44,9 @@ export const useDragPosition = ({ onMove, restAt, testID }: DragPositionOptions)
   const lastX = useSharedValue(-1);
   const lastY = useSharedValue(-1);
 
-  useEffect(() => {
-    moveRef.current = onMove;
-  }, [onMove]);
-
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
       const { width: w, height: h } = event.nativeEvent.layout;
-      sizeRef.current = { width: w, height: h };
       width.set(w);
       height.set(h);
       setSize({ width: w, height: h });
@@ -59,9 +54,8 @@ export const useDragPosition = ({ onMove, restAt, testID }: DragPositionOptions)
     [height, width],
   );
 
-  const report = useCallback((px: number, py: number) => {
-    moveRef.current(px, py, sizeRef.current.width, sizeRef.current.height);
-  }, []);
+  // Identidad fija (el gesto no se vuelve a crear) que llama siempre a la ultima version de `onMove`.
+  const report = useStableCallback(onMove);
 
   const gesture = useMemo(() => {
     const follow = (touchX: number, touchY: number) => {
@@ -75,7 +69,7 @@ export const useDragPosition = ({ onMove, restAt, testID }: DragPositionOptions)
       if (nextX === lastX.get() && nextY === lastY.get()) return;
       lastX.set(nextX);
       lastY.set(nextY);
-      scheduleOnRN(report, nextX, nextY);
+      scheduleOnRN(report, nextX, nextY, width.get(), height.get());
     };
 
     // minDistance(0): agarra al tocar, sin esperar a que el dedo se mueva, como el control de un selector de color.

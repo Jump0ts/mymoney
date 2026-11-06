@@ -1,5 +1,5 @@
 import { yupResolver } from '@hookform/resolvers/yup';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { View } from 'react-native';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
@@ -33,7 +33,6 @@ export const CategoryForm = ({ category, onDone }: CategoryFormProps) => {
   const {
     control,
     handleSubmit,
-    watch,
     formState: { errors },
   } = useForm<CreateCategoryFormValues>({
     resolver: yupResolver(createCategorySchema),
@@ -41,7 +40,7 @@ export const CategoryForm = ({ category, onDone }: CategoryFormProps) => {
       ? { name: category.name, type: category.type, color: category.color, icon: category.icon }
       : { name: '', type: 'EXPENSE', color: ColorPalette[0], icon: 'tag' },
   });
-  const selectedType = watch('type');
+  const selectedType = useWatch({ control, name: 'type' });
 
   const onSubmit = (values: CreateCategoryFormValues) => {
     if (!category) {

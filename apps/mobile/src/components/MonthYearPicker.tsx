@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight, FadeOutLeft, FadeOutRight } from 'react-native-reanimated';
 
@@ -34,12 +34,14 @@ export const MonthYearPicker = ({ year, month, onChange, maxMonthsAhead = 0 }: M
   // El mes puede cambiar por las flechas o pulsando una barra del grafico (Resumen),
   // asi que la direccion se deduce comparando con el ultimo valor visto, no con un
   // simple flag de "se pulso prev/next".
-  const previous = useRef<YearMonth>({ year, month });
-  const direction = compareYearMonth({ year, month }, previous.current) < 0 ? 'backward' : 'forward';
-
-  useEffect(() => {
-    previous.current = { year, month };
-  }, [year, month]);
+  // Se guarda en estado (no en una ref, que no se puede leer al pintar): al cambiar el mes se compara con el anterior en
+  // el propio render y la direccion se queda hasta el siguiente cambio.
+  const [seen, setSeen] = useState<YearMonth>({ year, month });
+  const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
+  if (seen.year !== year || seen.month !== month) {
+    setDirection(compareYearMonth({ year, month }, seen) < 0 ? 'backward' : 'forward');
+    setSeen({ year, month });
+  }
 
   const goTo = (deltaMonths: number) => {
     const target = addMonths({ year, month }, deltaMonths);

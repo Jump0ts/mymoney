@@ -1,6 +1,6 @@
 import { yupResolver } from '@hookform/resolvers/yup';
 import { useMemo, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
@@ -66,7 +66,6 @@ export const TransactionForm = ({
   const {
     control,
     handleSubmit,
-    watch,
     setValue,
     getValues,
     formState: { errors },
@@ -83,14 +82,14 @@ export const TransactionForm = ({
     },
   });
 
-  const type = watch('type');
-  const refund = Boolean(watch('refund'));
+  const type = useWatch({ control, name: 'type' });
+  const refund = Boolean(useWatch({ control, name: 'refund' }));
   // Gasto, ingreso o reembolso (un gasto de importe negativo: lo que te devuelven por un gasto).
   const kind: TransactionKind = type === 'INCOME' ? 'INCOME' : refund ? 'REFUND' : 'EXPENSE';
-  const categoryId = watch('categoryId');
-  const occurredAt = watch('occurredAt');
-  const budgetEntryId = watch('budgetEntryId');
-  const budgetGroupId = watch('budgetGroupId');
+  const categoryId = useWatch({ control, name: 'categoryId' });
+  const occurredAt = useWatch({ control, name: 'occurredAt' });
+  const budgetEntryId = useWatch({ control, name: 'budgetEntryId' });
+  const budgetGroupId = useWatch({ control, name: 'budgetGroupId' });
 
   const visibleCategories = useMemo(
     () => categories?.filter((c) => c.type === type) ?? [],

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
-import { FadeInLeft, FadeInRight } from 'react-native-reanimated';
+import { FadeInLeft, FadeInRight, FadeOutLeft, FadeOutRight } from 'react-native-reanimated';
 import { MonthYearPicker } from './MonthYearPicker';
 import { addMonths, getCurrentYearMonth } from '@/utils/date';
 
@@ -134,5 +134,51 @@ describe('MonthYearPicker', () => {
 
     const label = screen.getByTestId('month-year-label');
     expect(label.props.entering.constructor).toBe(FadeInLeft.duration(200).constructor);
+  });
+
+  it('al retroceder, la salida del label va hacia el mismo lado que la entrada (derecha)', () => {
+    const { rerender } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+
+    rerender(<MonthYearPicker year={2026} month={5} onChange={jest.fn()} />);
+
+    const label = screen.getByTestId('month-year-label');
+    expect(label.props.exiting.constructor).toBe(FadeOutRight.duration(200).constructor);
+  });
+
+  it('al avanzar, la salida va hacia la izquierda', () => {
+    const { rerender } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+
+    rerender(<MonthYearPicker year={2026} month={7} onChange={jest.fn()} />);
+
+    const label = screen.getByTestId('month-year-label');
+    expect(label.props.exiting.constructor).toBe(FadeOutLeft.duration(200).constructor);
+  });
+
+  it('la direccion se mantiene al volver a pintar sin cambiar de mes (no vuelve a "avanzar" por su cuenta)', () => {
+    const { rerender } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+    rerender(<MonthYearPicker year={2026} month={5} onChange={jest.fn()} />);
+
+    rerender(<MonthYearPicker year={2026} month={5} onChange={jest.fn()} maxMonthsAhead={2} />);
+
+    const label = screen.getByTestId('month-year-label');
+    expect(label.props.entering.constructor).toBe(FadeInLeft.duration(200).constructor);
+    expect(label.props.exiting.constructor).toBe(FadeOutRight.duration(200).constructor);
+  });
+
+  it('cada cambio decide su propia direccion: retroceder y luego avanzar', () => {
+    const { rerender } = render(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+    rerender(<MonthYearPicker year={2026} month={5} onChange={jest.fn()} />);
+
+    rerender(<MonthYearPicker year={2026} month={6} onChange={jest.fn()} />);
+
+    expect(screen.getByTestId('month-year-label').props.entering.constructor).toBe(FadeInRight.duration(200).constructor);
+  });
+
+  it('cruzar de año tambien cuenta como retroceder (enero de 2026 a diciembre de 2025)', () => {
+    const { rerender } = render(<MonthYearPicker year={2026} month={1} onChange={jest.fn()} />);
+
+    rerender(<MonthYearPicker year={2025} month={12} onChange={jest.fn()} />);
+
+    expect(screen.getByTestId('month-year-label').props.entering.constructor).toBe(FadeInLeft.duration(200).constructor);
   });
 });

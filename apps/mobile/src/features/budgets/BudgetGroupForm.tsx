@@ -1,6 +1,6 @@
 import { yupResolver } from '@hookform/resolvers/yup';
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Switch, View } from 'react-native';
 
 import { Button } from '@/components/Button';
@@ -34,14 +34,13 @@ export const BudgetGroupForm = ({ defaultValues, submitLabel, onSubmit, onCancel
   const {
     control,
     handleSubmit,
-    watch,
     setValue,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<BudgetGroupFormValues>({
     resolver: yupResolver(budgetGroupSchema),
     defaultValues: defaultValues ?? { name: '', color: ColorPalette[0], limit: '', isRemainder: false },
   });
-  const isRemainder = watch('isRemainder');
+  const isRemainder = useWatch({ control, name: 'isRemainder' });
   useReportDirty(isDirty);
   // Con una peticion en curso no se puede cancelar, borrar ni volver a enviar.
   const busy = isSubmitting || deleting;

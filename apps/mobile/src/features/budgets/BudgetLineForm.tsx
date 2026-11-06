@@ -1,6 +1,6 @@
 import { yupResolver } from '@hookform/resolvers/yup';
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { View } from 'react-native';
 
 import { Button } from '@/components/Button';
@@ -45,14 +45,13 @@ export const BudgetLineForm = ({
   const {
     control,
     handleSubmit,
-    watch,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<BudgetLineFormValues>({
     resolver: yupResolver(budgetLineSchema),
     defaultValues,
   });
-  const scope = watch('scope');
-  const lineType = watch('lineType');
+  const scope = useWatch({ control, name: 'scope' });
+  const lineType = useWatch({ control, name: 'lineType' });
   useReportDirty(isDirty);
   // Con una peticion en curso no se puede cancelar, borrar ni volver a enviar.
   const busy = isSubmitting || deleting;
