@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
-import Animated, { Easing, type SharedValue, useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
 import { ThemedText } from './themed-text';
+import { Duration, EASE_OUT } from '@/constants/motion';
 import { useTheme } from '@/hooks/use-theme';
 import { styles } from './DonutChart.styles';
 
@@ -21,10 +22,12 @@ interface DonutChartProps {
 }
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-const REVEAL_DURATION = 450;
-const REVEAL_EASING = Easing.bezier(0.23, 1, 0.32, 1);
+
+// Trazo de un arco: `drawn` es lo pintado y el resto de la circunferencia, hueco.
+export const arcDash = (drawn: number, circumference: number) => `${drawn} ${Math.max(circumference - drawn, 0)}`;
 
 interface DonutChartArcProps {
+  testID: string;
   center: number;
   radius: number;
   strokeWidth: number;
@@ -32,13 +35,13 @@ interface DonutChartArcProps {
   length: number;
   dashOffset: number;
   circumference: number;
-  progress: SharedValue<number>;
 }
 
-// Cada arco vive en su propio componente porque el numero de slices cambia
-// de un mes a otro: llamar a useAnimatedProps dentro de un .map() violaria
-// las reglas de los hooks (numero de llamadas variable entre renders).
+// Cada arco vive en su propio componente porque el numero de slices cambia de un mes a otro: llamar a
+// useAnimatedProps dentro de un .map() violaria las reglas de los hooks. Cada arco anima su propio largo y su
+// posicion: un arco nuevo se dibuja desde 0 y uno que ya estaba se reajusta desde donde esta, sin reiniciarse.
 const DonutChartArc = ({
+  testID,
   center,
   radius,
   strokeWidth,
@@ -46,21 +49,29 @@ const DonutChartArc = ({
   length,
   dashOffset,
   circumference,
-  progress,
 }: DonutChartArcProps) => {
-  const animatedProps = useAnimatedProps(() => {
-    const drawn = length * progress.get();
-    return { strokeDasharray: `${drawn} ${circumference - drawn}` };
-  });
+  const drawn = useSharedValue(0);
+  const offset = useSharedValue(dashOffset);
+
+  useEffect(() => {
+    drawn.set(withTiming(length, { duration: Duration.chart, easing: EASE_OUT }));
+    // Un arco nuevo ya nace en su sitio: solo se mueve si otro anterior cambia de tamano.
+    if (offset.get() !== dashOffset) offset.set(withTiming(dashOffset, { duration: Duration.chart, easing: EASE_OUT }));
+  }, [length, dashOffset, drawn, offset]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDasharray: arcDash(drawn.get(), circumference),
+    strokeDashoffset: -offset.get(),
+  }));
 
   return (
     <AnimatedCircle
+      testID={testID}
       cx={center}
       cy={center}
       r={radius}
       stroke={color}
       strokeWidth={strokeWidth}
-      strokeDashoffset={-dashOffset}
       strokeLinecap="butt"
       fill="none"
       animatedProps={animatedProps}
@@ -80,17 +91,6 @@ export const DonutChart = ({
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const center = size / 2;
-  const progress = useSharedValue(0);
-
-  // Huella de los datos actuales: distinta cada vez que cambian las categorias
-  // o sus importes (p. ej. al cambiar de mes), igual aunque solo cambie el tema.
-  const dataKey = data.map((slice) => `${slice.label}:${slice.value}`).join('|');
-
-  useEffect(() => {
-    progress.set(0);
-    progress.set(withTiming(1, { duration: REVEAL_DURATION, easing: REVEAL_EASING }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataKey]);
 
   let accumulated = 0;
 
@@ -114,6 +114,7 @@ export const DonutChart = ({
               return (
                 <DonutChartArc
                   key={slice.label}
+                  testID={`donut-arc-${slice.label}`}
                   center={center}
                   radius={radius}
                   strokeWidth={strokeWidth}
@@ -121,13 +122,12 @@ export const DonutChart = ({
                   length={length}
                   dashOffset={dashOffset}
                   circumference={circumference}
-                  progress={progress}
                 />
               );
             })}
         </G>
       </Svg>
-      <View style={styles.centerLabel} pointerEvents="none">
+      <View testID="donut-center" style={styles.centerLabel}>
         {centerLabel && <ThemedText type="smallBold">{centerLabel}</ThemedText>}
         {centerSubLabel && (
           <ThemedText type="small" themeColor="textSecondary">

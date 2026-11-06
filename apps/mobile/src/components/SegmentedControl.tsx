@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AnimatedPressable } from './AnimatedPressable';
 import { ThemedText } from './themed-text';
+import { Duration, EASE_IN_OUT } from '@/constants/motion';
 import { useTheme } from '@/hooks/use-theme';
 import { styles } from './SegmentedControl.styles';
 
 export interface SegmentOption<T extends string | undefined> {
   label: string;
   value: T;
+  testID?: string;
 }
 
 interface SegmentedControlProps<T extends string | undefined> {
@@ -19,10 +21,6 @@ interface SegmentedControlProps<T extends string | undefined> {
   // Nombre del grupo de opciones para el lector de pantalla ("Tipo de línea"...).
   accessibilityLabel?: string;
 }
-
-// Ease-in-out: la pastilla se mueve DENTRO de la pantalla, no entra ni sale de ella.
-const PILL_EASING = Easing.bezier(0.77, 0, 0.175, 1);
-const PILL_DURATION = 220;
 
 export const SegmentedControl = <T extends string | undefined>({
   options,
@@ -50,8 +48,8 @@ export const SegmentedControl = <T extends string | undefined>({
       return;
     }
 
-    x.set(withTiming(layout.x, { duration: PILL_DURATION, easing: PILL_EASING }));
-    width.set(withTiming(layout.width, { duration: PILL_DURATION, easing: PILL_EASING }));
+    x.set(withTiming(layout.x, { duration: Duration.slide, easing: EASE_IN_OUT }));
+    width.set(withTiming(layout.width, { duration: Duration.slide, easing: EASE_IN_OUT }));
   }, [activeIndex, layouts, width, x]);
 
   const pillStyle = useAnimatedStyle(() => ({
@@ -73,6 +71,7 @@ export const SegmentedControl = <T extends string | undefined>({
             accessibilityRole="radio"
             accessibilityLabel={option.label}
             accessibilityState={{ selected: active }}
+            testID={option.testID}
             onLayout={(event: LayoutChangeEvent) => {
               const { x: layoutX, width: layoutWidth } = event.nativeEvent.layout;
               setLayouts((prev) => ({ ...prev, [index]: { x: layoutX, width: layoutWidth } }));

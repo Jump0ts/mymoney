@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Animated, type DimensionValue, type ViewStyle } from 'react-native';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
+import { type DimensionValue, type ViewStyle } from 'react-native';
 
+import { Duration } from '@/constants/motion';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -11,40 +12,30 @@ interface SkeletonProps {
   style?: ViewStyle;
 }
 
+// Latido del skeleton: sube de 0,5 a 1 y vuelve. Es una animacion CSS de Reanimated (como las pulsaciones), asi que
+// corre fuera del hilo de JS tambien en la web, donde el `Animated` de React Native no tiene driver nativo.
+const pulseKeyframes = { from: { opacity: 0.5 }, to: { opacity: 1 } };
+
+const pulseStyle = {
+  animationName: pulseKeyframes,
+  animationDuration: Duration.pulse,
+  animationIterationCount: 'infinite' as const,
+  animationDirection: 'alternate' as const,
+  animationTimingFunction: 'ease-in-out' as const,
+};
+
 export const Skeleton = ({ width = '100%', height = 16, borderRadius = Radius.small, style }: SkeletonProps) => {
   const theme = useTheme();
-  const opacity = useRef(new Animated.Value(0.5)).current;
-
-  useEffect(() => {
-    // Animated (RN core, no Reanimated) no respeta Reducir movimiento por si
-    // solo: se comprueba a mano y, si esta activado, se deja el skeleton
-    // estatico en vez de pulsando en bucle.
-    let loop: Animated.CompositeAnimation | null = null;
-    let cancelled = false;
-
-    AccessibilityInfo.isReduceMotionEnabled().then((reduceMotion) => {
-      if (cancelled || reduceMotion) return;
-      loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.5, duration: 700, useNativeDriver: true }),
-        ]),
-      );
-      loop.start();
-    });
-
-    return () => {
-      cancelled = true;
-      loop?.stop();
-    };
-  }, [opacity]);
+  // Con Reducir movimiento activado se queda quieto en vez de latir en bucle.
+  const reduceMotion = useReducedMotion();
 
   return (
     <Animated.View
       testID="skeleton"
       style={[
-        { width, height, borderRadius, backgroundColor: theme.backgroundSelected, opacity },
+        { width, height, borderRadius, backgroundColor: theme.backgroundSelected, opacity: 0.5 },
         style,
+        !reduceMotion && pulseStyle,
       ]}
     />
   );

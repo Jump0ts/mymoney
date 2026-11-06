@@ -10,9 +10,9 @@ export const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  segmentRow: { flexDirection: 'row', gap: Spacing.two },
-  segment: { flex: 1, paddingVertical: Spacing.three, borderRadius: 14, alignItems: 'center' },
   amountInput: { fontSize: 28, textAlign: 'center' },
+  // El campo de la fecha solo se muestra: el toque lo recibe el boton que lo envuelve y abre el calendario.
+  dateInput: { pointerEvents: 'none' },
   field: { gap: Spacing.two },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   // La CategoryPill visible es pequena; esto solo agranda la zona pulsable

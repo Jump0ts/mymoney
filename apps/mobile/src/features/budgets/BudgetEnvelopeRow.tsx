@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { View } from 'react-native';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
+import { ProgressFill } from '@/components/ProgressFill';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { formatMoney } from '@/utils/format';
@@ -38,8 +39,10 @@ export const BudgetEnvelopeRow = ({ entry, onPress }: BudgetEnvelopeRowProps) =>
         </ThemedText>
       </View>
       <View testID={`budget-envelope-bar-${entry.id}`} style={[styles.track, { backgroundColor: theme.backgroundSelected }]}>
-        <View
-          style={[styles.fill, { width: `${ratio * 100}%`, backgroundColor: isOver ? theme.expense : theme.primary }]}
+        <ProgressFill
+          testID={`budget-envelope-fill-${entry.id}`}
+          ratio={ratio}
+          color={isOver ? theme.expense : theme.primary}
         />
       </View>
       <View style={styles.bottom}>

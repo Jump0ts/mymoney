@@ -1,5 +1,7 @@
 import { useId } from 'react';
 import { View, type AccessibilityActionEvent } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useDragPosition } from '@/hooks/useDragPosition';
@@ -21,46 +23,50 @@ const A11Y_STEP = 10;
 
 export const HueSlider = ({ hue, onChange, accessibilityLabel = 'Tono' }: HueSliderProps) => {
   const gradientId = `hue-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
-  const { size, onLayout, responderProps } = useDragPosition((x, _y, width) => {
-    if (width > 0) onChange(Math.max(0, Math.min(1, x / width)) * 360);
+  const { onLayout, gesture, x } = useDragPosition({
+    testID: 'hue-slider-pan',
+    onMove: (px, _py, width) => {
+      if (width > 0) onChange(Math.max(0, Math.min(1, px / width)) * 360);
+    },
+    restAt: ({ width }) => ({ x: (Math.max(0, Math.min(360, hue)) / 360) * width, y: 0 }),
   });
+  // El tirador va por transform (hilo de UI): su posicion sale del valor compartido, no del estado de React.
+  const thumbStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() - HUE_THUMB / 2 }] }));
 
   const onAccessibilityAction = (event: AccessibilityActionEvent) => {
     const delta = event.nativeEvent.actionName === 'increment' ? A11Y_STEP : event.nativeEvent.actionName === 'decrement' ? -A11Y_STEP : 0;
     if (delta) onChange(Math.max(0, Math.min(360, hue + delta)));
   };
 
-  const thumbLeft = (Math.max(0, Math.min(360, hue)) / 360) * size.width - HUE_THUMB / 2;
-
   return (
-    <View
-      testID="hue-slider"
-      accessible
-      accessibilityRole="adjustable"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityValue={{ min: 0, max: 360, now: Math.round(hue) }}
-      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-      onAccessibilityAction={onAccessibilityAction}
-      onLayout={onLayout}
-      style={styles.touchArea}
-      {...responderProps}>
-      <View pointerEvents="none" style={styles.track}>
-        <Svg width="100%" height="100%">
-          <Defs>
-            <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-              {STOPS.map((stop) => (
-                <Stop key={stop} offset={stop / 360} stopColor={hsvToHex({ h: stop, s: 1, v: 1 })} />
-              ))}
-            </LinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${gradientId})`} />
-        </Svg>
-      </View>
+    <GestureDetector gesture={gesture}>
       <View
-        pointerEvents="none"
-        testID="hue-slider-thumb"
-        style={[styles.thumb, { left: thumbLeft, backgroundColor: hsvToHex({ h: hue, s: 1, v: 1 }) }]}
-      />
-    </View>
+        testID="hue-slider"
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityValue={{ min: 0, max: 360, now: Math.round(hue) }}
+        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+        onAccessibilityAction={onAccessibilityAction}
+        onLayout={onLayout}
+        style={styles.touchArea}>
+        <View style={styles.track}>
+          <Svg width="100%" height="100%">
+            <Defs>
+              <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+                {STOPS.map((stop) => (
+                  <Stop key={stop} offset={stop / 360} stopColor={hsvToHex({ h: stop, s: 1, v: 1 })} />
+                ))}
+              </LinearGradient>
+            </Defs>
+            <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${gradientId})`} />
+          </Svg>
+        </View>
+        <Animated.View
+          testID="hue-slider-thumb"
+          style={[styles.thumb, { backgroundColor: hsvToHex({ h: hue, s: 1, v: 1 }) }, thumbStyle]}
+        />
+      </View>
+    </GestureDetector>
   );
 };

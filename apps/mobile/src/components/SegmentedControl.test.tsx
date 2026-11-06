@@ -50,4 +50,20 @@ describe('SegmentedControl', () => {
 
     expect(screen.getByText('A')).toBeTruthy();
   });
+
+  it('cada opcion puede llevar su testID', () => {
+    render(
+      <SegmentedControl
+        options={[
+          { label: 'Gasto', value: 'EXPENSE', testID: 'type-EXPENSE' },
+          { label: 'Ingreso', value: 'INCOME', testID: 'type-INCOME' },
+        ]}
+        value="EXPENSE"
+        onChange={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('type-EXPENSE')).toBeTruthy();
+    expect(screen.getByTestId('type-INCOME')).toBeTruthy();
+  });
 });

@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn, LinearTransition, useReducedMotion } from 'react-native-reanimated';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { CalendarGrid } from '@/components/CalendarGrid';
@@ -25,15 +25,12 @@ import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 import { getCurrentYearMonth, getDayRange, getMonthRange } from '@/utils/date';
 import { monthRowStyles, styles } from '@/screens/tabs/transactions.styles';
+import { CONTENT_FADE_IN, ROW_REFLOW } from '@/constants/motion';
 import { confirmAsync, notify } from '@/utils/alert';
 
 const CHIP_SCROLL_STEP = 160;
 const SKELETON_ROWS = 5;
 const DELETE_FADE_MS = 180;
-const CONTENT_FADE_IN = FadeIn.duration(200);
-// Cierra el hueco que deja una fila borrada deslizando las demas, sin
-// animar el montaje/desmontaje de cada fila (ver TransactionRow.tsx).
-const ROW_REFLOW = LinearTransition.duration(200);
 
 const TransactionsScreen = () => {
   const theme = useTheme();

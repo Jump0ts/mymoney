@@ -10,10 +10,10 @@ import { CategoryPill } from '@/components/CategoryPill';
 import { FieldError } from '@/components/FieldError';
 import { Input } from '@/components/Input';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { SegmentedControl, type SegmentOption } from '@/components/SegmentedControl';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCategories } from '@/features/categories/useCategories';
-import { useTheme } from '@/hooks/use-theme';
 import { formatDateKey, type YearMonth } from '@/utils/date';
 import { formatDate } from '@/utils/format';
 import { BudgetLinkPicker } from './BudgetLinkPicker';
@@ -22,7 +22,11 @@ import { styles } from './TransactionForm.styles';
 
 type TransactionKind = 'EXPENSE' | 'INCOME' | 'REFUND';
 
-const KIND_LABELS: Record<TransactionKind, string> = { EXPENSE: 'Gasto', INCOME: 'Ingreso', REFUND: 'Reembolso' };
+const KIND_OPTIONS: SegmentOption<TransactionKind>[] = [
+  { label: 'Gasto', value: 'EXPENSE', testID: 'transaction-type-EXPENSE' },
+  { label: 'Ingreso', value: 'INCOME', testID: 'transaction-type-INCOME' },
+  { label: 'Reembolso', value: 'REFUND', testID: 'transaction-type-REFUND' },
+];
 
 interface TransactionFormProps {
   defaultValues?: AddTransactionFormValues;
@@ -48,7 +52,6 @@ export const TransactionForm = ({
   linkedBudgetLabel,
   ownBudgetLineId,
 }: TransactionFormProps) => {
-  const theme = useTheme();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [viewedMonth, setViewedMonth] = useState<YearMonth>(() => {
     const initial = defaultValues?.occurredAt ?? new Date();
@@ -98,34 +101,23 @@ export const TransactionForm = ({
     <ThemedView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View accessibilityRole="radiogroup" style={styles.segmentRow}>
-          {(['EXPENSE', 'INCOME', 'REFUND'] as const).map((option) => {
-            const active = kind === option;
-            return (
-              <AnimatedPressable
-                key={option}
-                accessibilityRole="radio"
-                accessibilityLabel={KIND_LABELS[option]}
-                accessibilityState={{ selected: active }}
-                testID={`transaction-type-${option}`}
-                onPress={() => {
-                  if (option === kind) return;
-                  const nextType = option === 'INCOME' ? 'INCOME' : 'EXPENSE';
-                  // Las categorias de gasto sirven para un gasto y un reembolso; un ingreso tiene las suyas.
-                  if (nextType !== type) setValue('categoryId', '');
-                  setValue('type', nextType);
-                  setValue('refund', option === 'REFUND');
-                  // La linea elegida ya no encaja (un gasto con las de gasto, un reembolso con las de reembolso) y un
-                  // ingreso no cubre ninguna ni sale de un grupo. Un grupo vale para un gasto y para un reembolso.
-                  setValue('budgetEntryId', null);
-                  if (nextType === 'INCOME') setValue('budgetGroupId', null);
-                }}
-                style={[styles.segment, { backgroundColor: active ? theme.primary : theme.backgroundElement }]}>
-                <ThemedText style={{ color: active ? theme.primaryText : theme.text }}>{KIND_LABELS[option]}</ThemedText>
-              </AnimatedPressable>
-            );
-          })}
-        </View>
+        <SegmentedControl
+          accessibilityLabel="Tipo de movimiento"
+          options={KIND_OPTIONS}
+          value={kind}
+          onChange={(option) => {
+            if (option === kind) return;
+            const nextType = option === 'INCOME' ? 'INCOME' : 'EXPENSE';
+            // Las categorias de gasto sirven para un gasto y un reembolso; un ingreso tiene las suyas.
+            if (nextType !== type) setValue('categoryId', '');
+            setValue('type', nextType);
+            setValue('refund', option === 'REFUND');
+            // La linea elegida ya no encaja (un gasto con las de gasto, un reembolso con las de reembolso) y un
+            // ingreso no cubre ninguna ni sale de un grupo. Un grupo vale para un gasto y para un reembolso.
+            setValue('budgetEntryId', null);
+            if (nextType === 'INCOME') setValue('budgetGroupId', null);
+          }}
+        />
         {kind === 'REFUND' && (
           <ThemedText type="small" themeColor="textSecondary">
             Lo que te devuelven por un gasto (la mitad de una cena): resta de su categoría en los resúmenes y no cuenta
@@ -186,9 +178,10 @@ export const TransactionForm = ({
               setShowDatePicker((v) => !v);
             }}>
             <Input
+              testID="transaction-date-input"
               editable={false}
               value={formatDate(occurredAt.toISOString())}
-              pointerEvents="none"
+              style={styles.dateInput}
               importantForAccessibility="no"
               accessibilityElementsHidden
             />

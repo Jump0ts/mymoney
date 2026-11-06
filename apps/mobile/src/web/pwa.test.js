@@ -69,6 +69,10 @@ describe('PwaHead', () => {
     expect(html).toContain(`content="${Colors.dark.background}" media="(prefers-color-scheme: dark)"`);
   });
 
+  it('avisa de que la app tiene tema claro y oscuro (controles y barras de desplazamiento del sistema)', () => {
+    expect(html).toContain('name="color-scheme" content="light dark"');
+  });
+
   it('mantiene sus colores en sincronia con el tema', () => {
     expect(PWA_THEME_COLOR).toEqual({ light: Colors.light.background, dark: Colors.dark.background });
   });

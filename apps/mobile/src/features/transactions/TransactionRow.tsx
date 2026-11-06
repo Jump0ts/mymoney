@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
+import { Duration, EASE_OUT_CSS } from '@/constants/motion';
 import { Card } from '@/components/Card';
 import { CategoryPill } from '@/components/CategoryPill';
 import { ThemedText } from '@/components/themed-text';
@@ -27,7 +28,8 @@ interface TransactionRowProps {
 const fadeStyle = {
   opacity: 1,
   transitionProperty: 'opacity' as const,
-  transitionDuration: 200,
+  transitionDuration: Duration.content,
+  transitionTimingFunction: EASE_OUT_CSS,
 };
 const noTransitionDuration = { transitionDuration: 0 };
 const fadedOutStyle = { opacity: 0 };

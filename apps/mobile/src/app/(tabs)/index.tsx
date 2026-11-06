@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Card } from '@/components/Card';
@@ -15,6 +15,7 @@ import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { Skeleton } from '@/components/Skeleton';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { CONTENT_FADE_IN } from '@/constants/motion';
 import { useAuthStore } from '@/features/auth/auth.store';
 import { toExpenseSlices } from '@/features/transactions/transactions.utils';
 import { useSummary } from '@/features/transactions/useTransactions';
@@ -23,10 +24,6 @@ import { useTheme } from '@/hooks/use-theme';
 import { getCurrentYearMonth, getMonthRange } from '@/utils/date';
 import { formatMoney } from '@/utils/format';
 import { styles } from '@/screens/tabs/index.styles';
-
-// Constructor de la animacion fuera del componente: reutilizarlo evita
-// reconstruirlo en cada render (ver skill animate-expo, "List entrances").
-const CONTENT_FADE_IN = FadeIn.duration(200);
 
 const DashboardScreen = () => {
   const theme = useTheme();

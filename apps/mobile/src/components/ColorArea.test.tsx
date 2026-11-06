@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { drag } from '@/testing/drag';
 import { ColorArea } from './ColorArea';
 
 const layout = (width = 200, height = 100) => ({ nativeEvent: { layout: { x: 0, y: 0, width, height } } });
-const touch = (x: number, y: number) => ({ nativeEvent: { locationX: x, locationY: y } });
 
 const setup = (props: Partial<React.ComponentProps<typeof ColorArea>> = {}) => {
   const onChange = jest.fn();
@@ -12,52 +12,97 @@ const setup = (props: Partial<React.ComponentProps<typeof ColorArea>> = {}) => {
 };
 
 describe('ColorArea', () => {
-  it('tocar un punto da su saturacion (hacia la derecha) y su brillo (hacia arriba)', () => {
-    const { onChange, area } = setup();
+  it('tocar un punto da su saturacion (hacia la derecha) y su brillo (hacia arriba)', async () => {
+    const { onChange } = setup();
 
-    fireEvent(area, 'responderGrant', touch(50, 20));
+    await drag('color-area-pan', [[50, 20]]);
 
     expect(onChange).toHaveBeenLastCalledWith({ s: 0.25, v: 0.8 });
   });
 
-  it('arrastrar sigue al dedo', () => {
-    const { onChange, area } = setup();
+  it('arrastrar sigue al dedo', async () => {
+    const { onChange } = setup();
 
-    fireEvent(area, 'responderGrant', touch(10, 90));
-    fireEvent(area, 'responderMove', touch(150, 30));
+    await drag('color-area-pan', [[10, 90], [150, 30]]);
 
     expect(onChange).toHaveBeenNthCalledWith(1, { s: 0.05, v: expect.closeTo(0.1) });
     expect(onChange).toHaveBeenNthCalledWith(2, { s: 0.75, v: 0.7 });
   });
 
-  it('las esquinas son los extremos y lo que cae fuera se recorta', () => {
-    const { onChange, area } = setup();
+  it('las esquinas son los extremos y lo que cae fuera se recorta', async () => {
+    const { onChange } = setup();
 
-    fireEvent(area, 'responderMove', touch(200, 0));
+    await drag('color-area-pan', [[200, 0]]);
     expect(onChange).toHaveBeenLastCalledWith({ s: 1, v: 1 });
 
-    fireEvent(area, 'responderMove', touch(-30, 400));
+    await drag('color-area-pan', [[-30, 400]]);
     expect(onChange).toHaveBeenLastCalledWith({ s: 0, v: 0 });
   });
 
-  it('antes de medirse no hace nada raro (tamano 0)', () => {
+  it('antes de medirse no hace nada raro (tamano 0)', async () => {
     const onChange = jest.fn();
     render(<ColorArea hue={0} saturation={0} value={0} onChange={onChange} />);
 
-    fireEvent(screen.getByTestId('color-area'), 'responderGrant', touch(10, 10));
+    await drag('color-area-pan', [[10, 10]]);
 
     expect(onChange).toHaveBeenLastCalledWith({ s: 0, v: 0 });
   });
 
-  it('el tirador esta donde dicen la saturacion y el brillo', () => {
-    setup({ saturation: 0.25, value: 0.8 });
+  it('el tirador esta donde dicen la saturacion y el brillo', async () => {
+    setup({ saturation: 0.25, value: 0.75 });
 
-    const style = screen.getByTestId('color-area-thumb').props.style;
-    const flat = Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
+    // x = 0.25 * 200, y = (1 - 0.75) * 100, menos la mitad del tirador (28 / 2).
+    // El tirador se coloca en un efecto: Reanimated lo aplica en el siguiente frame, asi que se espera.
+    await waitFor(() =>
+      expect(screen.getByTestId('color-area-thumb')).toHaveAnimatedStyle({
+        transform: [{ translateX: 50 - 14 }, { translateY: 25 - 14 }],
+      }),
+    );
+  });
 
-    // x = 0.25 * 200, y = (1 - 0.8) * 100, menos la mitad del tirador (28 / 2).
-    expect(flat.left).toBeCloseTo(50 - 14);
-    expect(flat.top).toBeCloseTo(20 - 14);
+  it('al arrastrar, el tirador va donde esta el dedo (recortado a los bordes) sin esperar al valor', async () => {
+    setup({ saturation: 0, value: 0 });
+
+    await drag('color-area-pan', [[120, 40]]);
+    expect(screen.getByTestId('color-area-thumb')).toHaveAnimatedStyle({
+      transform: [{ translateX: 120 - 14 }, { translateY: 40 - 14 }],
+    });
+
+    await drag('color-area-pan', [[999, -50]]);
+    expect(screen.getByTestId('color-area-thumb')).toHaveAnimatedStyle({
+      transform: [{ translateX: 200 - 14 }, { translateY: 0 - 14 }],
+    });
+  });
+
+  it('si el valor cambia por otro camino (el campo del codigo) el tirador se recoloca', async () => {
+    const onChange = jest.fn();
+    const { rerender } = render(<ColorArea hue={240} saturation={0.5} value={0.5} onChange={onChange} />);
+    fireEvent(screen.getByTestId('color-area'), 'layout', layout());
+
+    rerender(<ColorArea hue={240} saturation={1} value={1} onChange={onChange} />);
+
+    // El tirador se coloca en un efecto: se espera a que Reanimated lo aplique.
+    await act(async () => {});
+    expect(screen.getByTestId('color-area-thumb')).toHaveAnimatedStyle({
+      transform: [{ translateX: 200 - 14 }, { translateY: 0 - 14 }],
+    });
+  });
+
+  it('ignora una coordenada que no es un numero en vez de pintar un color negro', async () => {
+    const { onChange } = setup();
+
+    await drag('color-area-pan', [[Number.NaN, 20]]);
+    await drag('color-area-pan', [[50, Number.NaN]]);
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('no avisa dos veces de la misma posicion', async () => {
+    const { onChange } = setup();
+
+    await drag('color-area-pan', [[50, 20], [50, 20], [60, 20]]);
+
+    expect(onChange).toHaveBeenCalledTimes(2);
   });
 
   it('los lectores de pantalla pueden mover saturacion y brillo con acciones', () => {
@@ -91,5 +136,16 @@ describe('ColorArea', () => {
 
     expect(screen.getByLabelText('Saturación y brillo')).toBeTruthy();
     expect(screen.getByTestId('color-area').props.accessibilityHint).toContain('código');
+  });
+});
+
+describe('ColorArea - los hijos no reciben toques', () => {
+  it('el tirador no intercepta los toques de la zona (lo dice el estilo, no la propiedad obsoleta)', () => {
+    setup();
+
+    const style = Object.assign({}, ...[screen.getByTestId('color-area-thumb').props.style].flat(Infinity).filter(Boolean));
+
+    expect(style.pointerEvents).toBe('none');
+    expect(screen.getByTestId('color-area-thumb').props.pointerEvents).toBeUndefined();
   });
 });

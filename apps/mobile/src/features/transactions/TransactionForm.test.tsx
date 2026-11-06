@@ -444,6 +444,17 @@ describe('TransactionForm - enlace con el presupuesto', () => {
     expect(submittedValues(onSubmit)).toMatchObject({ type: 'INCOME', refund: false, budgetEntryId: null, categoryId: 'cat-inc-1' });
   });
 
+  it('el campo de la fecha solo se muestra: el toque lo recibe el boton que lo envuelve', () => {
+    renderForm();
+
+    const input = screen.getByTestId('transaction-date-input', { hidden: true });
+    const style = Object.assign({}, ...[input.props.style].flat(Infinity).filter(Boolean));
+
+    expect(style.pointerEvents).toBe('none');
+    expect(input.props.pointerEvents).toBeUndefined();
+    expect(input.props.editable).toBe(false);
+  });
+
   it('consulta el presupuesto del mes del gasto', () => {
     renderForm();
 

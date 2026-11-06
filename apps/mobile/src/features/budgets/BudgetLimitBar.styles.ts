@@ -11,5 +11,4 @@ export const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   track: { height: 8, borderRadius: Radius.pill, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: Radius.pill },
 });
