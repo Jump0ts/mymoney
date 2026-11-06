@@ -19,8 +19,12 @@ const roundMoney = (value: number) => Math.round(value * 100) / 100;
 // Una linea esta enlazada si tiene algun gasto de Movimientos asociado.
 export const isEntryLinked = (entry: BudgetEntry): boolean => entry.transactions.length > 0;
 
-// Lo "pagado" de una linea es el importe real de sus gastos enlazados (uno, o la suma de los de un sobre) o, si se
-// marco a mano, su importe previsto. Un sobre sin gastos no ha gastado nada.
+// Un reembolso es una linea de importe negativo: lo que te devuelve otra persona (la mitad de internet).
+export const isRefundEntry = (entry: BudgetEntry): boolean => Number(entry.amount) < 0;
+
+// Lo "pagado" de una linea es el importe real de sus movimientos enlazados (uno, o la suma de los de un sobre) o, si se
+// marco a mano, su importe previsto. Un sobre sin gastos no ha gastado nada. Un reembolso se cubre con un gasto de
+// importe negativo, asi que suma con el mismo signo que su linea.
 export const getEntryActual = (entry: BudgetEntry): number => {
   if (entry.transactions.length > 0) {
     return roundMoney(entry.transactions.reduce((sum, expense) => sum + Number(expense.amount), 0));
@@ -175,15 +179,17 @@ export const canAddExpenseIn = (target: YearMonth, now: YearMonth = getCurrentYe
 export const expenseDateFor = (target: YearMonth, now: YearMonth = getCurrentYearMonth()): string | undefined =>
   compareYearMonth(target, now) >= 0 ? undefined : formatDateKey(new Date(target.year, target.month, 0, 12));
 
-// Marcar como pagada una linea sin enlazar de un mes actual o pasado registra el pago (crea el gasto). No aplica a un
-// mes futuro (aun no se ha pagado nada), a un reembolso (no es un gasto), a lo que ya esta pagado (ahi solo se
-// desmarca) ni a un sobre (ahi se apuntan gastos, no se marca).
+// Marcar como pagada una linea sin enlazar de un mes actual o pasado registra el pago: crea el gasto, o el reembolso
+// (un gasto de importe negativo) si la linea lo es: el dinero que te devuelven tambien tiene que verse en Movimientos
+// y restar de su categoria. No aplica a un mes futuro (aun
+// no se ha pagado nada), a lo que ya esta pagado (ahi solo se desmarca) ni a un sobre (ahi se apuntan gastos, no se
+// marca).
 export const shouldRegisterPayment = (
   entry: BudgetEntry,
   target: YearMonth,
   now: YearMonth = getCurrentYearMonth(),
 ): boolean =>
-  !entry.envelope && !entry.paid && !isEntryLinked(entry) && Number(entry.amount) > 0 && canAddExpenseIn(target, now);
+  !entry.envelope && !entry.paid && !isEntryLinked(entry) && canAddExpenseIn(target, now);
 
 // Tocar un sobre de un mes actual o pasado apunta un gasto nuevo en el. En un mes futuro aun no se ha gastado nada.
 export const shouldAddToEnvelope = (
@@ -204,6 +210,9 @@ export type PayEntryParams = {
   // `amount` es lo previsto para todo el sobre.
   envelope?: string;
   spent?: string;
+  // Solo en un reembolso: '1'. La hoja registra entonces un gasto de importe negativo, y `amount` viaja sin signo (lo
+  // que te devuelven).
+  refund?: string;
 };
 
 export const payEntryParams = (
@@ -215,22 +224,24 @@ export const payEntryParams = (
   return {
     entryId: entry.id,
     name: entry.name,
-    amount: entry.amount,
+    amount: isRefundEntry(entry) ? entry.amount.replace(/^-/, '') : entry.amount,
     ...(entry.suggestedCategoryId ? { categoryId: entry.suggestedCategoryId } : {}),
     ...(date ? { date } : {}),
     ...(entry.envelope ? { envelope: '1', spent: String(getEntryActual(entry)) } : {}),
+    ...(isRefundEntry(entry) ? { refund: '1' } : {}),
   };
 };
 
-// El gasto que crea la hoja de pago: enlazado a la linea, con su nombre como descripcion y la fecha de hoy (o el
-// ultimo dia del mes si la linea es de un mes pasado).
+// El movimiento que crea la hoja de pago: un gasto o, si la linea es un reembolso, un gasto de importe negativo. Va
+// enlazado a la linea, con su nombre como descripcion y la fecha de hoy (o el ultimo dia del mes si la linea es de un
+// mes pasado).
 export const toPaymentInput = (
-  params: Pick<PayEntryParams, 'entryId' | 'name' | 'date'>,
+  params: Pick<PayEntryParams, 'entryId' | 'name' | 'date' | 'refund'>,
   values: { categoryId: string; amount: string },
 ): TransactionInput => ({
   type: 'EXPENSE',
   categoryId: values.categoryId,
-  amount: parseAmountInput(values.amount) ?? 0,
+  amount: (parseAmountInput(values.amount) ?? 0) * (params.refund ? -1 : 1),
   description: params.name,
   occurredAt: ((params.date && parseDateKey(params.date)) || new Date()).toISOString(),
   budgetEntryId: params.entryId,
